@@ -28,7 +28,9 @@ if [[ ! -f ${ros_setup} ]]; then
 fi
 
 # shellcheck disable=SC1090
+set +u  # ROS setup.bash references optional variables before defining them.
 source "${ros_setup}"
+set -u
 cd "${workspace_dir}"
 
 "${workspace_dir}/scripts/check-dependencies.sh"

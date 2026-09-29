@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(pcd2pgm)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -23,7 +23,6 @@ find_package(pcl_conversions REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(parameter_server REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io filters)
 
 add_executable(map_asset_processor src/map_asset_processor.cpp)
@@ -31,26 +30,16 @@ target_include_directories(map_asset_processor PRIVATE ${PCL_INCLUDE_DIRS})
 target_link_libraries(map_asset_processor ${PCL_LIBRARIES})
 install(TARGETS map_asset_processor DESTINATION lib/${PROJECT_NAME})
 
-find_path(MYSQLCPPCONN_INCLUDE_DIR
-  NAMES mysql_driver.h
-  PATH_SUFFIXES jdbc mysql-cppconn/jdbc
-  REQUIRED)
-find_library(MYSQLCPPCONN_LIBRARY NAMES mysqlcppconn REQUIRED)
-
 ament_auto_add_library(${PROJECT_NAME} SHARED src/pcd2pgm.cpp)
-target_include_directories(${PROJECT_NAME} PRIVATE
-  include
-  ${MYSQLCPPCONN_INCLUDE_DIR}
-)
+target_include_directories(${PROJECT_NAME} PRIVATE include)
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp rclcpp_components rclcpp_action
   nav_msgs nav2_msgs sensor_msgs visualization_msgs geometry_msgs
   tf2 tf2_ros tf2_geometry_msgs cv_bridge
-  pcl_ros pcl_conversions std_srvs std_msgs parameter_server
+  pcl_ros pcl_conversions std_srvs std_msgs
 )
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
-  ${MYSQLCPPCONN_LIBRARY}
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}

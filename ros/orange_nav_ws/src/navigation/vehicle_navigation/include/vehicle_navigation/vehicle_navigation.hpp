@@ -45,7 +45,7 @@ private:
     nav_msgs::msg::Odometry::SharedPtr odometry_;
     bool goal_braking_ = false;
     orange_nav::SpinModeGate spin_mode_gate_;
-    bool stoppedFeedback() const;
+    bool stoppedFeedback();
     static constexpr std::size_t MAX_PATH_POINTS = 1000;
     static constexpr std::size_t PATH_POINT_FIELDS = 9;
 

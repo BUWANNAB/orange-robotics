@@ -372,7 +372,7 @@ TrackedVehicleNavigation::VehicleControl TrackedVehicleNavigation::RegulatedPure
     return ctrl;
 }
 
-bool TrackedVehicleNavigation::stoppedFeedback() const {
+bool TrackedVehicleNavigation::stoppedFeedback() {
     if (!odometry_) return false;
     const auto age = (get_clock()->now() - rclcpp::Time(odometry_->header.stamp)).seconds();
     const auto &v = odometry_->twist.twist;

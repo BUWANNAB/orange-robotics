@@ -18,7 +18,6 @@
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include "std_msgs/msg/string.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-// #include "parameter_server/srv/get_parameters.hpp"
 
 namespace pcd2pgm
 {
@@ -36,13 +35,6 @@ protected:
   // 随机数生成器
   std::random_device rd_;
   std::mt19937 gen_;  // 使用 Mersenne Twister 生成器
-
-  // 参数回调函数
-  rcl_interfaces::msg::SetParametersResult onSetParameters(const std::vector<rclcpp::Parameter>& parameters);
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameters_callback_handle_;
-
-// 参数客户端
-  // rclcpp::Client<parameter_server::srv::GetParameters>::SharedPtr param_client_;
 
   // 启动信号发布器
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr true_callback_pub_;
@@ -85,7 +77,6 @@ private:
   void getParameters();
 
   // 初始化方法
-  void initializeParameterClient();
   void initializeSubscribers();
 
   // 辅助方法

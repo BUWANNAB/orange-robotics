@@ -7,7 +7,6 @@
 #include <iostream>
 #include <algorithm>
 #include <std_msgs/msg/int32.hpp>
-#include <thread>
 #include <fstream>
 #include <string>
 #include <chrono>
@@ -65,7 +64,7 @@ Pcd2PgmNode::Pcd2PgmNode(const rclcpp::NodeOptions & options) : Node("pcd2pgm", 
     // 首先加载默认参数作为后备
   loadDefaultParameters();
   
-  // 然后尝试从参数服务器获取参数
+  // 从节点自身的 ROS 2 参数覆盖默认值。
   declareParameters();
   getParameters();
 
@@ -100,51 +99,11 @@ Pcd2PgmNode::Pcd2PgmNode(const rclcpp::NodeOptions & options) : Node("pcd2pgm", 
 map_publisher_ = create_publisher<nav_msgs::msg::OccupancyGrid>(map_topic_name_, map_qos);
   pcd_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>("pcd_cloud", 10);
 
-  // 初始化参数服务客户端
-  // initializeParameterClient();
-
   // 初始化订阅器
   initializeSubscribers();
     
 RCLCPP_INFO(rclcpp::get_logger("pcd2pgm"), "节点已初始化，等待/plan_start信号加载PCD文件");
 }
-
-// void Pcd2PgmNode::initializeParameterClient()
-// {
-//     try {
-//         param_client_ = create_client<parameter_server::srv::GetParameters>("get_parameters");
-//         if (!param_client_) {
-//             RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "创建参数服务客户端失败，将使用本地参数");
-//             return;
-//         }
-        
-//         // 使用异步方式检查服务可用性，避免阻塞
-//         std::thread([this]() {
-//             if (!param_client_->wait_for_service(std::chrono::seconds(3))) {
-//                 RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "参数服务等待超时，将使用本地参数");
-                
-//                 // 检查服务是否存在
-//                 try {
-//                     auto services = get_node_graph_interface()->get_service_names_and_types();
-//                     bool service_exists = services.find("/get_parameters") != services.end();
-                    
-//                     if (service_exists) {
-//                         RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "参数服务存在但无响应");
-//                     } else {
-//                         RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "参数服务节点不存在");
-//                     }
-//                 } catch (const std::exception& e) {
-//                     RCLCPP_ERROR(rclcpp::get_logger("pcd2pgm"), "检查服务时发生异常: %s", e.what());
-//                 }
-//             } else {
-//                 RCLCPP_INFO(rclcpp::get_logger("pcd2pgm"), "参数服务可用");
-//             }
-//         }).detach();
-        
-//     } catch (const std::exception& e) {
-//         RCLCPP_ERROR(rclcpp::get_logger("pcd2pgm"), "初始化参数客户端时发生异常: %s", e.what());
-//     }
-// }
 
 void Pcd2PgmNode::initializeSubscribers()
 {
@@ -177,44 +136,6 @@ void Pcd2PgmNode::initializeSubscribers()
         "/map_folder", 10, std::bind(&Pcd2PgmNode::mapFolderCallback, this, std::placeholders::_1));
     RCLCPP_INFO(rclcpp::get_logger("pcd2pgm"), "已初始化/map_folder订阅器");
 }
-
-// rcl_interfaces::msg::SetParametersResult 
-// Pcd2PgmNode::onSetParameters(const std::vector<rclcpp::Parameter>& parameters) 
-// {
-//     rcl_interfaces::msg::SetParametersResult result;
-//     result.successful = true;
-//     result.reason = "Success";
-
-//     // 如果参数服务不可用，直接返回成功（使用本地参数）
-//     if (!param_client_ || !param_client_->wait_for_service(std::chrono::seconds(1))) {
-//         RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "参数服务不可用，跳过远程参数获取");
-//         return result;
-//     }
-
-//     // 原有的参数服务调用逻辑（可选执行，不影响主要功能）
-//     if (parameters.empty()) {
-//         // 异步调用参数服务，但不阻塞主流程
-//         std::thread([this]() {
-//             try {
-//                 auto request = std::make_shared<parameter_server::srv::GetParameters::Request>();
-//                 auto future = param_client_->async_send_request(request);
-//                 auto status = future.wait_for(std::chrono::seconds(2));
-                
-//                 if (status == std::future_status::ready) {
-//                     auto response = future.get();
-//                     RCLCPP_DEBUG(rclcpp::get_logger("pcd2pgm"), "成功从参数服务获取更新");
-//                     // 可选：在这里更新参数
-//                 } else {
-//                     RCLCPP_DEBUG(rclcpp::get_logger("pcd2pgm"), "参数服务响应超时，继续使用当前参数");
-//                 }
-//             } catch (const std::exception& e) {
-//                 RCLCPP_DEBUG(rclcpp::get_logger("pcd2pgm"), "参数服务调用异常: %s", e.what());
-//             }
-//         }).detach();
-//     }
-
-//     return result;
-// }
 
 void Pcd2PgmNode::loadDefaultParameters()
 {
@@ -383,13 +304,6 @@ void Pcd2PgmNode::planStartCallback(const std_msgs::msg::Int32::SharedPtr msg)
 if (!parameters_loaded_) {
             loadDefaultParameters();
         }
-        
-        // 修复：避免在服务不可用时调用onSetParameters
-        // if (param_client_ && param_client_->wait_for_service(std::chrono::seconds(1))) {
-        //     onSetParameters(std::vector<rclcpp::Parameter>());
-        // } else {
-        //     RCLCPP_WARN(rclcpp::get_logger("pcd2pgm"), "参数服务不可用，使用本地参数");
-        // }
         
         // 保存初始地图状态
         save_initial_map_state();
