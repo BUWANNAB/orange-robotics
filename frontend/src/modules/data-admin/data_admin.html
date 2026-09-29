@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据管理</title>
+
+  <link rel="stylesheet" href="../../libs/bootstrap/css5.0/bootstrap.min.css">
+  <link rel="stylesheet" href="../../libs/bootstrap/css/bootstrap-icons.css">
+  <link rel="stylesheet" href="./css/index.css">
+</head>
+
+<body>
+<div class="da-page">
+
+  <!-- 实体标签页（按元数据动态生成） -->
+  <ul class="nav nav-tabs da-tabs" id="entityTabs"></ul>
+
+  <!-- 模拟数据模式 / 后端不可达 提示横幅 -->
+  <div class="mock-banner" id="mockBanner" style="display:none;"></div>
+
+  <div class="panel">
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <select id="filterColumn" class="form-select form-select-sm da-filter-col"></select>
+      <input type="text" id="filterKeyword" class="form-control form-control-sm da-filter-kw"
+             placeholder="按所选列筛选（回车执行）">
+      <button type="button" class="btn btn-sm btn-primary" id="searchBtn">查询</button>
+      <button type="button" class="btn btn-sm btn-secondary" id="resetBtn">重置</button>
+
+      <span class="spacer"></span>
+
+      <label class="form-check-label da-inline-check">
+        <input class="form-check-input" type="checkbox" id="includeDeleted"> 显示已删除
+      </label>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshBtn">刷新</button>
+      <button type="button" class="btn btn-sm btn-success" id="createBtn">新增</button>
+    </div>
+
+    <!-- 说明条 -->
+    <div class="meta-hint" id="metaHint"></div>
+
+    <!-- 表格 -->
+    <div class="table-wrap">
+      <table class="table table-sm table-hover da-table">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pager">
+      <button type="button" class="btn btn-sm btn-secondary" id="prevBtn">上一页</button>
+      <span id="pageInfo" class="pager-info"></span>
+      <button type="button" class="btn btn-sm btn-secondary" id="nextBtn">下一页</button>
+      <select id="pageSize" class="form-select form-select-sm da-page-size">
+        <option value="10">10 条/页</option>
+        <option value="20" selected>20 条/页</option>
+        <option value="50">50 条/页</option>
+        <option value="100">100 条/页</option>
+      </select>
+    </div>
+  </div>
+
+</div>
+
+<!-- 编辑 / 新增弹窗 -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editTitle">编辑</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2" id="formFields"></div>
+
+        <!-- 复合实体：子表明细 -->
+        <div id="detailSection" style="display:none;">
+          <hr>
+          <div class="detail-head">
+            <span class="detail-title" id="detailTitle">明细</span>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addDetailRowBtn">添加一行</button>
+            <span class="detail-note">
+              保存时整体替换该条目的明细集合；未出现的既有明细会被标记为已删除。
+            </span>
+          </div>
+          <div class="table-wrap">
+            <table class="table table-sm da-table" id="detailTable">
+              <thead id="detailHead"></thead>
+              <tbody id="detailBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="form-msg" id="formMsg"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../../libs/jquery-3.1.0.min.js"></script>
+<script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+<script src="../../libs/coco-message.js"></script>
+<script type="module" src="./js/index.js"></script>
+</body>
+
+</html>

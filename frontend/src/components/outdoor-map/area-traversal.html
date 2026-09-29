@@ -1,0 +1,3257 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Leaflet Map with Station Labels</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" src="../../libs/jquery-3.1.0.min.js"></script>
+    <link rel="stylesheet" href="../../libs/bootstrap/css/bootstrap.min.css" />
+    <script src="../../libs/bootstrap/js/popper.min.js"></script>
+    <script src="../../libs/bootstrap/js/bootstrap.min.js"></script>
+    <!-- bootstrap-switch-->
+    <link href="../../libs/bootstrap/css/bootstrap-switch.min.css" rel="stylesheet">
+    <script src="../../libs/bootstrap/js/bootstrap-switch.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="../../libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <!-- 引入 Element UI 样式 -->
+    <link rel="stylesheet" href="../../libs/css/index.css">
+    <!-- Bootstrap Bundle JS (includes Popper) -->
+    <script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="../../libs/css/leaflet.css" />
+    <script src="../../libs/leaflet.js"></script>
+    <script src="../../libs/css/3.4.16.es"></script>
+    <link href="../../libs/css/css2.css" rel="stylesheet">
+    <link href="../../libs/css/all.min.css" rel="stylesheet">
+    <!-- 地图加载动画样式 -->
+    <!-- <link href="./css/map-loading.css" rel="stylesheet"> -->
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ea580c',
+                        success: '#00B42A',
+                        warning: '#FF7D00',
+                        danger: '#F53F3F',
+                        info: '#86909C',
+                        dark: '#1D2129',
+                        light: '#F2F3F5',
+                        'primary-light': '#fff7ed',
+                        'success-light': '#E8FFF3',
+                        'warning-light': '#FFF7E8',
+                        'danger-light': '#FFE8E8',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 2px 14px 0 rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 8px 24px 0 rgba(0, 0, 0, 0.12)',
+                    }
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .animate-pulse-slow {
+                animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .animate-slide-up {
+                animation: slideUp 0.3s ease-out forwards;
+            }
+            .animate-fade-in {
+                animation: fadeIn 0.3s ease-out forwards;
+            }
+            .text-balance {
+                text-wrap: balance;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+             .progress-ring-circle {
+                transition: stroke-dashoffset 0.35s;
+                transform: rotate(-90deg);
+                transform-origin: 50% 50%;
+            }
+            .circle-container {
+                aspect-ratio: 1 / 1;
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+
+    <link rel="stylesheet" href="./css/area-traversal.css">
+</head>
+
+<body>
+    <!-- 这是删除的模态框 -->
+    <!-- Modal -->
+    <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmationModalLabel">确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    确定要删除所选路线吗？
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteButton">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="contentBox">
+        <div id="mapDiv"></div>
+        <div id="buttonContainer">
+            <div class="icon-right">
+                <div class="container-editLine">
+                    <div class="text-editLine">新增路线
+                    </div>
+                    <div class="image-editLine" id="controlButton">
+                        <img src="../../assets/imges/img-right/绘制路线 (1).png" id="addEdit" alt="路线编辑">
+                    </div>
+                </div>
+                <div class="container-edit ">
+                    <div class="text-edit">开始编辑</div>
+                    <div class="image-edit" id="editButton">
+                        <img src="../../assets/imges/img-right/编辑.png" id="imgEdit" alt="编辑">
+                    </div>
+                </div>
+
+                <div class="container-plan">
+                    <div class="text-planRoute">全路径规划</div>
+                    <div class="image-plan" id="drawallRoute">
+                        <img src="../../assets/imges/img-right/路径规划.png" id="planRoute" alt="编辑">
+                    </div>
+                </div>
+                <div class="container-imag">
+                    <div class="text-container">保存路线</div>
+                    <div class="image-container" id="saveButton">
+                        <img src="../../assets/imges/img-right/保存.png" alt="保存">
+                    </div>
+                </div>
+                <div class="container-update disPlaynoe">
+                    <div class="text-update">更新</div>
+                    <div class="image-update" id="saveRouteDataButton">
+                        <img src="../../assets/imges/img-right/更新数据.png" alt="更新数据">
+                    </div>
+                </div>
+                <div class="container-callback">
+                    <div class="text-callback">撤回</div>
+                    <div class="image-callback" id="callBack">
+                        <img src="../../assets/imges/img-right/撤回色块.png" alt="撤回色块">
+                    </div>
+                </div>
+
+                <div class="container-clear disPlaynoe">
+                    <div class="text-clear">重置连线</div>
+                    <div class="image-clear" id="clearLineBtn">
+                        <img src="../../assets/imges/img-right/清屏.png" alt="清屏">
+                    </div>
+                </div>
+                <div class="container-disedit editorDisplay">
+                    <div class="text-disedit">关闭编辑状态</div>
+                    <div class="image-disedit" id="stopEditBtn">
+                        <img src="../../assets/imges/img-right/关闭编辑域.png" alt="关闭编辑">
+                    </div>
+                </div>
+
+                <div class="container-delete">
+                    <div class="text-delete editorDisplay">删除当前路线</div>
+                    <div class="image-delete" id="deleteRoute">
+                        <img src="../../assets/imges/img-right/删除 (1).png" alt="删除">
+                    </div>
+                </div>
+                <div class="container-location">
+                    <div class="text-location">机器实时位置</div>
+                    <div class="image-location" id="currentCarPosePose">
+                        <img src="../../assets/imges/img-right/当前位置 (1).png" alt="当前位置">
+                    </div>
+                </div>
+                <div class="container-add">
+                    <div class="text-add">增加标记</div>
+                    <div class="image-add" id="addImportPoint">
+                        <img src="../../assets/imges/img-right/add.png" id="markerAdd" alt="撤回色块">
+                    </div>
+                </div>
+                <div class="container-savelocation ">
+                    <div class="text-savelocation">保存机器当前位置</div>
+                    <div class="image-savelocation" id="getCurrentPositonXY">
+                        <img src="../../assets/imges/img-right/场景保存.png" data-bs-toggle="modal"
+                            data-bs-target="#exampleModal">
+                        </img>
+                    </div>
+                </div>
+                <div class="container-showhide ">
+                    <div class="text-showhide">显示/隐藏所有站点</div>
+                    <div class="image-showhide" id="toggleStationVisibilityButton">
+                        <img src="../../assets/imges/img-right/闭眼.png" id="showHideImg" alt="显示和隐藏">
+                    </div>
+                </div>
+                <div class="container-editPositon">
+                    <div class="text-editPositon">跳转站点编辑界面</div>
+                    <div class="image-editPositon" id="openDrawerBtn">
+                        <img src="../../assets/imges/img-right/站点管理.png" alt="站点编辑">
+                    </div>
+                </div>
+
+            </div>
+            <!-- 一行展示容器 -->
+            <div class="workAction">
+                <div class="bg-white rounded-xl shadow-lg p-2 w-full  flex flex-wrap items-center justify-evenly gap-2">
+
+                    <div>
+                        <img src="../../assets/imges/闹钟.png" style="display: none;" id="openDrawerBtn" alt="" srcset="">
+                        <select id="routeSelect" class="form-select" aria-label="Default select example">
+                            <option value="" disabled selected>请选择路线</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-2">
+
+                        <button type="button" id="printCurrentRouteId"
+                            class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200">
+                            确定路线
+                        </button>
+                        <button type="button" id="btnSend" value="Stop" class="btn btn-success">
+                            运行
+                        </button>
+                        <button type="button" id="btnCloseRoute" class="btn btn-danger">
+                            取消
+                        </button>
+                    </div>
+                    <div style="display: none;" class="flex items-center gap-2">
+                        <span id="alreadysend" class="text-gray-700 flex items-center">
+                            <i class="fa fa-check-circle text-success mr-1"></i>
+                            已发送: <span class="font-semibold text-primary ml-1">0</span>
+                        </span>
+                        <span id="needsend" class="text-gray-700 flex items-center">
+                            <i class="fa fa-tasks text-primary mr-1"></i>
+                            总任务: <span class="font-semibold text-primary ml-1">0</span>
+                        </span>
+                    </div>
+
+                    <div style="display: none;" class="relative w-16 h-16 shrink-0">
+                        <svg class="w-full h-full" viewBox="0 0 100 100">
+                            <!-- 背景圆环 -->
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="#E5E7EB" stroke-width="5" />
+                            <!-- 进度圆环 -->
+                            <circle id="progressCircle" class="progress-ring-circle" cx="50" cy="50" r="45" fill="none"
+                                stroke="#ea580c" stroke-width="5" stroke-dasharray="282.74"
+                                stroke-dashoffset="226.19" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span id="percentage" class="text-lg font-bold text-gray-800">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="display: none;">
+                <button type="button" id="printCurrentRouteId" class="btn  btn-info">确定路线</button>
+                <!-- <div> <span id="alreadysend">已经发送0</span> <span id="needsend">需要发送0</span></div>
+            <button type="button" id="btnSend" value="Stop" class="btn btn-success">运行</button>
+            <button type="button" id="btnCloseRoute" class="btn btn-danger">任务取消</button>    -->
+            </div>
+            <!-- <button type="button" id="" class="btn  btn-info">确定路线</button>
+            <div> <span id="alreadysend">已经发送0</span> <span id="needsend">需要发送0</span></div>
+            <button type="button" id="btnSend" value="Stop" class="btn btn-success">运行</button>
+            <button type="button" id="btnCloseRoute" class="btn btn-danger">任务取消</button> -->
+            <button type="button" id="recordRoute" class="btn btn-success disPlaynoe">开始预览</button>
+            <button type="button" id="closeRobot" class="btn btn-danger disPlaynoe">关机</button>
+            <button type="button" id="hidePoint" class="editorLine ">隐藏所有站点</button>
+            <button type="button" id="showAllPoint" class="editorLine">显示所有站点</button>
+            <button type="button" class="btn disPlaynoe">显示/隐藏所有站点</button>
+            <div id="mousePosition">鼠标指针纬度: --, 经度: --</div>
+            <div id="coordinatesCarPos">机器当前纬度: --, 经度: --</div>
+            <span style="font-size: 17px;" class="route_choose"></span>
+        </div>
+    </div>
+    <div class="bottomBox">
+        <!-- <button id="mousePosition">鼠标位置：纬度 - ，经度 - </button> -->
+        <!-- <button id="controlButton">增加路线</button> -->
+        <div style="display: none;">
+            <button id="dragButton" class="starDrag">开启拖动</button>
+            <!-- <button id="saveButton">保存路线</button> -->
+            <!-- <button id="callBack">撤回上一步</button> -->
+            <!-- <button id="editButton">开始编辑</button> 添加编辑按钮 -->
+            <button id="randomMoveButton">随机移动点</button> <!-- 添加编辑按钮 -->
+            <button id="saveRouteDataButton">更新路线和更新避障</button> <!-- 新增的按钮 -->
+            <!-- <button id="toggleStationVisibilityButton">切换站点可见性</button> -->
+            <button id="clearButton">清空所有路线</button>
+            <button id="testdata">测试按钮</button>
+            <button id="drawallRoute">全路径规划</button>
+            <!-- <button id="drawallRoute">清除规划路线</button> -->
+            <!-- <button id="addImportPoint">增加特殊点</button> -->
+            <button id="deleteCurrentRoute">删除当前的路线</button>
+        </div>
+        <div id="infoBox" class="info-box"></div>
+        <div id="popupDiv"
+            style="display: none; position: absolute; z-index: 9999;background: white; padding: 10px; border: 1px solid #ccc;">
+            请输入轮距:<input id="currentWidthValue" type="text">
+            <!-- 请输入偏移量: -->
+            <input style="display: none;" id="offset" type="text">
+            <button id="saveFirstPoint">预览</button> <button id="cancelPreview">取消</button><br />
+            请选择终点:
+            <select name="importPoint" id="importPoint">
+                <option value="0">起点</option>
+                <option value="1">终点</option>
+            </select><br />
+        </div>
+
+    </div>
+    <div class="modal fade" id="routeNameModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">输入路线名称</h5>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="routeNameInput" class="form-control" autocomplete="off">
+                    <div id="duplicateError" class="text-danger mt-2" style="display:none">名称已存在，请重新输入</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmSave">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container py-5 page-content" id="pageContent" style="display: none;">
+        <!-- <div class="row justify-content-center">
+            <button type="button" class="btn btn-primary btn-lg" id="openDrawerBtn">
+              打开右侧抽屉
+            </button>
+        </div> -->
+        <!-- 更多内容示例 -->
+        <div class="row mt-4">
+        </div>
+    </div>
+    <!-- 右下角固定按钮
+      <button type="button" class="btn btn-primary btn-lg rounded-circle btn-open-drawer" id="fixedOpenBtn">
+        <i class="bi bi-chat-right-dots"></i>
+      </button> -->
+    <!-- 自定义右侧抽屉 -->
+    <div class="custom-drawer" id="customDrawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h3>站点编辑</h3>
+                <button type="button" class="btn-close" id="closeDrawerBtn" aria-label="Close"></button>
+            </div>
+        </div>
+        <div class="stationPage">
+            <div class="container py-5">
+                <div class="row justify-content-center">
+                    <div>
+                        <!-- 筛选区域 -->
+                        <div class="filter-container">
+                            <div class="input-group">
+                                <input type="text" id="filterInput" class="form-control" placeholder="搜索站点名称...">
+                                <button class="btn btn-outline-secondary" id="resetFilterBtn">重置筛选</button>
+                            </div>
+                        </div>
+
+                        <!-- 列表容器 -->
+                        <div class="list-container">
+                            <ul class="list-group" id="itemList">
+                                <!-- 列表项将通过JavaScript动态添加 -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+        </div>
+
+    </div>
+
+
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">添加站点信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="siteForm">
+                        <div class="mb-3">
+                            <label for="siteName" class="form-label">站点名字</label>
+                            <input type="text" class="form-control" id="siteName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="longitude" class="form-label">经度</label>
+                            <input type="text" class="form-control" id="addlongitude" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="latitude" class="form-label">纬度</label>
+                            <input type="text" class="form-control" id="addlatitude" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="addNewPoint">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="../../libs/roslib.min.js"></script>
+    <script type="module" src="../rosManage/RosManager.js"></script>
+    <script type="text/javascript" src="../../libs/coco-message.js"></script>
+
+    <script type="module">
+        import RosManager from "../../rosManage/RosManager.js";
+        import axiosClient from "../../api/ApiManager.js";
+        import webSocketUtil from "../../tools/webSocketUtil.js";
+        const rosManager = new RosManager();
+        var map;
+        let toggleStatus = false;
+        let dragStatus = false; // 初始状态为禁止拖动
+        let editStatus = false; // 编辑模式初始状态
+        var markers = [];
+        var routePoints = [];
+        var currentPolyline = null;
+        let alldata = [];  //路线数据
+        var editableMarkers = []; // 用于存储编辑模式下的可拖动标记
+        // 在全局变量声明部分添加新变量
+        var randomMarker = null;
+        let stationVisibility = false; // 初始状态为显示站点
+        let stationData = null;
+        //所有站点的数据
+        let allStationData = null
+        let longitudeCurrent = null //当前机器的经度
+        let latitudeCurrent = null//当前机器维度
+        let currentAvoidArr = []//当前数组信息
+        let allowAddingStations = false; //当前的状态
+        let callbackStatus = 1
+        let dragChangeStatus = true
+        let importPortPoint = []
+        //当前路线选中的回归原始点的位置
+        let currentLastPoint = null;
+        //这是运行，暂停的话题部分
+        let selectedValue; // 终点的索引
+        let lastPointMarker;//预览最后一个点
+        let firstPointMarker;//预览第一个点
+        let markers1 = []
+        let borderLine = []
+        let preViewRouteData = []
+        let currentBorderLine = [];
+        let currentBorderRoutePolyline = null;
+        //地图默认载入的数据
+        let initlongitudeCurrent = null
+        let initlatitudeCurrent = null
+        // 全局变量：机器位置标记（使用更清晰的变量名）
+        let machineMarker; // 机器实时位置标记
+        let temporary = [] //临时文件
+        let pointData = null
+        // 假设这是你的点数据
+        let localX = null
+        let localY = null
+        let linePreview = null; // 预览路线
+        let preViewRouteStatus = true; // 预览状态（注意：这里初始值建议设为false，根据你的需求调整）
+        let startMarker = null;
+        let endMarker = null;
+        let allImportPoint = null;
+        let needPoint = 0;
+        let already = 0;
+        // 全局变量区分两种标记
+        let globalStations = []; // 数据库中的全局站点标记（唯一）
+        let routeMarkers = [];   // 路线规划时的临时标记（可删除）
+        let pointInterval
+        let carCurrentRunStatus = null
+        let limtmodel = 0
+        rosManager.gpsSub.subscribe(function (message) {
+            latitudeCurrent = message.data[2]
+            longitudeCurrent = message.data[3]
+        })
+        setInterval(() => {
+            getPose()
+        }, 800);
+        function getPose() {
+            localStorage.setItem("latitudeCurrent", latitudeCurrent)
+            localStorage.setItem("longitudeCurrent", longitudeCurrent)
+        }
+
+
+        function publishHandMove() {
+            const message = new ROSLIB.Message({
+                data: 1,
+            });
+            rosManager.publishGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", message);
+            console.log("消息已发布:", message.data);
+        }
+        window.onload = () => {
+            publishHandMove()
+        }
+
+        const currentHostname = window.location.hostname;
+        let wsUrl;
+        // 根据不同的hostname采用不同的WebSocket连接策略
+        if (currentHostname.includes('127.0.0.1') || currentHostname.includes('localhost') || currentHostname.includes('192.168.')) {
+            // 本地环境使用当前hostname和8088端口
+            wsUrl = `ws://${currentHostname}:8088/ws/test1`;
+        } else {
+            // 公网环境将hostname中的"-web"替换为"-rosbridge"，并去掉端口号
+            const rosbridgeHostname = currentHostname.replace('-web', '-rosbridge');
+            wsUrl = `ws://${rosbridgeHostname}/ws/test1`;
+        }
+        console.log('构建的WebSocket地址:', wsUrl);
+        // 销毁旧实例，确保使用新地址
+        webSocketUtil.destroyInstance(wsUrl);
+        let websocket = webSocketUtil.getInstance(wsUrl);
+        window.addEventListener('beforeunload', () => {
+            console.log("页面即将卸载")
+            // 页面卸载时不需要关闭连接，其他页面可能还在使用
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            // renderTemStations()
+        });
+        websocket.subscribe('message', (data) => {
+            if (data.action === "PATHPOINT") {
+                needPoint = data.pointnum
+                already = data.pointsendnum
+                console.log(needPoint, already, "already");
+            }
+            // 检查 action 是否为 carCurrentPosition
+            if (data.action === "carCurrentPosition") {
+                carCurrentRunStatus = data.position.routeEnd
+                console.log(data.position.routeEnd, "data.position.routeEnd");
+
+                if (carCurrentRunStatus == 1) {
+                    needPoint = 0;
+                    already = 0;
+                }
+                if (data.position.runStatus == 0) {
+                    $("#btnSend").val("Stop");
+                    $("#btnSend").text("运行");
+                    $("#btnSend").removeClass("btn-warning");
+                    $("#btnSend").addClass("btn-success");
+                }
+                else if (data.position.runStatus == 1) {
+                    $("#btnSend").val("Run");
+                    $("#btnSend").text("暂停");
+                    $("#btnSend").removeClass("btn-success");
+                    $("#btnSend").addClass("btn-warning");
+
+                }
+                // carCurrentX = data.orientation.qx;
+                // carCurrentY = data.orientation.qy;
+                // latitudeCurrent = data.position.Lat;
+                // longitudeCurrent = data.position.Lon;
+                // let STANT = data.position.STANT;
+                // let HEAD = data.position.HEAD;
+                // localX =  data.position.LocalX;
+                // localY =  data.position.LocalY;
+                // if (typeof HEAD == "number") {
+                //     HEAD = HEAD.toFixed(3)
+                //     localStorage.setItem('HEAD', HEAD);
+                // }
+                // localStorage.setItem('STANT', STANT)
+                // localStorage.setItem('longitudeCurrent', longitudeCurrent);
+                // localStorage.setItem('latitudeCurrent', latitudeCurrent)
+                // localStorage.setItem('localX', localX);
+                // localStorage.setItem('localY', localY)
+                if (data.position.runStatus === 1) {
+                    console.log('车辆正在正常运行');
+                } else if (data.position.runStatus === 0) {
+                    $("#btnSend").val("Stop");
+                    $("#btnSend").text("运行");
+                    $("#btnSend").removeClass("btn-warning");
+                    $("#btnSend").addClass("btn-success");
+                }
+            }
+        });
+        function sendCtrlModeMsg() {
+            const originData = {
+                action: "RemoteCtrlAutomaticSwitch",
+                points: 1
+            }
+            const finalData = JSON.stringify(originData);
+            websocket.send(finalData);
+        }
+        websocket.subscribe('open', () => {
+            sendCtrlModeMsg();
+        })
+        function initMachineMarker() {
+            if (machineMarker || !map) return; // 新增：检查 map 是否存在
+
+            const machineIcon = L.icon({
+                iconUrl: '../../assets/imges/圆圈.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            // 设置 zIndexOffset 为负值，让机器标记显示在站点标记下方
+            machineMarker = L.marker([0, 0], {
+                icon: machineIcon,
+                zIndexOffset: -1000 // 负值会使标记下沉，数值可根据实际调整
+            }).addTo(map);
+            // 标记先创建但不添加到地图，避免 map 未就绪时调用 addTo
+        }
+        // 从 localStorage 中获取有效经纬度（封装为独立函数）
+        function getValidCoordinates() {
+            // 从positionData JSON对象中获取经纬度
+            const positionDataStr = localStorage.getItem('positionData');
+            let lat, lng;
+
+            if (positionDataStr) {
+                try {
+                    const positionData = JSON.parse(positionDataStr);
+                    lat = parseFloat(positionData.latitudeCurrent);
+                    lng = parseFloat(positionData.longitudeCurrent);
+                } catch (e) {
+                    console.error("解析positionData失败:", e);
+                    return null;
+                }
+            } else {
+                return null;
+            }
+
+            // 检查坐标有效性（避免 NaN）
+            if (isNaN(lat) || isNaN(lng)) return null;
+            return { lat, lng };
+        }
+
+        function updateMachinePosition() {
+            const coords = getValidCoordinates();
+            if (!coords || !map) return; // 新增：检查 map 是否存在
+
+            if (!machineMarker) {
+                initMachineMarker(); // 确保标记已创建
+            }
+
+            // 首次添加标记到地图（确保 map 已初始化）
+            if (!map.hasLayer(machineMarker)) {
+                machineMarker.addTo(map);
+            }
+
+            machineMarker.setLatLng([coords.lat, coords.lng]);
+            // 移除隐藏样式（Leaflet 标记无需显式隐藏，直接控制可见性即可）
+        }
+
+        $("#btnCloseRoute").click(function (e) {
+            let tmp = $(".route_choose").text();
+            if (!tmp) {
+                cocoMessage.warning("当前未选择路线");
+            } else {
+                rosManager.closeRoutePub.publish(rosManager.CAR_RUN_MSG);
+                // cocoMessage.warning("取消成功");
+                already = 0;
+                needPoint = 0;
+                updateProgress(0);
+                clearInterval(pointInterval);
+                $(".route_choose").text("");
+                rosManager.carRunStarPub.publish(rosManager.CAR_STOP_MSG);
+                $("#btnSend").val("Stop");
+                $("#btnSend").text("运行");
+                $("#btnSend").removeClass("btn-warning");
+                $("#btnSend").addClass("btn-success");
+
+                let params = {
+                    routeMsg: "",
+                    carRun: "",
+                    carStop: "",
+                    workCancel: "机器停止并取消了执行的任务路线"
+                }
+                addWaterDepth(params)
+                const closeData = {
+                    action: "CloseRoute"
+                }
+                const finalCloseData = JSON.stringify(closeData);
+                websocket.send(finalCloseData);
+                const originData = {
+                    action: "car_run_star",
+                    data: 0
+                }
+                const finalData = JSON.stringify(originData);
+                websocket.send(finalData);
+            }
+        });
+        $("#btnSend").click(function (e) {
+            let tmpchoose = $(".route_choose").text();
+            const selectElement = document.getElementById('routeSelect');
+            const selectedValue = selectElement.value;
+            if (!selectedValue) {
+                cocoMessage.error("请选择路线")
+                return
+            } else {
+                let tmp = $("#btnSend").val();
+                if (tmp == "Stop") {
+                    rosManager.carRunStarPub.publish(rosManager.CAR_RUN_MSG);
+                    cocoMessage.success("启动");
+                    localStorage.setItem("CarRunStatus", 1)
+                    $("#btnSend").val("Run");
+                    $("#btnSend").text("暂停");
+                    $("#btnSend").removeClass("btn-success");
+                    $("#btnSend").addClass("btn-warning");
+                    rosManager.carRunFinsh.subscribe(function (message) {
+                        let flag = message['data']
+                        if (flag == 1) {
+                            rosManager.carRunStarPub.publish(rosManager.CAR_STOP_MSG);
+                            $("#btnSend").val("Stop");
+                            $("#btnSend").text("运行");
+                            $("#btnSend").removeClass("btn-warning");
+                            $("#btnSend").addClass("btn-success");
+                        }
+                    })
+                    let params = {
+                        routeMsg: "",
+                        carRun: "机器开始行驶",
+                        carStop: "",
+                        workCancel: ""
+                    }
+                    addWaterDepth(params)
+
+
+                } else {
+                    rosManager.carRunStarPub.publish(rosManager.CAR_STOP_MSG);
+                    $("#btnSend").val("Stop");
+                    $("#btnSend").text("运行");
+                    cocoMessage.error("暂停");
+                    clearInterval(pointInterval);
+                    localStorage.setItem("CarRunStatus", 0)
+                    $("#btnSend").removeClass("btn-warning");
+                    $("#btnSend").addClass("btn-success");
+                    let params = {
+                        routeMsg: "",
+                        carRun: "",
+                        carStop: "机器停止",
+                        workCancel: ""
+                    }
+                    addWaterDepth(params)
+                    const originData = {
+                        action: "car_run_star",
+                        data: 0
+                    }
+                    const finalData = JSON.stringify(originData);
+                    websocket.send(finalData);
+                }
+            }
+        });
+
+
+        // 获取DOM元素
+        const drawer = document.getElementById('customDrawer');
+        const pageContent = document.getElementById('pageContent');
+        const openDrawerBtn = document.getElementById('openDrawerBtn');
+        const fixedOpenBtn = document.getElementById('fixedOpenBtn');
+        const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+
+        // 打开抽屉函数
+        async function openDrawer() {
+            await deleImportData()
+
+            drawer.classList.add('open');
+            if (window.innerWidth > 992) { // 仅在大屏幕上移动内容
+                pageContent.classList.add('shifted');
+            }
+        }
+
+        //定时检查函数
+        // 辅助函数：等待条件满足或超时
+        function waitForCondition(conditionFn, timeout, interval) {
+            return new Promise((resolve, reject) => {
+                // 立即检查一次条件
+                if (conditionFn()) {
+                    resolve();
+                    return;
+                }
+                // 设置超时
+                const timeoutId = setTimeout(() => {
+                    clearInterval(intervalId);
+                    reject(new Error("timeout"));
+                }, timeout);
+
+                // 定期检查条件
+                const intervalId = setInterval(() => {
+                    if (conditionFn()) {
+                        clearInterval(intervalId);
+                        clearTimeout(timeoutId);
+                        resolve();
+                    }
+                }, interval);
+            });
+        }
+
+
+        // 关闭抽屉函数
+        function closeDrawer() {
+            drawer.classList.remove('open');
+            pageContent.classList.remove('shifted');
+        }
+        // 绑定打开按钮事件
+        openDrawerBtn.addEventListener('click', openDrawer);
+        // fixedOpenBtn.addEventListener('click', openDrawer);
+
+        // 绑定关闭按钮事件
+        closeDrawerBtn.addEventListener('click', closeDrawer);
+        // 监听窗口大小变化，调整页面内容
+        window.addEventListener('resize', () => {
+            if (window.innerWidth <= 992 && drawer.classList.contains('open')) {
+                pageContent.classList.remove('shifted');
+            } else if (window.innerWidth > 992 && drawer.classList.contains('open')) {
+                pageContent.classList.add('shifted');
+            }
+        });
+        // 抽屉事件监听示例
+        drawer.addEventListener('transitionstart', () => {
+            console.log('抽屉动画开始');
+        });
+
+        drawer.addEventListener('transitionend', () => {
+            console.log('抽屉动画结束');
+        });
+
+
+
+        document.addEventListener('DOMContentLoaded', initApplication);
+        async function initApplication() {
+            // 新增：每秒更新机器位置
+            updateMachinePosition(); // 立即更新一次
+            setInterval(updateMachinePosition, 500); // 定时更新
+            getRobotData()
+        }
+
+        // 定义一个变量来跟踪编辑状态
+        let isAddingSpecialPoints = false;
+
+        // 为按钮添加点击事件监听器
+        document.getElementById('addImportPoint').addEventListener('click', async function () {
+            let markerAdd = document.getElementById("markerAdd")
+            markerAdd.src = isAddingSpecialPoints ? '../../assets/imges/img-right/add.png' : '../../assets/imges/img-right/addover.png';
+            isAddingSpecialPoints = !isAddingSpecialPoints;
+            document.querySelector(".text-add").textContent = isAddingSpecialPoints ? '禁止添加特殊点' : '增加特殊点';
+            if (isAddingSpecialPoints) {
+                // 开启添加特殊点模式
+                map.on('click', handleMapClickForSpecialPoint);
+                // 开启编辑时让所有 importPortPoint 的点都能拖动
+                importPortPoint.forEach(marker => {
+                    marker.dragging.enable();
+                });
+            } else {
+                // 关闭添加特殊点模式
+                map.off('click', handleMapClickForSpecialPoint);
+                // 结束编辑时禁止拖动
+                importPortPoint.forEach(marker => {
+                    marker.dragging.disable();
+                });
+                allImportPoint = await axiosClient.get("station/querynew/2");
+                console.log(allImportPoint.data.data[0], "allImportPoint111");
+            }
+        });
+
+        // 为按钮添加点击事件监听器
+        document.getElementById('deleteCurrentRoute').addEventListener("click", deleteCurrentRoute)
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // 使用事件委托，将事件监听器绑定到一个总是存在的父级元素上
+            document.body.addEventListener('click', function (e) {
+                if (e.target && e.target.id == 'addNewPoint') {
+                    addPointCurrentPoint()
+                }
+            });
+        });
+        function handleMapClickForSpecialPoint(e) {
+            if (!isAddingSpecialPoints) return;
+            const latLng = e.latlng;
+            const name = prompt('请输入标记的名字');
+            if (name) {
+                // **新增：检查同位置是否已有标记（含容差判断）**
+                const isDuplicate = markers.some(marker =>
+                    Math.abs(marker.getLatLng().lat - latLng.lat) < 1e-6 &&
+                    Math.abs(marker.getLatLng().lng - latLng.lng) < 1e-6
+                );
+                if (isDuplicate) {
+                    cocoMessage.warning("该位置已存在标记");
+                    return;
+                }
+                var customIcon = L.icon({
+                    iconUrl: '../../assets/imges/站点.png',
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+                var marker = L.marker(latLng, {
+                    icon: customIcon,
+                    title: name,
+                    draggable: true
+                }).addTo(map);
+
+                // 为新添加点的标签添加特殊类名
+                marker.bindTooltip(name, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'station-label'
+                });
+
+                // 保存原始坐标和名称到标记对象的自定义属性
+                marker.options.metadata = {
+                    lat: latLng.lat,
+                    lng: latLng.lng,
+                    name: name
+                };
+
+                marker.on('dragend', function (e) {
+                    const updatedPosition = e.target.getLatLng();
+                    console.log(`标记 ${name} 移动到了 ${updatedPosition.lat}, ${updatedPosition.lng}`);
+
+                    // 更新标记的自定义属性中的坐标
+                    e.target.options.metadata.lat = updatedPosition.lat;
+                    e.target.options.metadata.lng = updatedPosition.lng;
+                    // 如果需要，可以更新 tooltip 位置
+                    e.target.getTooltip().setLatLng(updatedPosition);
+                });
+                markers.push(marker);
+                importPortPoint.push(marker);
+                // 新增完毕后，自动切换到禁止添加特殊点模式
+                isAddingSpecialPoints = false;
+                const addImportPointButton = document.querySelector('.text-add');
+                addImportPointButton.textContent = '增加特殊点';
+                document.getElementById("markerAdd").src = "../../assets/imges/img-right/add.png"
+                map.off('click', handleMapClickForSpecialPoint);
+                importPortPoint.forEach(marker => {
+                    marker.dragging.disable();
+                });
+                // 传递包含完整信息的对象
+                addCuurrentPoint(marker.options.metadata);
+            }
+        }
+        function getCurrentMarkerPositions() {
+            console.log(importPortPoint, "importPortPointimportPortPoint000");
+        }
+
+        async function addCuurrentPoint(latLng) {
+            let allparams = {
+                latitude: latLng.lat,
+                longitude: latLng.lng,
+                positionX: 0,
+                positionY: 0,
+                positionZ: 0,
+                orientationX: 0,
+                orientationY: 0,
+                orientationZ: 0,
+                orientationW: 0,
+                stationName: latLng.name, // 添加站点名称到参数中
+                stationCode: 2
+            };
+
+            try {
+                if (latLng.lat && latLng.lng && name) {
+                    axiosClient.post("station/add", allparams)
+                        .then(async (res) => {
+                            let flag = res.data.code;
+                            if (!flag) { // 假设code为false表示成功
+                                cocoMessage.success("新添成功");
+                                await deleteCurrentRoute()
+                                await getAllCurrentPoint()
+                                await renderStations()
+                            } else {
+                                cocoMessage.error("新增失败，请勿重复名字");
+                            }
+                        })
+                        .catch((error) => {
+                            console.log("catch", error);
+                        })
+
+                } else {
+                    cocoMessage.error("新增失败，经纬度不能为空");
+                }
+
+            } catch (e) {
+                // 如果用户取消了输入或者密码多次错误导致放弃，这里可以处理异常情况
+                console.log(e); // 或者其他的异常处理逻辑
+            }
+        }
+        //这边是获取所有数据的接口函数
+
+
+        //这个程序是直接获取机器的实时位置，如果没有就手动输入进行保存
+        function addPointCurrentPoint() {
+            // 示例：简单地关闭模态框
+            var myModal = bootstrap.Modal.getInstance(document.getElementById('exampleModal'));
+            let siteName = document.getElementById('siteName').value;
+            let addlongitude = document.getElementById('addlongitude').value;
+            let addlatitude = document.getElementById('addlatitude').value;
+            let allparams = {
+                latitude: addlatitude,
+                longitude: addlongitude,
+                positionX: "",
+                positionY: "",
+                positionZ: 0,
+                orientationX: 0,
+                orientationY: 0,
+                orientationZ: 0,
+                orientationW: 0,
+                stationName: siteName, // 添加站点名称到参数中
+                stationCode: 2
+            };
+            if (addlongitude && addlatitude) {
+                axiosClient.post("station/add", allparams)
+                    .then((res) => {
+                        let flag = res.data.code;
+                        if (!flag) { // 假设code为false表示成功
+                            cocoMessage.success("新添成功");
+                            // 调用getAllCurrentPoint函数获取最新的站点数据
+                            getAllCurrentPoint().then(() => {
+                                // 在获取数据成功后，调用renderStations函数重新渲染站点标记
+                                renderStations();
+                            });
+                            removeInputValue()
+                            myModal.hide();
+                        } else {
+                            cocoMessage.error("新增失败，请勿重复名字");
+                            myModal.hide();
+                            removeInputValue()
+                        }
+                    })
+                    .catch((error) => {
+                        console.log("catch", error);
+                    });
+            } else {
+                cocoMessage.error("新增失败，经纬度不能为空");
+            }
+        }
+
+        function removeInputValue() {
+            document.getElementById('siteName').value = ""
+            document.getElementById('addlongitude').value = ""
+            document.getElementById('addlatitude').value = ""
+        }
+        // 获取所有路线数据
+        async function getAllRoute() {
+            try {
+                const response = await axiosClient.get("route/query/1");
+                if (response && response.data && Array.isArray(response.data.data)) {
+                    alldata = response.data.data;
+                } else {
+                    console.error("Unexpected response structure from API");
+                }
+            } catch (error) {
+                console.error("Error fetching data:", error); // 打印完整的错误信息
+                throw error; // 抛出错误以便在调用处捕获
+            }
+        }
+
+        async function getAllCurrentPoint() {
+            await axiosClient
+                .get("station/querynew/2")
+                .then((res) => {
+                    let data = res.data.data;
+                    stationData = data[0]
+                    // 标准化坐标数据类型
+                    stationData = stationData.map(s => ({
+                        ...s,
+                        latitude: parseFloat(s.latitude),
+                        longitude: parseFloat(s.longitude)
+                    }));
+                    //allPointData = data.map((item) => [item.stationName, Number(item.longitude), Number(item.latitude), item.id]);
+                    // 转换函数
+                    // 添加标记并显示自己的名字
+                    // allPointData.forEach((item) => {
+                    //     addMarkerWithName(item[1],item[2],item[0],item[3]);
+                    // });
+                })
+        }
+
+        var currentRoutePolyline = null; // 存储当前路线折线
+        // let alldata = response.data
+        // 在全局变量声明部分添加新变量
+        //当前的地图层级
+        let currentMapCover = null
+        var randomMarker = null;
+        document.getElementById("controlButton").addEventListener("click", toggleClickEvent);
+        document.getElementById("dragButton").addEventListener("click", toggleDragEvent);
+        document.getElementById("saveButton").addEventListener("click", saveRoute);
+        document.getElementById("callBack").addEventListener("click", callBack);
+        document.getElementById("editButton").addEventListener("click", toggleEditMode); // 添加事件监听器
+        //发布话题的事件监听
+        document.getElementById('printCurrentRouteId').addEventListener('click', printCurrentRouteId);
+        document.getElementById("clearButton").addEventListener("click", clearAllRoutes);
+
+        //随机点移动的问题
+
+
+        document.getElementById('deleteRoute').addEventListener('click', showDeleteConfirmation);
+        document.getElementById("saveRouteDataButton").addEventListener("click", saveRouteData);
+        document.getElementById("drawallRoute").addEventListener("click", drawallRoute);
+        document.getElementById("currentCarPosePose").addEventListener("click", currentCarPosePose);
+        document.getElementById('recordRoute').addEventListener('click', recordRoute);
+        document.getElementById('getCurrentPositonXY').addEventListener('click', getCurrentPositonXY);
+        //   L.tileLayer('../tianditu/{z}/{x}/{y}.png', {
+        // L.tileLayer('http://124.222.227.182:8888/services/shuMaGang/tiles/{z}/{x}/{y}.png', {
+        // 添加 MBTiles 图层     }).setView([36.67782468164, 117.04736528708], 18);
+        async function onLoad() {
+            await getRobotData()
+            // 天地图在线图层
+            const onlineVec = L.tileLayer('http://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=2ca63bb61a24b022abe84ddfe208ab57', {
+                maxZoom: 19,
+                subdomains: '01234567',
+                attribution: '天地图'
+            });
+            const onlineCva = L.tileLayer('http://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=2ca63bb61a24b022abe84ddfe208ab57', {
+                maxZoom: 19,
+                subdomains: '01234567',
+                attribution: '天地图'
+            });
+            const onlineLayers = L.layerGroup([onlineVec, onlineCva]);
+
+            // 离线地图图层
+            const offlineLayer = L.tileLayer('../tianditu/{z}/{x}/{y}.png', {
+                minZoom: 1,
+                maxZoom: 25,
+                tms: false,
+                attribution: '本地瓦片'
+            });
+
+            map = L.map('mapDiv', {
+                doubleClickZoom: false,
+                zoomSnap: 0.1
+            }).setView([initlatitudeCurrent, initlongitudeCurrent], 18);
+            // }).setView([ 36.6145191040, 116.9698175483], 18);
+            // }).setView([ 36.6145191040, 116.9698175483], 18);
+
+            // 添加图层（在线先加载，离线覆盖在上层）
+            onlineLayers.addTo(map);
+            offlineLayer.addTo(map);
+            L.tileLayer('../tianditu/{z}/{x}/{y}.png', {
+                minZoom: 1,
+                maxZoom: 25,
+                tms: false,
+                attribution: 'Created by QGIS'
+            }).addTo(map);
+
+            currentMapCover = map.getZoom()
+            map.on('zoomend', function () {
+                console.log('当前层级：', map.getZoom());
+                currentMapCover = map.getZoom()
+            });
+            map.on('mousemove', handleMouseMove);
+            map.on('click', handleMapClick);
+
+
+
+            var customIcon = L.icon({
+                iconUrl: '../../assets/imges/原点.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            map.on('click', () => {
+                // document.getElementById('infoBox').style.display = 'none';
+                currentInfoBox = null;
+            });
+            //创建随机标志位，后面会变成机器获取的经纬度
+
+            //创建路线
+            await getAllCurrentPoint()
+            await getAllRoute()
+            stationData.forEach(station => {
+                var marker = L.marker([station.latitude, station.longitude], {
+                    icon: customIcon,
+                    title: station.stationName,
+                    draggable: dragStatus
+                }).addTo(map);
+
+                marker.bindTooltip(station.stationName, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'station-label new-special-point-label'
+                });
+
+                // 新增：存储原始的样式和标签状态
+                marker.originalVisibility = {
+                    icon: marker.options.icon,
+                    tooltip: marker.options.tooltip
+                };
+                marker.on('click', function (e) {
+                    e.originalEvent.stopPropagation();
+                    if (toggleStatus) {
+                        addToRoute(this.getLatLng());
+                    }
+                });
+                marker.on('click', function (e) {
+                    e.originalEvent.preventDefault(); // 阻止默认行为
+                    e.originalEvent.stopPropagation(); // 阻止事件冒泡
+                    const isNewPoint = !stationData.some(s =>
+                        s.latitude === e.latlng.lat &&
+                        s.longitude === e.latlng.lng
+                    );
+
+                    // const content = isNewPoint ?
+                    //     `自定义点<br>纬度：${e.latlng.lat.toFixed(6)}<br>经度：${e.latlng.lng.toFixed(6)}` :
+                    //     `站点：${this.options.title}<br>ID：${station.id}`;
+
+                    // toggleInfoBox(e.originalEvent.clientX, e.originalEvent.clientY, content,this.options.title);
+                });
+                markers.push(marker);
+            });
+            populateRouteSelect();
+
+            await renderStations()
+        }
+        // 创建一个透明的图标
+        const transparentIcon = L.icon({
+            iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+        });
+
+        function toggleStationVisibility() {
+            let showHideImg = document.getElementById("showHideImg")
+            const buttonText = stationVisibility ? "显示站点" : "隐藏站点";
+            document.querySelector(".text-showhide").textContent = buttonText;
+            if (stationVisibility) {
+                renderStations()
+                showHideImg.src = '../../assets/imges/img-right/显示隐藏.png';
+            } else {
+                deleteCurrentRoute()
+                showHideImg.src = '../../assets/imges/img-right/闭眼.png';
+            }
+            markers.forEach(marker => {
+                if (stationVisibility) {
+                    marker.setIcon(marker.originalVisibility.icon);
+                    marker.options.tooltip = marker.originalVisibility.tooltip;
+                    marker.openTooltip();
+                } else {
+                    marker.setIcon(transparentIcon);
+                    marker.closeTooltip();
+                    marker.options.tooltip = null;
+                }
+            });
+            stationVisibility = !stationVisibility;
+        }
+
+        document.getElementById("toggleStationVisibilityButton").addEventListener("click", toggleStationVisibility);
+        function handleMouseMove(e) {
+            const latLng = e.latlng;
+            document.getElementById('mousePosition').innerHTML = `鼠标位置：纬度 ${latLng.lat.toFixed(10)}，经度 ${latLng.lng.toFixed(10)}`;
+        }
+        function currentCarPosePose() {
+            // 从positionData JSON对象中获取经纬度
+            const positionDataStr = localStorage.getItem('positionData');
+            let latitudeCurrent, longitudeCurrent;
+
+            if (positionDataStr) {
+                try {
+                    const positionData = JSON.parse(positionDataStr);
+                    latitudeCurrent = positionData.latitudeCurrent;
+                    longitudeCurrent = positionData.longitudeCurrent;
+                } catch (e) {
+                    console.error("解析positionData失败:", e);
+                    cocoMessage.error("未找到机器位置数据");
+                    return;
+                }
+            } else {
+                cocoMessage.error("未找到机器位置数据");
+                return;
+            }
+
+            if (longitudeCurrent == '未运行' || latitudeCurrent == '未运行' || latitudeCurrent == "NaN") {
+                cocoMessage.error("未找到机器位置数据");
+            } else {
+                map.setView([Number(latitudeCurrent), Number(longitudeCurrent)], 18);
+            }
+        }
+
+        function handleMapClick(e) {
+            if (!toggleStatus) return;
+            const latLng = e.latlng;
+            var customIcon = L.icon({
+                iconUrl: '../../assets/imges/原点.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            var marker = L.marker(latLng, { icon: customIcon, draggable: dragStatus || editStatus }).addTo(map);
+            // 在创建新标记的位置添加：
+            marker.on('click', function (e) {
+                e.originalEvent.stopPropagation();
+                const isNewPoint = !stationData.some(s =>
+                    Math.abs(s.latitude - e.latlng.lat) < 1e-6 &&
+                    Math.abs(s.longitude - e.latlng.lng) < 1e-6
+                );
+
+                // const content = isNewPoint ?
+                //     `自定义点<br>纬度：${e.latlng.lat.toFixed(6)}<br>经度：${e.latlng.lng.toFixed(6)}` :
+                //     `站点：${this.options.title}`;
+
+                // toggleInfoBox(e.originalEvent.clientX, e.originalEvent.clientY, content, this.options.title);
+            });
+            if (editStatus) {
+                // 如果处于编辑模式，则直接启用拖动功能并添加事件监听器
+                marker.dragging.enable();
+                marker.on('dragend', function (e) {
+                    // 找到对应的routePoint并更新它
+                    let index = routePoints.findIndex(point => point.lat === latLng.lat && point.lng === latLng.lng);
+                    if (index !== -1) {
+                        routePoints[index] = e.target.getLatLng();
+                        updatePolyline();
+                    }
+                });
+                editableMarkers.push(marker);
+            } else {
+                marker.on('click', function (e) {
+                    e.originalEvent.stopPropagation();
+                    if (toggleStatus) addToRoute(this.getLatLng());
+                });
+            }
+            markers.push(marker);
+            addToRoute(latLng);
+            addUpdatePolyline();
+        }
+
+        //添加随机点的事件
+        //创建随机点的函数
+        // 修改 moveRandomMarker 函数，增加对 map 是否定义的检查
+        const testPosition = () => {
+            // 从positionData JSON对象中获取经纬度
+            const positionDataStr = localStorage.getItem('positionData');
+            let latitudeCurrent, longitudeCurrent;
+
+            if (positionDataStr) {
+                try {
+                    const positionData = JSON.parse(positionDataStr);
+                    latitudeCurrent = parseFloat(positionData.latitudeCurrent);
+                    longitudeCurrent = parseFloat(positionData.longitudeCurrent);
+                } catch (e) {
+                    console.error("解析positionData失败:", e);
+                    latitudeCurrent = NaN;
+                    longitudeCurrent = NaN;
+                }
+            } else {
+                latitudeCurrent = NaN;
+                longitudeCurrent = NaN;
+            }
+        }
+        setInterval(() => {
+            testPosition()
+        }, 500)
+        function addToRoute(latLng) {
+            console.log(latLng, "测试进本数据")
+            routePoints.push(latLng);
+
+            // 判断起点和终点是否重合
+            const startEndSame = routePoints.length > 1 &&
+                Math.abs(routePoints[0].lat - routePoints[routePoints.length - 1].lat) < 1e-6 &&
+                Math.abs(routePoints[0].lng - routePoints[routePoints.length - 1].lng) < 1e-6;
+
+            // 更新折线显示
+            updatePolyline();
+
+            // 新增点后调用enableEditing函数，使新增的每个点都可以拖动
+            enableEditing(startEndSame);
+        }
+        let g_polyline = null;
+        async function deleteCurrentRoute() {
+            // 移除与 ccpp/traverseRoute 接口请求相关的事件监听器
+            // 移除旧的监听器
+            document.getElementById("saveFirstPoint").removeEventListener("click", previewRouteHandler);
+            // 移除当前的 polyline（如果存在）
+            if (currentPolyline) {
+                map.removeLayer(currentPolyline);
+                currentPolyline = null;
+            }
+            if (currentRoutePolyline) {
+                map.removeLayer(currentRoutePolyline);
+                currentRoutePolyline = null;
+            }
+            // 移除所有标记
+            markers.forEach(marker => {
+                map.removeLayer(marker);
+                // 移除标记对应的标签
+                if (marker.options.tooltip) {
+                    marker.closeTooltip();
+                    marker.options.tooltip = null;
+                }
+                // 移除标记的事件监听器（如果有）
+                marker.off('click');
+                marker.off('dragend');
+            });
+            markers = [];
+
+            // 移除编辑模式下的可拖动标记
+            editableMarkers.forEach(marker => {
+                map.removeLayer(marker);
+                // 移除标记对应的标签
+                if (marker.options.tooltip) {
+                    marker.closeTooltip();
+                    marker.options.tooltip = null;
+                }
+                // 移除标记的事件监听器（如果有）
+                marker.off('click');
+                marker.off('dragend');
+            });
+            editableMarkers = [];
+
+            // 移除特殊点标记
+            importPortPoint.forEach(marker => {
+                map.removeLayer(marker);
+                // 移除标记对应的标签
+                if (marker.options.tooltip) {
+                    marker.closeTooltip();
+                    marker.options.tooltip = null;
+                }
+                // 移除标记的事件监听器（如果有）
+                marker.off('click');
+                marker.off('dragend');
+            });
+            importPortPoint = [];
+            currentBorderLine = [];
+            // 清空路线点数组
+            routePoints = [];
+
+            // // 重置相关状态
+            // toggleStatus = false;
+            // dragStatus = false;
+            // editStatus = false;
+            // document.getElementById("controlButton").innerText = "增加路线";
+            // document.getElementById("editButton").innerText = "开始编辑";
+
+            // 检查是否有其他全局变量保存了路线或标记的引用，并重置它们
+            // 这里假设没有其他未检查的全局变量，如果有，请根据实际情况进行清理
+            // 重置相关状态
+            dragStatus = false;
+            editStatus = false;
+
+            // 移除地图上可能存在的其他未被清理的图层
+            const allLayers = map._layers;
+            Object.keys(allLayers).forEach(key => {
+                const layer = allLayers[key];
+                if (layer instanceof L.Polyline || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            currentPointIndex = null;
+            theNextPoint = null;
+            currentLat = null;
+            currentLng = null;
+            // 初始化机器标记（此时 map 已存在）
+            // 添加图标
+            const icon = L.icon({
+                iconUrl: '../../assets/imges/当前位置 (2).png', // 替换为你的图标URL
+                iconSize: [16, 16], // 图标大小
+                iconAnchor: [8, 8] // 图标锚点
+            });
+
+            const markerHome = L.marker([initlatitudeCurrent, initlongitudeCurrent], { icon: icon, zIndexOffset: -1000 }).addTo(map);
+            //         // 关键：清空已有特殊点标记
+            // importPortPoint.forEach(marker => map.removeLayer(marker));
+            // importPortPoint = []; // 重置数组
+            // let allImportPointResponse = await axiosClient.get("station/querynew/2");
+
+            // console.log(allImportPointResponse.data.data[0],"allImportPoint111");
+            // pointData = JSON.parse(localStorage.getItem("temporaryStations"));
+            // console.log(pointData,"pointDatapointDatapointData");
+
+            // allImportPointResponse.data.data[0].forEach(station =>{
+            //  const iconstandard = L.icon({
+            //  iconUrl: '../../assets/imges/站点.png', // 替换为你的图标URL
+            //  iconSize: [18, 18], // 图标大小
+            //  iconAnchor: [9, 9] ,// 图标锚点，
+            //  Iconid:station.id
+            // });
+            // const markerSstandard = L.marker([station.latitude, station.longitude], { 
+            //     icon: iconstandard, 
+            //     draggable: false // 启用拖动
+            // }).addTo(map);
+            // // 为新添加点的标签添加特殊类名
+            // markerSstandard.bindTooltip(station.stationName, {
+            //     permanent: true,
+            //     direction: 'right',
+            //     offset: [10, 0],
+            //     className: 'station-label'
+            // });
+
+            // // 关键：绑定拖动结束事件，更新坐标
+            // markerSstandard.on('dragend', async function(e) {
+            //     const updatedLatLng = e.target.getLatLng();
+            //     // 更新标记的元数据（与新增标记统一数据结构）
+            //     e.target.options.metadata = {
+            //         name: station.stationName,
+            //         lat: updatedLatLng.lat,
+            //         lng: updatedLatLng.lng,
+            //         id: station.id // 保留原始 ID（如果有）
+            //     };
+            //     console.log(`站点 ${station.stationName} 坐标更新为：`, updatedLatLng,":id",station.id );
+            //     updatePoint(station.id,updatedLatLng.lng,updatedLatLng.lat)
+            // });
+            //  importPortPoint.push(markerSstandard)
+            // })
+
+
+            //   await   renderTemStations()
+        }
+
+        // 重置状态变量,现在改成全局变量。
+        let currentLat = null;
+        let currentLng = null;
+        let currentPointIndex = null;
+        let theNextPoint = null;
+        let currentSelectedMarker = null;
+        let currentSelectedPolyline = null;
+        let SecondPoint = null;
+        let previewRouteHandler = null;//实名函数
+        function drawallRoute() {
+            if (limtmodel == 0) {
+                toggleEditMode()
+            }
+            disableEditing();
+            allowAddingStations = false;
+            imgEdit.src = '../../assets/imges/img-right/编辑.png';
+            document.querySelector(".text-edit").textContent = "开始编辑"
+            limtmodel = 3
+            allowAddingStations = false;
+            imgEdit.src = '../../assets/imges/img-right/编辑.png';
+            borderLine = routePoints
+            borderLine.map(item => {
+                currentBorderLine.push(item.lng)
+                currentBorderLine.push(item.lat)
+            })
+            // 先将 editableMarkers 置为空数组
+            let editableMarkers = [];
+            const result = routePoints.map(point => {
+                let allTemMarkers = [...markers, ...temporary]
+
+
+                // 查找对应的 marker
+                const matchedMarker = allTemMarkers.find(marker =>
+                    marker.originalData &&
+                    marker.originalData.position.lat === point.lat &&
+                    marker.originalData.position.lng === point.lng
+                );
+                if (matchedMarker && matchedMarker.originalData.id) {
+                    // 如果找到匹配的 marker，并且有原始 ID，则使用该 ID
+                    editableMarkers.push(matchedMarker);
+                    return { longitude: point.lng, latitude: point.lat, id: matchedMarker.originalData.id.id };
+                } else {
+                    // 否则尝试从 stationData 中匹配，或者设置为 -1
+                    const matchId = stationData.find(item => item.longitude == point.lng && item.latitude == point.lat);
+                    if (matchedMarker) {
+                        editableMarkers.push(matchedMarker);
+                    }
+                    return { longitude: point.lng, latitude: point.lat, id: matchId ? matchId.id : "-1" };
+                }
+            });
+            console.log(editableMarkers, "editableMarkerseditableMarkerseditableMarkerseditableMarkers");
+
+            // 绘制路线线段并添加点击事件
+            const polylines = [];
+            for (let i = 0; i < result.length - 1; i++) {
+                const startPoint = L.latLng(result[i].latitude, result[i].longitude);
+                const endPoint = L.latLng(result[i + 1].latitude, result[i + 1].longitude);
+                // 增加线段的 weight，这里设置为 6，可根据实际需求调整
+                const polyline = L.polyline([startPoint, endPoint], { color: 'orange', weight: 6 }).addTo(map);
+                polylines.push(polyline);
+
+                polyline.on('click', function (e) {
+                    // 确保 currentSelectedMarker 已设置
+                    if (!currentSelectedMarker) {
+                        cocoMessage.error("请先选择一个站点")
+                        return;
+                    }
+                    console.log(polyline._latlngs[0], "polylinepolylinepolyline00000");
+                    console.log(polyline._latlngs[1], "polylinepolylinepolyline11111");
+                    polyline._latlngs.forEach(item => {
+                        if (item.lat !== currentSelectedMarker._latlng.lat && item.lng !== currentSelectedMarker._latlng.lng) {
+                            SecondPoint = item;
+                            console.log(SecondPoint, ":SecondPointSecondPoint");
+                        }
+                    });
+                    result.forEach((item, index) => {
+                        if (item.latitude == currentLat && item.longitude == currentLng) {
+                            currentPointIndex = index;
+                            console.log(index, "currentindexindexindexindexindex");
+                        }
+                        if (item.latitude == SecondPoint?.lat && item.longitude == SecondPoint?.lng) {
+                            theNextPoint = index;
+                            console.log(theNextPoint, "theNextPointtheNextPoint");
+                        }
+                    });
+                    console.log(result, "resultresultresultresult");
+                    console.log(editableMarkers, "editableMarkers");
+                    const markerIndex = editableMarkers.indexOf(currentSelectedMarker);
+                    const polylineIndex = polylines.indexOf(this);
+                    // if (polylineIndex === markerIndex || polylineIndex === markerIndex - 1  || ) {
+                    if (true) {
+                        // 如果有当前选中的线段，将其颜色恢复为绿色
+                        if (currentSelectedPolyline) {
+                            currentSelectedPolyline.setStyle({ color: 'orange' });
+                        }
+                        // 将当前点击的线段颜色设置为红色
+                        this.setStyle({ color: 'red' });
+                        // 更新当前选中的线段
+                        currentSelectedPolyline = this;
+                    }
+
+                    g_polyline = polyline //赋值当前路线
+                    // 显示目标 div（假设 div 的 ID 为 "popupDiv"）
+                    const popupDiv = document.getElementById('popupDiv');
+                    const FirstPoint = document.getElementById('FirstPoint');
+
+                    if (popupDiv) {
+                        const selectElement = document.getElementById('importPoint');
+                        selectElement.innerHTML = ''; // 清空所有选项
+                        let newOption1 = document.createElement('option');
+                        // 设置 option 的值和显示文本
+                        newOption1.value = '0'; // 设置新选项的值
+                        newOption1.textContent = '起点'; // 设置新选项显示的文本
+                        selectElement.appendChild(newOption1)
+                        let newOption2 = document.createElement('option');
+                        // 设置 option 的值和显示文本
+                        newOption2.value = '1'; // 设置新选项的值
+                        newOption2.textContent = '终点'; // 设置新选项显示的文本
+                        selectElement.appendChild(newOption2)
+                        console.log(stationData, "StationData");
+
+                        stationData.map((item, index) => {
+                            console.log(item);
+                            // 创建新的 <option> 元素
+                            let option = document.createElement("option")
+                            option.value = index + 2;
+                            option.textContent = item.stationName;
+                            selectElement.appendChild(option)
+                        })
+                        // 设置 div 的位置（可选，根据需求调整）
+                        popupDiv.style.left = `${e.originalEvent.clientX}px`;
+                        popupDiv.style.top = `${e.originalEvent.clientY + 20}px`;
+                        popupDiv.style.display = 'block';
+                    } else {
+                        console.log('未找到 popupDiv 元素');
+                    }
+                    console.log(popupDiv, "=============");
+                    e.originalEvent.stopPropagation();
+                });
+            }
+
+            // 为每个路线点的标记添加点击事件
+            editableMarkers.forEach(marker => {
+                marker.on('click', function (e) {
+                    // 先清除 currentRoutePolyline（如果存在）
+                    if (currentRoutePolyline) {
+                        map.removeLayer(currentRoutePolyline);
+                        currentRoutePolyline = null;
+                    }
+                    // 删除英文终点标记（如果存在）
+                    if (firstPointMarker) {
+                        map.removeLayer(firstPointMarker);
+                        firstPointMarker = null;
+                    }
+                    if (lastPointMarker) {
+                        map.removeLayer(lastPointMarker);
+                        lastPointMarker = null;
+                    }
+                    // 恢复之前选中的 marker 大小
+                    if (currentSelectedMarker) {
+                        const icon = currentSelectedMarker.getIcon();
+                        icon.options.iconSize = [20, 20]; // 恢复原始大小
+                        icon.options.iconAnchor = [10, 10]; // 恢复原始大小
+                        icon.options.iconUrl = '../../assets/imges/原点.png';
+                        currentSelectedMarker.setIcon(icon);
+                    }
+                    // 恢复之前选中线段的颜色
+                    if (currentSelectedPolyline) {
+                        currentSelectedPolyline.setStyle({ color: 'orange' });
+                        currentSelectedPolyline = null;
+                    }
+                    // 增大当前点击的 marker 大小
+                    const icon = this.getIcon();
+                    icon.options.iconSize = [20, 20];
+                    icon.options.iconAnchor = [10, 16]; // 恢复原始大小
+                    icon.options.iconUrl = '../../assets/imges/标记.png';
+                    this.setIcon(icon);
+                    currentSelectedMarker = this;
+
+                    currentLat = marker.dragging._marker._latlng.lat;
+                    currentLng = marker.dragging._marker._latlng.lng;
+                    e.originalEvent.stopPropagation(); // 阻止事件冒泡
+                });
+            });
+
+            document.getElementById("cancelPreview").addEventListener("click", async function () {
+                const popupDiv = document.getElementById('popupDiv');
+                if (popupDiv) {
+                    popupDiv.style.display = 'none';
+                } else {
+                    console.log('未找到 popupDiv 元素');
+                }
+            });
+
+            // 清除旧的事件监听器
+            const saveFirstPointButton = document.getElementById("saveFirstPoint");
+            // 清理旧监听器
+            if (previewRouteHandler) {
+                document.getElementById("saveFirstPoint").removeEventListener("click", previewRouteHandler);
+            }
+            previewRouteHandler = async function () {
+                const selectElement = document.getElementById('importPoint');
+                let selectedValue = selectElement.value; // 获取选中的值
+                document.getElementById('importPoint').addEventListener('change', function () {
+                    selectedValue = Array.from(this.selectedOptions).map(option => option.value);
+                    console.log('Selected options:', selectedValue);
+                });
+                let currentRoute;
+                var radios = document.getElementsByName('choice');
+                let currentWidthValue = document.getElementById("currentWidthValue")?.value || "未设置宽度值";
+                let offset = document.getElementById("offset")?.value || 0;
+                let params = {
+                    startIndex: currentPointIndex,
+                    stepSize: currentWidthValue,
+                    nextIndex: theNextPoint,
+                    locations: result,
+                    offset: offset
+                };
+
+                // 添加检查，避免重复请求
+                if (!params.startIndex || !params.nextIndex || !result) {
+                    return;
+                }
+
+                try {
+                    const response = await axiosClient.post("ccpp/traverseRoute", params);
+                    preViewRouteData = params.locations
+                    if (response) {
+                        currentRoute = response.data.data.map(item => [item.latitude, item.longitude]);
+                        if (selectedValue >= 2) {
+                            console.log("rrreeeeerrrr");
+                            currentLastPoint = [stationData[selectedValue - 2].latitude, stationData[selectedValue - 2].longitude]
+                        } else if (selectedValue == 0) {
+                            currentLastPoint = currentRoute[0]
+                        } else if (selectedValue == 1) {
+                            currentLastPoint = 0
+                        }
+                        console.log(selectedValue, currentLastPoint, "currentLastPoint=选择的value");
+                        console.log(params, "paramsparamsparams");
+                        routePoints = currentRoute.map(item => {
+                            return {
+                                lat: item[0],
+                                lng: item[1]
+                            };
+                        });
+                        updateRoutePolylineAdd(currentRoute, currentLastPoint);
+                    } else {
+                        console.error("Unexpected response structure from API");
+                    }
+                } catch (error) {
+                    console.error("Error fetching data:", error); // 打印完整的错误信息
+                    throw error; // 抛出错误以便在调用处捕获
+                }
+                const popupDiv = document.getElementById('popupDiv');
+                if (popupDiv) {
+                    popupDiv.style.display = 'none';
+                }
+            }
+            document.getElementById("saveFirstPoint").addEventListener("click", previewRouteHandler);
+        }
+        //添加操作日志
+        async function addWaterDepth(params) {
+            try {
+                // let params = {
+                //     routeMsg:"机器运行了路线",
+                //     carRun:"机器运行",
+                //     carStop:"机器暂停",
+                //     workCancel:"机器停止并取消了执行的任务路线"
+                //     }
+                const response = await axiosClient.post("carLog/add", params);
+                console.log(response, "response")
+
+            } catch (error) {
+                console.error("Error fetching data:", error); // 打印完整的错误信息
+                throw error; // 抛出错误以便在调用处捕获
+            }
+        }
+
+
+        // 修改recordRoute函数
+        function recordRoute() {
+            if (preViewRouteStatus) {
+                // 开始预览（原代码逻辑可能反了，这里根据按钮文本判断状态）
+                let recordPoints = JSON.parse(localStorage.getItem("myRecording")) || [];
+                let recordRouteBtn = document.getElementById("recordRoute");
+                recordRouteBtn.textContent = "结束预览";
+
+                // 过滤有效坐标点（注意Leaflet使用lat/lng顺序）
+                let stations1 = recordPoints.filter(station => {
+                    return isNumeric(station.lat) && isNumeric(station.lng);
+                });
+
+                drawPreviewRoute(stations1);
+            } else {
+                // 结束预览
+                let recordRouteBtn = document.getElementById("recordRoute");
+                recordRouteBtn.textContent = "开始预览";
+
+                // 移除所有预览元素
+                if (linePreview) map.removeLayer(linePreview);
+                if (startMarker) map.removeLayer(startMarker);
+                if (endMarker) map.removeLayer(endMarker);
+
+                linePreview = null;
+                startMarker = null;
+                endMarker = null;
+            }
+
+            preViewRouteStatus = !preViewRouteStatus;
+        }
+
+        // 修改drawPreviewRoute函数（关键修改点）
+        function drawPreviewRoute(stations) {
+            const thisPoints = []; // Leaflet坐标数组（lat, lng顺序）
+
+            // 转换坐标格式（重要：Leaflet使用lat在前，lng在后）
+            for (const station of stations) {
+                if (typeof station.lat === 'string' && typeof station.lng === 'string') {
+                    thisPoints.push(L.latLng(
+                        parseFloat(station.lat),  // 纬度在前
+                        parseFloat(station.lng)   // 经度在后
+                    ));
+                } else {
+                    console.log("无效坐标点：", station);
+                }
+            }
+
+            if (thisPoints.length === 0) {
+                cocoMessage.error("没有有效的点来绘制路线");
+                return;
+            }
+
+            // 创建并添加路线（使用Leaflet的Polyline）
+            const lineOptions = {
+                color: '#FF0000',       // 红色路线
+                weight: 5,              // 线宽
+                opacity: 0.8,           // 透明度
+                dashArray: '10, 5',     // 虚线样式
+                clickable: false        // 路线不可点击
+            };
+
+            // 移除旧路线（如果存在）
+            if (linePreview) map.removeLayer(linePreview);
+            linePreview = L.polyline(thisPoints, lineOptions).addTo(map);
+
+            // 添加起点标记（使用Leaflet Marker）
+            if (!startMarker) {
+                const startIcon = L.icon({
+                    iconUrl: '../../assets/imges/英文起点.png', // 你的起点图标路径
+                    iconSize: [32, 32],                     // 图标大小
+                    iconAnchor: [16, 32]                     // 锚点位置（底部中心）
+                });
+                startMarker = L.marker(thisPoints[0], { icon: startIcon, zIndexOffset: -1000 }).addTo(map);
+            } else {
+                startMarker.setLatLng(thisPoints[0]); // 更新起点位置
+            }
+
+            // 添加终点标记（使用Leaflet Marker）
+            if (!endMarker) {
+                const endIcon = L.icon({
+                    iconUrl: '../../assets/imges/英文终点.png', // 你的终点图标路径
+                    iconSize: [32, 32],                     // 图标大小
+                    iconAnchor: [16, 32]                     // 锚点位置（底部中心）
+                });
+                endMarker = L.marker(thisPoints[thisPoints.length - 1], { icon: endIcon }).addTo(map);
+            } else {
+                endMarker.setLatLng(thisPoints[thisPoints.length - 1]); // 更新终点位置
+            }
+
+            // 自动缩放地图以显示完整路线
+            map.fitBounds(linePreview.getBounds(), { padding: [50, 50] });
+        }
+
+        // 保持原有isNumeric函数不变
+        function isNumeric(str) {
+            return /^-?\d+(\.\d+)?$/.test(str);
+        }
+
+
+        function toggleClickEvent() {
+            limtmodel = 0
+            deleteCurrentRoute()
+            renderStations()
+            let addEdit = document.getElementById('addEdit');
+            let imgEdit = document.getElementById("imgEdit")
+            dragChangeStatus = true
+            map.off("click")
+            callbackStatus = 1
+            map.on('click', handleMapClick);
+            //  clearAllRoutes()
+            document.querySelector(".text-edit").textContent = "开始编辑";
+            imgEdit.src = '../../assets/imges/img-right/编辑.png';
+            editStatus = false
+            allowAddingStations = false;
+            disableEditing()
+            if (!toggleStatus) {
+                toggleStatus = true
+                document.querySelector(".text-editLine").textContent = "关闭增加";
+                addEdit.src = '../../assets/imges/img-right/绘制路线 (2).png';
+
+            }
+            else {
+                toggleStatus = false
+                document.querySelector(".text-editLine").textContent = "新增路线";
+                addEdit.src = '../../assets/imges/img-right/绘制路线 (1).png';
+            }
+        }
+
+        // 定义打印当前路线ID的函数，这里主要是发布话题
+        async function printCurrentRouteId() {
+            const selectElement = document.getElementById('routeSelect');
+            const selectedValue = selectElement.value;
+            let selectedItem = alldata.find(item => item.routeId == selectedValue);
+            if (!selectedValue) {
+                cocoMessage.error("请选择路线");
+            } else {
+                try {
+                    if (selectedValue) {
+                        rosManager.publishNumberArray(Number(selectedValue));
+                        $(".route_choose").text("选择成功");
+                    } else {
+                        cocoMessage.error("请选择路线")
+                    }
+                    // const response = await axiosClient.get("route/detailmap/" + selectedValue);
+                    // let flag = response.data.code;
+                    // if (!flag) {
+                    //     $(".route_choose").text("选择成功");
+                    //     let poseMsg = new ROSLIB.Message({
+                    //         data: response.data.data,
+                    //     });
+                    //     rosManager.gnssPointPub.publish(poseMsg);
+                    //     cocoMessage.success("已发布");
+                    //     const originData = {
+                    //         action: "gnsspoint",
+                    //         points: response.data.data
+                    //     }
+                    //     const finalData = JSON.stringify(originData);
+                    //     websocket.send(finalData);
+                    //     console.log(selectedItem, "selectedItemselectedItem");
+                    //     let params = {
+                    //         routeMsg: String(selectedItem.routeName),
+                    //         carRun: "",
+                    //         carStop: "",
+                    //         workCancel: ""
+                    //     }
+                    //     await addWaterDepth(params)
+
+                    // } else {
+                    //     cocoMessage.error("系统错误");
+                    // }
+                } catch (error) {
+                    console.error("Error fetching data:", error); // 打印完整的错误信息
+                    throw error; // 抛出错误以便在调用处捕获
+                }
+            }
+        }
+
+        function loadRoute(routeId) {
+            // 清除现有路线元素
+            if (currentRoutePolyline) map.removeLayer(currentRoutePolyline);
+            editableMarkers.forEach(marker => map.removeLayer(marker));
+            editableMarkers = [];
+
+            // 获取路线数据
+            const selectedRoute = alldata.find(r => r.routeId == routeId);
+            if (!selectedRoute) return;
+
+            // 创建可拖拽标记
+            const routePoints = selectedRoute.stations.map(station => {
+                const marker = L.marker([station.latitude, station.longitude], {
+                    draggable: true,
+                    icon: L.icon({
+                        iconUrl: '../../assets/imges/原点.png',
+                        title: station.stationName,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    })
+                }).addTo(map);
+                marker.bindTooltip(station.stationName, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'station-label'
+                });
+                // 绑定拖拽事件
+                marker.on('dragend', function (e) {
+                    const updatedPosition = e.target.getLatLng();
+                    // 更新routePoints中的对应点
+                    let index = routePoints.findIndex(point =>
+                        point.lat === marker.originalData.position.lat &&
+                        point.lng === marker.originalData.position.lng
+                    );
+                    if (index !== -1) {
+                        routePoints[index] = updatedPosition;
+                        updatePolyline(); // 更新Polyline
+                    }
+                    // 更新marker的原始位置为新位置，以便下次拖动
+                    marker.originalData.position = updatedPosition;
+
+                    // 移除旧的标记
+                    map.removeLayer(marker);
+                    // 将更新后的标记重新添加到地图上
+                    marker.setLatLng(updatedPosition);
+                    map.addLayer(marker);
+                });
+
+                editableMarkers.push(marker);
+                return marker.getLatLng();
+            });
+
+            // 绘制动态折线
+            currentRoutePolyline = L.polyline(routePoints, {
+                color: 'green',
+                weight: 3
+            }).addTo(map);
+            map.setView(routePoints[0], selectedRoute.mapCoverage);
+            // 聚焦首站点
+            map.setView(routePoints[0], 18);
+        }
+
+        function updateRoutePolylineAdd(points, lastPoint) {
+            if (lastPoint != 0) {
+                points.push(lastPoint);
+            }
+            if (currentRoutePolyline) map.removeLayer(currentRoutePolyline);
+            currentRoutePolyline = L.polyline(points, {
+                color: 'green',
+                weight: 3
+            }).addTo(map);
+
+            // 移除之前的最后一个点标记
+            if (lastPointMarker) {
+                map.removeLayer(lastPointMarker);
+            }
+            // 移除之前的最后一个点标记
+            if (firstPointMarker) {
+                map.removeLayer(firstPointMarker);
+            }
+
+
+            // 创建自定义图标
+            var customIcon = L.icon({
+                iconUrl: '../../assets/imges/英文终点.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 16]
+            });
+
+            // 创建自定义图标
+            var customIconFirst = L.icon({
+                iconUrl: '../../assets/imges/英文起点.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 16]
+            });
+
+
+            // 如果有最后一个点，添加标记
+            if (points.length > 0) {
+                var lastPointCoords = points[points.length - 1];
+                var firstPointCoords = points[0];
+                lastPointMarker = L.marker(lastPointCoords, { icon: customIcon }).addTo(map);
+                firstPointMarker = L.marker(firstPointCoords, { icon: customIconFirst, zIndexOffset: -1000 }).addTo(map);
+                // 获取标记对应的 DOM 元素
+                var markerElement = lastPointMarker.getElement();
+                var firstmarkerElement = firstPointMarker.getElement();
+                if (markerElement) {
+                    // 添加自定义类名
+                    firstmarkerElement.classList.add('last-marker');
+                    markerElement.classList.add('last-marker');
+                }
+            }
+        }
+        function toggleDragEvent() {
+            dragStatus = !dragStatus;
+            document.getElementById("dragButton").innerText = dragStatus ? "关闭拖动" : "开启拖动";
+            markers.forEach(marker => {
+                if (dragStatus) {
+                    marker.dragging.enable();
+                } else {
+                    marker.dragging.disable();
+                }
+            });
+        }
+
+
+        async function populateRouteSelect(selectLast = false, selectId) {
+            deleteCurrentRoute()
+            dragChangeStatus = false
+            callbackStatus = 2
+            const defaultIcon = L.icon({
+                iconUrl: '../../assets/imges/原点.png',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            let currentSelectId = selectId;
+            const specialIcon = L.icon({
+                iconUrl: '../../assets/imges/英文终点.png', // 假设这是你的特殊标记图片路径
+                iconSize: [25, 25],
+                iconAnchor: [10, 18]
+            });
+            const firstIcon = L.icon({
+                iconUrl: '../../assets/imges/英文起点.png', // 假设这是你的特殊标记图片路径
+                iconSize: [25, 25],
+                iconAnchor: [10, 18]
+            });
+            const selectElement = document.getElementById('routeSelect');
+            const stationInfoDisplay = document.createElement('div');
+            stationInfoDisplay.id = "stationInfoDisplay";
+            document.querySelector('.bottomBox').appendChild(stationInfoDisplay);
+
+            selectElement.innerHTML = "";
+            if (selectElement.options.length === 0 || selectElement.options[0].value !== '') {
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = '请选择路线';
+                defaultOption.disabled = true;
+                defaultOption.selected = true;
+                selectElement.appendChild(defaultOption);
+            }
+
+            if (alldata && alldata.length) {
+                let lastRouteId = null; // 记录最后一个 routeId
+                alldata.forEach((item, index) => {
+                    let option = document.createElement('option');
+                    option.value = item.routeId;
+                    option.textContent = `路线${index + 1}: ${item.routeName}`;
+                    selectElement.appendChild(option);
+                    lastRouteId = item.routeId; // 更新到最后一个 routeId
+                });
+
+                if (selectLast && lastRouteId) {
+                    selectElement.value = lastRouteId;
+                    selectElement.dispatchEvent(new Event('change'));
+                } else if (currentSelectId) {
+                    selectElement.value = currentSelectId;
+                    selectElement.dispatchEvent(new Event('change'));
+                }
+            } else {
+                const noDataOption = document.createElement('option');
+                noDataOption.value = '';
+                noDataOption.textContent = '无可用路线';
+                noDataOption.disabled = true;
+                selectElement.appendChild(noDataOption);
+            }
+
+            selectElement.addEventListener('change', function (e) {
+                deleteCurrentRoute()
+                // let imgEdit = document.getElementById("imgEdit")
+                // imgEdit.src  =  '../../assets/imges/img-right/编辑.png';
+                // document.querySelector(".text-edit").textContent = "开始编辑";
+                allowAddingStations = false;
+                editStatus = false
+                clearAllRoutes()
+                clearExistingMarkers();
+
+
+                if (e.target.value) {
+                    if (currentRoutePolyline) map.removeLayer(currentRoutePolyline);
+                    editableMarkers.forEach(marker => map.removeLayer(marker));
+                    editableMarkers = [];
+                    const selectedRoute = alldata.find(r => r.routeId == e.target.value);
+                    let newnewnew = []
+                    if (selectedRoute) {
+                        let newPoint = selectedRoute.stations.map(station => [station.latitude, station.longitude]);
+                        let currentBorderPoint = selectedRoute.edges.map(station => [station.latitude, station.longitude]);
+                        // if(currentBorderPoint[0] != currentBorderPoint[currentBorderPoint.length -1]){
+                        // currentBorderPoint.push(currentBorderPoint[currentBorderPoint.length - 1])
+                        // }
+                        let finallyLine = []
+                        finallyLine.push(currentBorderPoint[0])
+                        finallyLine.push(currentBorderPoint[currentBorderPoint.length - 1])
+                        console.log(newPoint, "newPoint");
+                        console.log(currentBorderPoint, "currentBorderPoint");
+
+                        console.log(selectedRoute.stations, "selectedRoute.stationsselectedRoute.stations");
+                        console.log(routePoints.length, "222222222routePoints");
+
+                        selectedRoute.stations.forEach((station, index) => {
+                            let currentIcon = null
+                            const latlng = [station.latitude, station.longitude];
+                            const isLastStation = index === selectedRoute.stations.length - 1;
+                            const isFirstStation = index === 0;
+                            if (isLastStation) {
+                                currentIcon = specialIcon
+                            } else if (isFirstStation) {
+                                currentIcon = firstIcon
+                            } else {
+                                currentIcon = defaultIcon
+                            }
+                            const marker = L.marker(latlng, {
+                                draggable: true,
+                                icon: currentIcon,
+                                zIndexOffset: -1000
+                            }).addTo(map);
+
+                            marker.bindTooltip(station.stationName, {
+                                permanent: true,
+                                direction: 'right',
+                                offset: [10, 0],
+                                className: 'station-label currentRouteStyle'
+                            });
+
+                            marker.on('dragend', function (e) {
+                                const newLatlng = e.target.getLatLng();
+                                selectedRoute.stations[index].latitude = newLatlng.lat;
+                                selectedRoute.stations[index].longitude = newLatlng.lng;
+                                newPoint[index] = [newLatlng.lat, newLatlng.lng];
+                                updateRoutePolyline(newPoint);
+                            });
+
+                            marker.on('click', function (e) {
+                                e.originalEvent.stopPropagation();
+                                const content = `站点：${station.stationName}`;
+                                toggleInfoBox(e.originalEvent.clientX, e.originalEvent.clientY, content, station.stationName);
+                            });
+
+                            editableMarkers.push(marker);
+                            markers.push(marker);
+                        });
+                        console.log("=======================================");
+                        updateBorderRoutePolyline(currentBorderPoint)
+                        updateBorderRoutePolyline(finallyLine)
+                        updateRoutePolyline(newPoint);
+
+                        map.off('click');
+                        map.on('click', async function (e) {
+                            console.log(allowAddingStations, "allowAddingStationsallowAddingStationsallowAddingStations");
+
+                            if (!allowAddingStations) return; // 如果不允许添加，则直接返回
+                            const latlng = e.latlng;
+                            const newStation = {
+                                latitude: latlng.lat,
+                                longitude: latlng.lng,
+                                stationName: `站点${selectedRoute.stations.length + 1}`
+                            };
+                            console.log(newStation, "newStationnewStationnewStation");
+
+                            // 更新最后一个点的图标为默认图标
+                            if (editableMarkers.length > 0) {
+                                const lastMarker = editableMarkers[editableMarkers.length - 1];
+                                lastMarker.setIcon(defaultIcon);
+                            }
+
+                            // 添加新点并设置其图标为特殊图标
+                            const marker = L.marker([latlng.lat, latlng.lng], {
+                                draggable: true,
+                                icon: specialIcon,
+                            }).addTo(map);
+
+                            marker.bindTooltip(newStation.stationName, {
+                                permanent: true,
+                                direction: 'right',
+                                offset: [10, 0],
+                                className: 'station-label'
+                            });
+
+                            marker.on('dragend', function (e) {
+                                const newLatlng = e.target.getLatLng();
+                                // 找到当前标记对应的索引
+                                const index = editableMarkers.indexOf(e.target);
+                                if (index > -1) {
+                                    // 更新对应站点的经纬度
+                                    selectedRoute.stations[index].latitude = newLatlng.lat;
+                                    selectedRoute.stations[index].longitude = newLatlng.lng;
+                                    // 更新routePoints
+                                    newPoint[index] = [newLatlng.lat, newLatlng.lng];
+                                    updateRoutePolyline(newPoint); // 重新绘制折线
+                                }
+                            });
+
+                            marker.on('click', function (e) {
+                                e.originalEvent.stopPropagation();
+                                const content = `站点：${newStation.stationName}`;
+                                toggleInfoBox(e.originalEvent.clientX, e.originalEvent.clientY, content, newStation.stationName);
+                            });
+
+                            editableMarkers.push(marker);
+                            markers.push(marker);
+                            newPoint.push([String(latlng.lat), String(latlng.lng)]);
+                            updateBorderRoutePolyline(currentBorderPoint)
+                            updateBorderRoutePolyline
+                            updateRoutePolyline(newPoint);
+
+                            // 添加新站到路线中
+                            selectedRoute.stations.push(newStation);
+                        });
+
+                        map.setView([selectedRoute.stations[0].latitude, selectedRoute.stations[0].longitude], selectedRoute.mapCoverage);
+                        disableEditing();
+                    }
+                } else {
+                    stationInfoDisplay.innerHTML = "";
+                }
+            });
+        }
+
+        function updateRoutePolyline(points) {
+            console.log(points, "pointspointspointsp我我我我oints");
+            if (currentRoutePolyline) map.removeLayer(currentRoutePolyline);
+            currentRoutePolyline = L.polyline(points, {
+                color: 'red',
+                weight: 2
+            }).addTo(map);
+        }
+        function updateBorderRoutePolyline(points) {
+            console.log(points, "pointspointspointsp我我我我oints");
+            points.push(points[points.length - 1])
+            currentBorderRoutePolyline = L.polyline(points, {
+                color: 'green',
+                weight: 10
+            }).addTo(map);
+        }
+        //删除的模态框
+        async function showDeleteConfirmation() {
+            // 获取模态框实例并显示
+            const modalElement = document.getElementById('deleteConfirmationModal');
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            // 确保我们只添加一次点击事件监听器
+            const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+            confirmDeleteButton.addEventListener('click', async () => {
+                try {
+                    const selectElement = document.getElementById('routeSelect');
+                    const selectedValue = selectElement.value;
+                    if (selectedValue) {
+                        const response = await axiosClient.delete("route/deleteauto/" + selectedValue);
+                        let flag = response.data.code;
+                        if (!flag) {
+                            cocoMessage.success("删除路线成功");
+                            await getAllRoute()
+                            await getAllCurrentPoint()
+                            await populateRouteSelect();
+                            modal.hide();
+                            clearAllRoutes()
+                        } else {
+                            cocoMessage.error("系统错误");
+                        }
+                    } else {
+                        cocoMessage.error("请选择要删除的路线再点击删除")
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching data:", error); // 打印完整的错误信息
+                    throw error; // 抛出错误以便在调用处捕获
+                }
+            }, { once: true }); // 使用 {once: true} 选项来确保这个监听器只会触发一次
+        }
+        async function saveRouteData() {
+            const selectedRoute = alldata.find(r => r.routeId == document.getElementById('routeSelect').value);
+            // 示例：处理 currentAvoidArr
+            let currentlength = selectedRoute.stations.length;
+            selectedRoute.stations.forEach(item => {
+                if (item.area) {
+                    currentAvoidArr.push(item.area);
+                } else {
+                    currentAvoidArr.push("1");
+                }
+            });
+            currentAvoidArr = currentAvoidArr.slice(-currentlength)
+            console.log(saveRouteData, "saveRouteData");
+
+            if (!selectedRoute) return;
+
+            const updatedStations = selectedRoute.stations.map((station, index) => {
+                const marker = editableMarkers[index];
+                if (!marker || typeof marker.getLatLng !== 'function') {
+                    console.error(`Invalid marker at index ${index}`);
+                    return null; // 或者跳过这个无效的标记
+                }
+                const latLng = marker.getLatLng();
+                return {
+                    id: station.stationId,
+                    latitude: String(latLng.lat),
+                    longitude: String(latLng.lng)
+                };
+            }).filter(station => station !== null); // 过滤掉无效的标记
+
+            const dataToSave = {
+                id: selectedRoute.routeId,
+                routeName: selectedRoute.routeName,
+                mapCoverage: selectedRoute.mapCoverage,
+                stations: updatedStations,
+                rowData: currentAvoidArr
+            };
+            try {
+                const response = await axiosClient.post("route/updateMap", dataToSave);
+                if (response) {
+                    console.log(response.data.data);
+                    console.log(selectedRoute.stations, " selectedRoute.stations");
+                } else {
+                    console.error("Unexpected response structure from API");
+                }
+            } catch (error) {
+                console.error("Error fetching data:", error); // 打印完整的错误信息
+                throw error; // 抛出错误以便在调用处捕获
+            }
+            await getAllCurrentPoint()
+            await getAllRoute()
+            await populateRouteSelect(false, selectedRoute.routeId);
+            // await renderStations();
+            console.log(dataToSave, "保存的数据");
+            let imgEdit = document.getElementById("imgEdit")
+            imgEdit.src = '../../assets/imges/img-right/编辑.png';
+            document.querySelector(".text-edit").textContent = "开始编辑";
+            allowAddingStations = false;
+            editStatus = false
+            disableEditing()
+            // 这里可以添加代码将数据发送到服务器或者进行其他保存操作
+        }
+
+        function toggleEditMode() {
+            limtmodel = 1
+            let addEdit = document.getElementById('addEdit');
+            toggleStatus = false;
+            document.querySelector(".text-editLine").textContent = "新增路线";
+            addEdit.src = '../../assets/imges/img-right/绘制路线 (1).png';
+            editStatus = !editStatus;
+            document.querySelector(".text-edit").textContent = editStatus ? "结束编辑" : "开始编辑";
+            if (editStatus) {
+                allowAddingStations = true;
+                // 判断起点和终点是否重合
+                const startEndSame = routePoints.length > 1 &&
+                    Math.abs(routePoints[0].lat - routePoints[routePoints.length - 1].lat) < 1e-6 &&
+                    Math.abs(routePoints[0].lng - routePoints[routePoints.length - 1].lng) < 1e-6;
+
+                if (!startEndSame && routePoints.length > 0) {
+                    routePoints.push(routePoints[0])
+                    // 确保只有起点一个标签，不添加额外的终点标签
+                    // 直接更新折线显示，连接起点和终点
+                    if (currentPolyline) map.removeLayer(currentPolyline);
+                    const newRoutePoints = [...routePoints];
+                    // newRoutePoints.push(routePoints[0]); // 连接起点和终点
+                    currentPolyline = L.polyline(routePoints, { color: '#ccc' }).addTo(map);
+                }
+                enableEditing(startEndSame);
+                imgEdit.src = '../../assets/imges/img-right/编辑状态.png';
+            } else {
+                disableEditing();
+                allowAddingStations = false;
+                imgEdit.src = '../../assets/imges/img-right/编辑.png';
+            }
+        }
+
+        function renderTemStations() {
+            if (pointData) {
+                pointData = JSON.parse(localStorage.getItem("temporaryStations"));
+                temporary = []; // 重置markers数组
+                clearExistingMarkers(); // 清理旧标记
+                var customIcon = L.icon({
+                    iconUrl: '../../assets/imges/原点.png',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+                pointData.forEach(station => {
+                    var marker = L.marker([parseFloat(station.lat), parseFloat(station.lng)], {
+                        icon: customIcon,
+                        title: station.stationName,
+                        draggable: dragStatus
+                    }).addTo(map);
+                    marker.bindTooltip(station.stationName, {
+                        permanent: true,
+                        direction: 'right',
+                        offset: [10, 0],
+                        className: 'station-label '
+                    });
+
+                    // 新增：绑定点击事件，处理新增路线时的点选
+                    marker.on('click', function (e) {
+                        e.originalEvent.stopPropagation(); // 阻止事件冒泡
+                        if (toggleStatus) { // 仅在新增路线模式下响应
+                            addToRoute(this.getLatLng()); // 将当前点添加到路线
+                        }
+                    });
+                    // 新增：设置 originalData（关键修复点）
+                    marker.originalData = {
+                        position: {
+                            lat: parseFloat(station.lat),
+                            lng: parseFloat(station.lng)
+                        },
+                        id: null // 若无ID可设为null，确保结构和markers一致
+                    };
+                    marker.originalVisibility = {
+                        icon: marker.options.icon,
+                        tooltip: marker.options.tooltip
+                    };
+                    temporary.push(marker);
+                });
+            }
+        }
+
+
+        function addEnableEditing() {
+            markers.forEach(marker => {
+                // 保存原始位置和数据以备撤回操作使用
+                marker.originalData = {
+                    position: marker.getLatLng(),
+                    id: stationData.find(item =>
+                        item.latitude === marker.getLatLng().lat &&
+                        item.longitude === marker.getLatLng().lng
+                    )
+                };
+
+                if (dragChangeStatus) {
+                    marker.dragging.enable(); // 确保可以拖动
+                }
+                marker.on('dragend', async function (e) {
+                    const updatedPosition = e.target.getLatLng();
+                    // 更新routePoints中的对应点
+                    let index = routePoints.findIndex(point =>
+                        point.lat === marker.originalData.position.lat &&
+                        point.lng === marker.originalData.position.lng
+                    );
+                    if (index !== -1) {
+                        routePoints[index] = updatedPosition;
+                        addUpdatePolyline();
+                    }
+                    // 更新marker的原始位置为新位置，以便下次拖动
+                    marker.originalData.position = updatedPosition;
+
+                    if (marker.originalData.id) {
+                        updatePoint(marker.originalData.id.id, marker.originalData.position.lng, marker.originalData.position.lat);
+                        await getAllRoute();
+                        await getAllCurrentPoint();
+                    }
+                });
+            });
+        }
+        function enableEditing(startEndSame) {
+            markers.forEach(marker => {
+                // 保存原始位置和数据以备撤回操作使用
+                marker.originalData = {
+                    position: marker.getLatLng(),
+                    id: stationData.find(item =>
+                        item.latitude === marker.getLatLng().lat &&
+                        item.longitude === marker.getLatLng().lng
+                    )
+                };
+
+                if (dragChangeStatus) {
+                    marker.dragging.enable(); // 确保可以拖动
+                }
+                marker.on('dragend', async function (e) {
+                    const updatedPosition = e.target.getLatLng();
+                    // 更新routePoints中的对应点
+                    let index = routePoints.findIndex(point =>
+                        point.lat === marker.originalData.position.lat &&
+                        point.lng === marker.originalData.position.lng
+                    );
+                    if (index !== -1) {
+                        routePoints[index] = updatedPosition;
+
+                        // 如果起点和终点重合且拖动的是起点，更新终点的位置
+                        if (index === 0) {
+                            routePoints[routePoints.length - 1] = routePoints[0];
+                            // 找到终点对应的标记并更新其位置
+                            const endMarker = markers.find(m => {
+                                const pos = m.getLatLng();
+                                return Math.abs(pos.lat - marker.originalData.position.lat) < 1e-6 &&
+                                    Math.abs(pos.lng - marker.originalData.position.lng) < 1e-6;
+                            });
+                            if (endMarker) {
+                                endMarker.setLatLng(updatedPosition);
+                            }
+                        }
+
+                        // 如果起点和终点不重合，更新连线的终点位置
+                        if (!startEndSame && index === 0) {
+                            const newRoutePoints = [...routePoints];
+                            newRoutePoints.push(updatedPosition); // 更新连线的终点位置
+                            if (currentPolyline) map.removeLayer(currentPolyline);
+                            currentPolyline = L.polyline(newRoutePoints, { color: 'green' }).addTo(map);
+                        }
+
+                        updatePolyline(); // 更新Polyline
+                    }
+                    // 更新marker的原始位置为新位置，以便下次拖动
+                    marker.originalData.position = updatedPosition;
+
+                    if (marker.originalData.id) {
+                        updatePoint(marker.originalData.id.id, marker.originalData.position.lng, marker.originalData.position.lat);
+                        await getAllRoute();
+                        await getAllCurrentPoint();
+                    }
+                });
+            });
+        }
+
+        //禁止编辑
+        function disableEditing() {
+            markers.forEach(marker => {
+                if (marker.dragging && marker.dragging.disable) {
+                    marker.dragging.disable();
+                    delete marker.originalPosition;
+                }
+            });
+        }
+        function updatePolyline() {
+            if (currentPolyline) map.removeLayer(currentPolyline); // 移除旧的Polyline
+            if (routePoints.length > 0) { // 如果还有路线点，则根据新的路线点绘制Polyline
+                const newRoutePoints = [...routePoints];
+                const startEndSame = routePoints.length > 1 &&
+                    Math.abs(routePoints[0].lat - routePoints[routePoints.length - 1].lat) < 1e-6 &&
+                    Math.abs(routePoints[0].lng - routePoints[routePoints.length - 1].lng) < 1e-6;
+                if (!startEndSame) {
+                    newRoutePoints.push(routePoints[0]); // 连接起点和终点
+                }
+                currentPolyline = L.polyline(newRoutePoints, { color: 'green' }).addTo(map);
+            } else {
+                currentPolyline = null; // 没有路线点时，设置currentPolyline为null
+            }
+        }
+
+        function addUpdatePolyline() {
+            if (currentPolyline) map.removeLayer(currentPolyline); // 移除旧的Polyline
+            if (routePoints.length > 0) { // 如果还有路线点，则根据新的路线点绘制Polyline
+                const newRoutePoints = [...routePoints];
+                const startEndSame = routePoints.length > 1 &&
+                    Math.abs(routePoints[0].lat - routePoints[routePoints.length - 1].lat) < 1e-6 &&
+                    Math.abs(routePoints[0].lng - routePoints[routePoints.length - 1].lng) < 1e-6;
+                currentPolyline = L.polyline(newRoutePoints, { color: 'green' }).addTo(map);
+            } else {
+                currentPolyline = null; // 没有路线点时，设置currentPolyline为null
+            }
+        }
+        //修改站点
+        async function updatePoint(id, lng, lat) {
+            let params = {
+                id: id,
+                longitude: lng,
+                latitude: lat
+            }
+            axiosClient
+                .post("station/update", params)
+                .then((res) => {
+                    let flag = res.data.code;
+                    if (!flag) {
+                        cocoMessage.success("修改成功");
+                    } else {
+                        cocoMessage.error("修改失败");
+                    }
+                })
+                .catch((error) => {
+                    console.log("catch");
+                });
+        }
+        //清除所有路线
+        function clearAllRoutes() {
+            // 移除当前的 polyline（如果存在）
+            if (currentPolyline) {
+                map.removeLayer(currentPolyline);
+                currentPolyline = null;
+            }
+            if (currentRoutePolyline) {
+                map.removeLayer(currentRoutePolyline);
+                currentRoutePolyline = null;
+            }
+
+            // 移除所有标记
+            markers.forEach(marker => {
+                map.removeLayer(marker);
+                // 移除标记对应的标签
+                if (marker.options.tooltip) {
+                    marker.closeTooltip();
+                    marker.options.tooltip = null;
+                }
+            });
+            markers = [];
+            editableMarkers = [];
+
+            // // 重新渲染原始站点
+            // renderStations();
+
+            // 清空可编辑标记数组
+            editableMarkers = [];
+
+            // 清空路线点数组
+            routePoints = [];
+        }
+
+        function renderStations() {
+            markers = []; // 重置markers数组
+            clearExistingMarkers(); // 清理旧标记
+            var customIcon = L.icon({
+                iconUrl: '../../assets/imges/原点.png',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            stationData.forEach(station => {
+                var marker = L.marker([station.latitude, station.longitude], {
+                    icon: customIcon,
+                    title: station.stationName,
+                    draggable: dragStatus
+                }).addTo(map);
+
+                marker.bindTooltip(station.stationName, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'station-label newStation-lable'
+                });
+                marker.originalVisibility = {
+                    icon: marker.options.icon,
+                    tooltip: marker.options.tooltip
+                };
+                marker.on('click', function (e) {
+                    cocoMessage.success("已选中");
+                    e.originalEvent.stopPropagation();
+                    if (toggleStatus) addToRoute(this.getLatLng());
+                });
+                // 确保绑定点击事件
+                marker.on('click', function (e) {
+                    e.originalEvent.stopPropagation();
+                    const isNewPoint = false;
+                    const content = `站点：${station.stationName}<br>`;
+                    toggleInfoBox(e.originalEvent.clientX, e.originalEvent.clientY, content, station.stationName);
+                });
+                markers.push(marker);
+            });
+        }
+
+
+
+        let currentInfoBox = null;
+        function toggleInfoBox(x, y, content, name) {
+            const selectedRoute = alldata.find(r => r.routeId == document.getElementById('routeSelect').value);
+            if (!selectedRoute) return;
+
+            // 更新 stations 的 area 属性（如果需要）
+            const stationToUpdate = selectedRoute.stations.find(station => station.stationName === name);
+            if (stationToUpdate && !stationToUpdate.area && stationToUpdate.area == 0) {
+                stationToUpdate.area = "1"; // 设置默认值
+            }
+
+            const infoBox = document.getElementById('infoBox');
+            // 更新信息框的内容
+            // infoBox.innerHTML = content;
+            infoBox.innerHTML = "请选择避障等级：";
+            // 创建选择器组件
+            let select = infoBox.querySelector('#stationSelect');
+            if (!select) { // 如果不存在，则创建新的
+                select = document.createElement('select');
+                select.id = 'stationSelect';
+                ['避障1', '避障2', '避障3', '避障4', '避障5', '避障6'].forEach((text, idx) => {
+                    const option = document.createElement('option');
+                    option.value = idx + 1;
+                    option.textContent = text;
+                    select.appendChild(option);
+                });
+                const currentDiv = document.createElement("div")
+                currentDiv.className = "currentDiv"
+
+                const saveBtn = document.createElement('button');
+                saveBtn.id = 'saveStation';
+                saveBtn.textContent = '保存';
+                const cancelBtn = document.createElement('button');
+                cancelBtn.id = 'cancelBtn';
+                cancelBtn.textContent = '取消';
+                cancelBtn.className = 'cancelBtn';
+                currentDiv.appendChild(saveBtn);
+                currentDiv.appendChild(cancelBtn);
+                // 将选择器和按钮添加到信息框中
+                infoBox.appendChild(select);
+                infoBox.appendChild(currentDiv)
+
+            }
+
+            // 设置选择器的值为当前 station 的 avoid 值
+            if (stationToUpdate) {
+                select.value = stationToUpdate.area; // 确保 avoid 是数字或可以转换为字符串的值
+            }
+
+            // 绑定或重新绑定保存事件（防止重复绑定）
+
+            const cancelBtn = document.getElementById("cancelBtn")
+            cancelBtn.onclick = () => {
+                infoBox.style.display = 'none';
+            }
+            const saveBtn = infoBox.querySelector('#saveStation');
+            saveBtn.onclick = () => {
+                const selectedValue = infoBox.querySelector('#stationSelect').value;
+                console.log('当前选择:', selectedValue);
+
+                // 直接遍历并更新 avoid 属性
+                selectedRoute.stations.forEach(item => {
+                    if (name === item.stationName) {
+                        item.area = selectedValue;
+                    }
+                });
+
+                // 示例：处理 currentAvoidArr
+                let currentlength = selectedRoute.stations.length;
+
+                selectedRoute.stations.forEach(item => {
+                    if (item.area) {
+                        currentAvoidArr.push(item.area);
+                    } else {
+                        currentAvoidArr.push("1");
+                    }
+                });
+                currentAvoidArr = currentAvoidArr.slice(-currentlength)
+                infoBox.style.display = 'none';
+            };
+
+            // 设置信息框的位置并显示
+            infoBox.style.left = "30px";
+            infoBox.style.top = "30px";
+            infoBox.style.display = 'block';
+        }
+        async function saveRoute() {
+            console.log(routePoints, "routePointsroutePoints");
+            console.log(currentLastPoint, "撒网科技部为普遍i帮我");
+            if (currentLastPoint != 0) {
+                routePoints.push({
+                    lat: currentLastPoint[0],
+                    lng: currentLastPoint[1],
+                })
+            }
+            console.log(routePoints, "撒网科技部为普遍i帮我1111111111");
+            if (routePoints.length === 0) return;
+            try {
+                const inputSaveName = await showRouteNameModal();
+                if (!inputSaveName) return; // 用户取消操作
+
+                const result = routePoints.map(point => {
+                    // 查找对应的marker
+                    const matchedMarker = markers.find(marker =>
+                        marker.originalData &&
+                        marker.originalData.position.lat === point.lat &&
+                        marker.originalData.position.lng === point.lng
+                    );
+
+                    if (matchedMarker && matchedMarker.originalData.id) {
+                        // 如果找到匹配的marker，并且有原始ID，则使用该ID
+                        return { longitude: point.lng, latitude: point.lat, id: matchedMarker.originalData.id.id };
+                    } else {
+                        // 否则尝试从stationData中匹配，或者设置为-1
+                        const matchId = stationData.find(item => item.longitude == point.lng && item.latitude == point.lat);
+                        return { longitude: point.lng, latitude: point.lat, id: matchId ? matchId.id : "-1" };
+                    }
+                });
+                console.log(result, "resultresultresult");
+
+                let allRouteName = alldata.map(item => item.routeName)
+                let avoidLv = [];
+                for (let i = 0; i < result.length; i++) {
+                    avoidLv.push("1")
+                }
+                const saveMessage = {
+                    routeName: inputSaveName,       // 需替换为动态名称
+                    mapCoverage: currentMapCover,      // 需替换为动态层级
+                    stations: result,
+                    rowData: avoidLv,
+                    routesource: 1,
+                    routeAutoData: currentBorderLine
+                };
+
+                console.log(saveMessage, "resultss");
+                // if (currentPolyline) map.removeLayer(currentPolyline);
+                routePoints = [];
+                currentPolyline = null;
+                disableEditing(); // 清除编辑标记
+
+                if (inputSaveName && !allRouteName.includes(inputSaveName)) {
+                    try {
+                        const response = await axiosClient.post("route/addAuto", saveMessage);
+                        if (response) {
+                            console.log(response.data.data);
+                        } else {
+                            console.error("Unexpected response structure from API");
+                        }
+                    } catch (error) {
+                        console.error("Error fetching data:", error); // 打印完整的错误信息
+                        throw error; // 抛出错误以便在调用处捕获
+                    }
+                } else {
+                    cocoMessage.error("名字重复，请重新输入")
+                }
+                allowAddingStations = false;
+                editStatus = false
+                deleteCurrentRoute()
+                disableEditing()
+
+                await getAllRoute()
+                await getAllCurrentPoint()
+                // await renderStations();
+                await populateRouteSelect(true);
+                // await refreshDataAndUI(); // 封装数据刷新与UI清理
+
+            } catch (error) {
+                cocoMessage.error("保存失败: " + error.message);
+            }
+            toggleStatus = false
+        }
+        //获取参数列表里面的数据
+        async function getRobotData() {
+            try {
+                const res = await axiosClient.get("param/queryalldata");
+                let currentDataBag = res.data.data
+                initlongitudeCurrent = currentDataBag[0].local_origin_longitude
+                initlatitudeCurrent = currentDataBag[0].local_origin_latitude
+                let flag = res.data.code;
+                if (!flag) {
+                    console.log("获取初始经纬成功")
+                } else {
+                    cocoMessage.error("获取初始经纬度失败");
+                }
+            } catch (error) {
+                console.log("catch", error);
+            }
+        }
+
+        //展示模态框
+        function showRouteNameModal() {
+            return new Promise((resolve) => {
+                const modal = new bootstrap.Modal('#routeNameModal');
+                const input = document.getElementById('routeNameInput');
+                const errorDiv = document.getElementById('duplicateError');
+
+                const cleanup = () => {
+                    input.value = '';
+                    errorDiv.style.display = 'none';
+                    modal.hide();
+                };
+
+                document.getElementById('confirmSave').onclick = () => {
+                    const currentName = input.value.trim();
+                    const allRouteNames = alldata.map(item => item.routeName);
+
+                    if (allRouteNames.includes(currentName)) {
+                        errorDiv.style.display = 'block'; // 显示重复错误提示
+                    } else {
+                        cleanup();
+                        resolve(currentName);
+                    }
+                };
+
+                modal.show();
+                input.focus();
+
+                modal._element.addEventListener('hidden.bs.modal', () => {
+                    resolve(null); // 模态框关闭时返回null
+                });
+            });
+        }
+
+        // 绑定随机移动按钮的点击事件
+        // document.getElementById("randomMoveButton").addEventListener("click", function () {
+        //     moveRandomMarker();
+        // });
+        function callBack() {
+            if (limtmodel == 3) {
+                return
+            }
+            if (callbackStatus == 0) {
+                if (routePoints.length === 0) return;
+                // 获取被移除的坐标点
+                const removedPoint = routePoints.pop();
+                let lat = removedPoint[0]
+                let lng = removedPoint[1]
+
+                // 移除对应的标记
+                let foundMarkerIndex = -1;
+                for (let i = 0; i < editableMarkers.length; i++) {
+                    const markerLatLng = editableMarkers[i].getLatLng();
+                    if (Math.abs(markerLatLng.lat - lat) < 1e-6 && Math.abs(markerLatLng.lng - lng) < 1e-6) {
+                        foundMarkerIndex = i;
+                        break;
+                    }
+                }
+                if (foundMarkerIndex > -1) {
+                    const markerToRemove = editableMarkers[foundMarkerIndex];
+                    map.removeLayer(markerToRemove); // 从地图上移除标记
+                    editableMarkers.splice(foundMarkerIndex, 1); // 从editableMarkers中移除
+                    markers.splice(markers.indexOf(markerToRemove), 1); // 从markers中移除
+                }
+
+                // 更新折线显示
+                if (currentRoutePolyline) map.removeLayer(currentRoutePolyline); // 移除旧的折线
+
+                if (routePoints.length > 0) {
+                    currentRoutePolyline = L.polyline(routePoints, { color: 'green', weight: 3 }).addTo(map);
+                } else {
+                    currentRoutePolyline = null;
+                }
+            } else if (callbackStatus == 1) {
+                // 这是新增路线可以使用的
+                if (routePoints.length === 0) return;
+                // 获取被移除的坐标点
+                const removedPoint = routePoints.pop();
+                const { lat, lng } = removedPoint;
+
+                // 检查是否属于预设站点（含容差比较）
+                const isPresetStation = stationData.some(station =>
+                    Math.abs(station.latitude - lat) < 1e-6 &&
+                    Math.abs(station.longitude - lng) < 1e-6
+                );
+
+                // 判断撤回的点是否为起点
+                const isStartPoint = routePoints.length > 0 &&
+                    Math.abs(routePoints[0].lat - lat) < 1e-6 &&
+                    Math.abs(routePoints[0].lng - lng) < 1e-6;
+
+                // 如果不是起点且不是预设点，移除标记
+                if (!isStartPoint && !isPresetStation) {
+                    markers.forEach((marker, index) => {
+                        const markerLatLng = marker.getLatLng();
+                        if (Math.abs(markerLatLng.lat - lat) < 1e-6 &&
+                            Math.abs(markerLatLng.lng - lng) < 1e-6) {
+                            map.removeLayer(marker);
+                            markers.splice(index, 1); // 更新标记数组
+                        }
+                    });
+                }
+                // 更新折线显示
+                if (currentPolyline) map.removeLayer(currentPolyline);
+                if (routePoints.length > 0) {
+                    currentPolyline = L.polyline(routePoints, { color: 'green' }).addTo(map);
+                } else {
+                    currentPolyline = null;
+                }
+
+            }
+        }
+        //重新遍历站点前，遍历并清除所有标记。
+        function clearExistingMarkers() {
+            markers.forEach(marker => {
+                if (map.hasLayer(marker)) {
+                    map.removeLayer(marker);
+                }
+            });
+            markers = []; // 清空标记数组
+        }
+
+
+
+        async function getCurrentPositonXY() {
+            // 这里可以处理表单提交逻辑
+            if (!latitudeCurrent || !longitudeCurrent) {
+                // 或者如果您希望在点击按钮打开模态框时才设置placeholder，可以这样做：
+                document.getElementById('siteName').setAttribute('placeholder', '请输入站点名称');
+                document.getElementById('addlongitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+                document.getElementById('addlatitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+
+            }
+            // 检查名字是否有效
+            else {
+                document.getElementById('addlongitude').value = longitudeCurrent
+                document.getElementById('addlatitude').value = latitudeCurrent
+            }
+            // 确保allparams被正确赋值后调用addCuurrentPoint
+
+        }
+
+        // 声明在函数外部，以便可以移除它
+        let deleteClickListener;
+        async function deleImportData() {
+            let allImportPoints = await axiosClient.get("station/querynew/2");
+            const itemList = document.getElementById('itemList');
+            const filterInput = document.getElementById('filterInput');
+            const resetFilterBtn = document.getElementById('resetFilterBtn');
+            console.log(allImportPoints, "allImportPoints");
+
+
+            let originalItems = allImportPoints.data.data[0] || [];
+            let filteredItems = [...originalItems];
+            // 移除旧的监听器（如果存在）
+            if (deleteClickListener) {
+                itemList.removeEventListener('click', deleteClickListener);
+            }
+            // 初始化渲染
+            renderItems(originalItems);
+
+            // 添加新的监听器并保存引用
+            deleteClickListener = async function (e) {
+                if (e.target.classList.contains('delete-btn')) {
+                    const listItem = e.target.closest('.list-group-item');
+                    const itemId = parseInt(listItem.dataset.id);
+                    await axiosClient
+                        .delete("station/delete/" + itemId)
+                        .then(async (res) => {
+                            let flag = res.data.code;
+                            if (!flag) {
+                                cocoMessage.success("删除成功");
+                                await deleteCurrentRoute();
+                                await getAllCurrentPoint();
+                                await renderStations();
+                            } else {
+                                cocoMessage.error("删除失败");
+                            }
+                        })
+                        .catch((error) => {
+                            console.log("catch");
+                        });
+
+                    // 记录当前滚动位置
+                    const scrollTop = itemList.parentElement.scrollTop;
+
+                    // 添加删除动画
+                    listItem.classList.add('deleting');
+
+                    // 动画结束后删除元素
+                    setTimeout(() => {
+                        // 从原始数据中删除
+                        originalItems = originalItems.filter(item => item.id !== itemId);
+
+                        // 重新应用筛选
+                        applyFilter();
+
+                        // 恢复滚动位置（考虑到列表高度变化）
+                        itemList.parentElement.scrollTop = adjustScrollPosition(scrollTop, listItem.offsetHeight);
+                    }, 300);
+                }
+            };
+
+            itemList.addEventListener('click', deleteClickListener);
+
+            // 筛选功能（仅文本筛选）
+            filterInput.addEventListener('input', applyFilter);
+            resetFilterBtn.addEventListener('click', resetFilter);
+            // 应用筛选（仅文本匹配）
+            function applyFilter() {
+                const searchTerm = filterInput.value.toLowerCase().trim();
+                filteredItems = originalItems.filter(item =>
+                    item.stationName.toLowerCase().includes(searchTerm)
+                );
+                renderItems(filteredItems);
+            }
+
+            // 重置筛选
+            function resetFilter() {
+                filterInput.value = '';
+                applyFilter();
+            }
+
+            // 创建列表项元素
+            function createListItem(item) {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                li.dataset.id = item.id;
+                li.innerHTML = `
+          ${item.stationName}
+          <button class="btn btn-sm btn-danger delete-btn">
+            <i class="bi bi-trash"></i> 删除
+          </button>
+        `;
+                return li;
+            }
+
+            // 渲染列表
+            function renderItems(items) {
+                itemList.innerHTML = '';
+                items.forEach(item => {
+                    const li = createListItem(item);
+                    itemList.appendChild(li);
+                });
+            }
+
+            // 调整滚动位置
+            function adjustScrollPosition(originalScrollTop, deletedItemHeight) {
+                return Math.max(0, originalScrollTop - deletedItemHeight);
+            }
+        }
+        // 获取DOM元素
+        const progressCircle = document.getElementById('progressCircle');
+        const percentageText = document.getElementById('percentage');
+        const alreadySend = document.getElementById('alreadysend').querySelector('span');
+        const needSend = document.getElementById('needsend').querySelector('span');
+        // 圆周长
+        const circumference = 2 * Math.PI * 45;
+
+        // 设置圆环样式
+        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressCircle.style.strokeDashoffset = circumference;
+
+        // 更新进度
+        function updateProgress(percent) {
+            if (percent == 0) {
+                alreadySend.textContent = 0;
+                needSend.textContent = 0;
+                percentageText.textContent = `${Math.round(percent)}%`;
+            }
+            else {
+                const offset = circumference - (percent / 100) * circumference;
+                progressCircle.style.strokeDashoffset = offset;
+                percentageText.textContent = `${Math.round(percent)}%`;
+            }
+
+        }
+
+
+        // 更新统计信息
+        function updateStats() {
+            alreadySend.textContent = already;
+            needSend.textContent = needPoint;
+            console.log(already, needPoint, "alreadyneedPoint");
+            // 计算进度前检查分母是否为0
+            const progress = needPoint > 0 ? (already / needPoint) * 100 : 0;
+            updateProgress(progress);
+        }
+        // 初始化显示20%进度
+        updateProgress(0);
+        window.onload = onLoad;
+    </script>
+
+    <!-- 地图加载动画脚本 -->
+    <!-- <script src="./js/map-loading.js"></script> -->
+
+    <!-- 页面特定的地图加载逻辑 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 显示加载动画
+            if (window.mapLoadingManager) {
+                window.mapLoadingManager.show('地图加载中...', 'dark');
+            }
+
+            // 监听地图初始化完成事件
+            function checkMapLoaded() {
+                // 检查地图是否已初始化完成
+                if (window.map && window.map._container) {
+                    // 地图加载完成，隐藏加载动画
+                    if (window.mapLoadingManager) {
+                        setTimeout(() => {
+                            window.mapLoadingManager.hide(500);
+                        }, 1000);
+                    }
+                } else {
+                    // 继续检查
+                    setTimeout(checkMapLoaded, 100);
+                }
+            }
+
+            // 开始检查地图加载状态
+            setTimeout(checkMapLoaded, 500);
+        });
+    </script>
+</body>
+
+</html>

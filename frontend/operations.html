@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RCS / RDS 运营管理</title><link rel="stylesheet" href="src/modules/operations/operations.css"></head>
+<body>
+<aside class="rail"><div class="brand">ORANGE<span>RCS / RDS 运营管理</span></div><a class="back" href="map-workbench.html">地图工作台 / 建图与修图</a><a class="back" href="map-bindings.html">地图绑定</a><a class="back" href="localization.html">实时定位 / 地图热切换</a><a class="back" href="ros-maintenance.html">ROS 运行维护</a><nav id="nav" aria-label="运营管理模块"></nav></aside>
+<main>
+  <header><div><small id="eyebrow">OPERATIONS CENTER</small><h1 id="title">运营看板</h1></div><div class="header-tools"><span id="connection" class="badge">连接中</span><span id="updated">等待数据</span><button id="refresh">刷新</button><button id="fullscreen">全屏</button><button id="logout">退出登录</button></div></header>
+  <div id="notice" role="status" hidden></div><div id="low-banner" hidden></div>
+  <div id="filters" class="toolbar"><input id="keyword" aria-label="关键字" placeholder="输入名称、编号或关键字"><select id="state" aria-label="状态筛选"></select><label>开始 <input id="start" type="datetime-local"></label><label>结束 <input id="end" type="datetime-local"></label><button id="search">查询</button><div id="actions"></div></div>
+  <section id="content" aria-live="polite"><p class="empty">正在加载运营数据…</p></section>
+  <footer id="pagination"></footer>
+</main>
+<dialog id="dialog"><form id="dialog-form"><div class="dialog-head"><h2 id="dialog-title"></h2><button type="button" id="dialog-close" aria-label="关闭">×</button></div><div id="dialog-body"></div><p id="dialog-error" role="alert"></p><div class="dialog-footer"><button type="button" id="dialog-cancel">取消</button><button id="dialog-submit" class="primary">保存</button></div></form></dialog>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script src="src/modules/operations/monitor.js"></script><script src="src/modules/operations/live-map.js?v=live-map-1"></script><script src="src/modules/operations/map-canvas.js?v=live-map-1"></script><script src="src/modules/operations/operations.js?v=live-map-1"></script>
+</body></html>

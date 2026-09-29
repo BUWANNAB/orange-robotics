@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circle Drag Example</title>
+    <link href="../../libs/bootstrap/css/bootstrap.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/proogress-bar.css">
+    <link rel="stylesheet" href="./css/machine_control.css">
+    <script src="../../libs/echarts.min.js"></script>
+
+
+    <!-- bootstrap -->
+    <script type="text/javascript" src="../../libs/jquery-3.1.0.min.js"></script>
+    <link rel="stylesheet" href="../../libs/bootstrap/css/bootstrap.min.css" />
+    <script src="../../libs/bootstrap/js/popper.min.js"></script>
+    <script src="../../libs/bootstrap/js/bootstrap.min.js"></script>
+    <!-- bootstrap-switch-->
+    <link href="../../libs/bootstrap/css/bootstrap-switch.min.css" rel="stylesheet">
+    <script src="../../libs/bootstrap/js/bootstrap-switch.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="../../libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Bundle JS (includes Popper) -->
+    <script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <!-- CSS styles -->
+    <style>
+        .save_data {
+            display: none;
+        }
+
+        #mapPage {
+            border: none;
+            /* 使 iframe 充满整个窗口 */
+            width: 100%;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        #contentBox {
+            position: absolute;
+            z-index: 999;
+        }
+
+        .nav-tabs .nav-item.show .nav-link,
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+        }
+
+        .nav-link {
+            color: black;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main">
+        <div id="main-left" class="left_turn_speed" style="display: none;"></div>
+        <div id="main-right" class="left_move_speed" style="display: none;"></div>
+        <div id="container">
+            <iframe id="mapPage" src="../outdoor-map/outdoor-map.html?mode=control" frameborder="0"></iframe>
+            <div class="top-button">
+                <!-- ?mode=control -->
+                <button id="getPositon" type="button" onclick=" triggerIframeGetPoseBtn()"
+                    class="btn btn-success save_data"><b>获取当前位置</b></button>
+                <button id="saveData" type="button" onclick=" triggerIframeSavePoseBtn()"
+                    class="btn btn-dark save_data"><b>保存当前位置</b></button>
+                <button id="getCurrentPositonXY" type="button" class="btn btn-dark "><b>获取当前位置</b></button>
+                <!-- <a href="../pages/echart.html" type="button" class="btn btn-inf">查看数据</a> -->
+                <!-- <button id="lookEchart" type="button" class="btn btn-warning"><b><a
+                  href="../pages/station.html?page=route">查看路线</a></b></button>
+            <button id="lookData" type="button" class="btn btn-info"><b> <a
+                  href="../pages/echart.html?page=station">查看图表</a></b></button> -->
+            </div>
+            <div class="save_data" id="save_data">
+                <iframe id="myIframe" scrolling="no" title="嵌入的子页面"></iframe>
+            </div>
+
+            <div id="leftmove">
+                <div class="leftnotice">
+                    <img src="../../../src/assets/imges/OIP-C-removebg-preview.png" alt="" srcset="">
+                </div>
+                <div class="dragleft"></div>
+                <canvas id="circleCanvasLeft" width="250" height="250"></canvas>
+
+                <div class="progress-wrapper" id="progressWrapper2">
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar2">
+                            <div class="progress-fill" id="progressFill2"></div>
+                            <div class="progress-thumb" id="progressThumb2"></div>
+                        </div>
+                        <div class="button-container">
+                            <button id="decreaseButton2">-</button>
+                            <div class="angular_speed">
+                                <div>转速：</div>
+                                <div class="percentage-display" id="percentageDisplay2">0%</div>
+                            </div>
+                            <button id="increaseButton2">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <br>
+            <div id="rightmove">
+                <div class="rightnotice">
+                    <img src="../../../src/assets/imges/OIP-C-removebg-preview.png" alt="" srcset="">
+                </div>
+                <!-- <div id="coordinates2"></div> -->
+                <div class="dragright"></div>
+                <canvas id="circleCanvasRight" width="250" height="250"></canvas>
+                <div class="progress-wrapper" id="progressWrapper1">
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar1">
+                            <div class="progress-fill" id="progressFill1"></div>
+                            <div class="progress-thumb" id="progressThumb1"></div>
+                        </div>
+
+                        <div class="button-container">
+                            <button id="decreaseButton1">-</button>
+                            <div class="move_speed">
+                                <div>移速：</div>
+                                <div class="percentage-display" id="percentageDisplay1">0%</div>
+                            </div>
+                            <button id="increaseButton1">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <ul class="nav nav-tabs" id="myTab" role="tablist">
+                        <li style="display: none;" class="nav-item" role="presentation">
+                            <button class="nav-link active" id="addSite-tab" data-bs-toggle="tab"
+                                data-bs-target="#addSite" type="button" role="tab" aria-controls="addSite"
+                                aria-selected="true">添加手动站点</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="addTempSite-tab" data-bs-toggle="tab"
+                                data-bs-target="#addTempSite" type="button" role="tab" aria-controls="addTempSite"
+                                aria-selected="false">添加自动站点</button>
+                        </li>
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tab-content" id="myTabContent">
+                        <div class="tab-pane fade show active" id="addSite" role="tabpanel"
+                            aria-labelledby="addSite-tab">
+                            <form id="siteForm">
+                                <div class="mb-3">
+                                    <label for="siteName" class="form-label">站点名字</label>
+                                    <input type="text" class="form-control" id="siteName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="longitude" class="form-label">经度</label>
+                                    <input type="number" class="form-control" id="addlongitude" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="latitude" class="form-label">纬度</label>
+                                    <input type="number" class="form-control" id="addlatitude" required>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="addTempSite" role="tabpanel" aria-labelledby="addTempSite-tab">
+                            <form id="tempSiteForm">
+                                <div class="mb-3">
+                                    <label for="tempSiteName" class="form-label">临时站点名字</label>
+                                    <input type="text" class="form-control" id="tempSiteName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tempLongitude" class="form-label">经度</label>
+                                    <input type="number" class="form-control" id="tempLongitude" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tempLatitude" class="form-label">纬度</label>
+                                    <input type="number" class="form-control" id="tempLatitude" required>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="addNewPoint">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="./js/progress-bar.js"></script>
+    <script src="./js/control_draggable.js"></script>
+    <script type="module" src="./js/machine_control.js"></script>
+    <script>
+        // 密码验证函数
+        function checkPassword(password) {
+            const correctPassword = ''; // 正确的密码
+            return password === correctPassword; // 使用严格等于进行比较
+        }
+
+        // document.getElementById('saveData').addEventListener('click', );
+        function triggerIframeGetPoseBtn() {
+            var iframe = document.getElementById("myIframe");
+            var iframeDocument = iframe.contentWindow.document || iframe.contentDocument;
+            var iframeGetPoseButton = iframeDocument.getElementById('getPoseBtn');
+            if (iframeGetPoseButton) {
+                // 触发点击事件
+                iframeGetPoseButton.click();
+
+            }
+            document.getElementById("save_data").style.display = "block";
+        }
+        function triggerIframeSavePoseBtn() {
+            var iframe = document.getElementById("myIframe");
+            var iframeDocument = iframe.contentWindow.document || iframe.contentDocument;
+            var iframeSavePoseButton = iframeDocument.getElementById('savePoseBtn');
+            if (iframeSavePoseButton) {
+                // 触发点击事件
+                iframeSavePoseButton.click();
+                document.getElementById("save_data").style.display = "none";
+            }
+        }
+    </script>
+    <script type="text/javascript" src="../../../src/libs/roslib.min.js"></script>
+    <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
+    <script type="module">
+        import RosManager from '../../../src/rosManage/RosManager.js';
+        import axiosClient from "../../../src/api/ApiManager.js";
+        const rosManager = new RosManager();
+        // 订阅 rossub 话题
+        rosManager.subscribeGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", (message) => {
+            console.log("收到RemoteCtrlAutomaticSwitch 消息:", message.data);
+        });
+        function switchToAutoMode() {
+            const newMode = {
+                "manual": 0,//手动模式
+                "auto": 1,//自动模式
+            }
+            if (localStorage.getItem('currentInterface') == '3') {
+                const response = axiosClient.post(`ros2/mode/${newMode.manual}`);
+            }
+        }
+        switchToAutoMode()
+        // 模拟发布一条消息到 RemoteCtrlAutomaticSwitch 话题
+        function publishHandMove() {
+            const message = new ROSLIB.Message({
+                data: 0,
+            });
+            rosManager.publishGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", message);
+            console.log("消息已发布:", message.data);
+        }
+        // 等待所有iframe加载完成后再发布消息
+        window.onload = () => {
+            const iframes = document.querySelectorAll('iframe');
+            let loadedIframes = 0;
+
+            if (iframes.length === 0) {
+                // 如果没有iframe，直接发布
+                publishHandMove();
+                return;
+            }
+
+            // 为每个iframe添加加载完成监听器
+            iframes.forEach(iframe => {
+                iframe.addEventListener('load', () => {
+                    loadedIframes++;
+                    console.log(`Iframe加载完成: ${loadedIframes}/${iframes.length}`);
+
+                    // 当所有iframe都加载完成后发布消息
+                    if (loadedIframes === iframes.length) {
+                        console.log('所有iframe加载完成，开始发布消息');
+                        publishHandMove();
+                    }
+                });
+
+                // 如果iframe已经加载完成（缓存的情况）
+                if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+                    loadedIframes++;
+                    console.log(`Iframe已缓存加载: ${loadedIframes}/${iframes.length}`);
+
+                    if (loadedIframes === iframes.length) {
+                        console.log('所有iframe加载完成，开始发布消息');
+                        publishHandMove();
+                    }
+                }
+            });
+        }
+
+        let currentPagStatus = 1
+        // 监听 tab 切换事件
+        const myTab = document.getElementById('myTab');
+        myTab.addEventListener('shown.bs.tab', function (event) {
+            // 获取当前激活的 tab 的目标元素
+            const target = event.target.getAttribute('data-bs-target');
+            if (target === '#addSite') {
+                currentPagStatus = 1
+                console.log('当前在添加站点信息界面');
+            } else if (target === '#addTempSite') {
+                console.log('当前在添加临时站点界面');
+                currentPagStatus = 2
+            }
+        });
+
+        const mapPage = document.getElementById('mapPage');
+        // 密码验证函数
+        function checkPassword(password) {
+            const correctPassword = ''; // 正确的密码
+            return password === correctPassword; // 使用严格等于进行比较
+        }
+        let latitudeCurrent;
+        let longitudeCurrent;
+        function interVal() {
+            // 从positionData JSON对象中获取经纬度
+            const positionDataStr = localStorage.getItem('positionData');
+
+            if (positionDataStr) {
+                try {
+                    const positionData = JSON.parse(positionDataStr);
+                    longitudeCurrent = positionData.longitudeCurrent;
+                    latitudeCurrent = positionData.latitudeCurrent;
+                } catch (e) {
+                    console.error("解析positionData失败:", e);
+                    longitudeCurrent = null;
+                    latitudeCurrent = null;
+                }
+            } else {
+                longitudeCurrent = null;
+                latitudeCurrent = null;
+            }
+
+            updateMsg();
+        }
+        document.addEventListener('DOMContentLoaded', (event) => {
+            interVal()
+            document.body.addEventListener('click', function (e) {
+                if (e.target && e.target.id == 'addNewPoint') {
+                    if (currentPagStatus == 1) {
+                        addCuurrentPoint();
+                    } else {
+                        const message = "test";
+                        if (message) {
+                            // 向 iframe 发送消息
+                            mapPage.contentWindow.postMessage(message, '*');
+                        }
+                        addinTerimCuurrentPoint()
+                    }
+                }
+            });
+        });
+
+
+        document.getElementById("getCurrentPositonXY").addEventListener("click", getCurrentPositonXY)
+        setInterval(() => {
+            interVal()
+        }, 1000)
+        function updateMsg() {
+            if (!latitudeCurrent || !longitudeCurrent || longitudeCurrent == "未运行") {
+                // 设置占位符文本
+                document.getElementById('siteName').setAttribute('placeholder', '请输入站点名称');
+                document.getElementById('addlongitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+                document.getElementById('addlatitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+                // 设置占位符文本
+                document.getElementById('tempSiteName').setAttribute('placeholder', '请输入站点名称');
+                document.getElementById('tempLongitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+                document.getElementById('tempLatitude').setAttribute('placeholder', '未找到机器的位置,请输入');
+            } else {
+                document.getElementById('addlongitude').value = longitudeCurrent;
+                document.getElementById('addlatitude').value = latitudeCurrent;
+                document.getElementById('tempLongitude').value = longitudeCurrent;
+                document.getElementById('tempLatitude').value = latitudeCurrent;
+            }
+        }
+        async function getCurrentPositonXY() {
+            updateMsg()
+            // 显示模态框
+            document.getElementById('addlongitude').value = "";
+            document.getElementById('addlatitude').value = "";
+            document.getElementById('tempLongitude').value = "";
+            document.getElementById('tempLatitude').value = "";
+            var myModal = new bootstrap.Modal(document.getElementById('exampleModal'));
+            myModal.show();
+        }
+
+        function removeInputValue() {
+            document.getElementById('siteName').value = ""
+            document.getElementById('addlongitude').value = ""
+            document.getElementById('addlatitude').value = ""
+            document.getElementById('tempLongitude').value = "";
+            document.getElementById('tempLatitude').value = "";
+            document.getElementById('tempSiteName').value = "";
+        }
+
+        async function addinTerimCuurrentPoint() {
+
+            // 示例：简单地关闭模态框
+            var myModal = bootstrap.Modal.getInstance(document.getElementById('exampleModal'));
+            let tempSiteName = document.getElementById('tempSiteName').value;
+            let tempLongitude = document.getElementById('tempLongitude').value;
+            let tempLatitude = document.getElementById('tempLatitude').value;
+            let allparams = {
+                latitude: tempLatitude,
+                longitude: tempLongitude,
+                positionX: 0,
+                positionY: 0,
+                positionZ: 0,
+                orientationX: 0,
+                orientationY: 0,
+                orientationZ: 0,
+                orientationW: 0,
+                stationName: tempSiteName, // 添加站点名称到参数中
+                stationCode: 2
+            };
+            console.log(allparams, "allparams");
+
+            try {
+                // await inputPsw(); // 等待密码验证成功
+                if (tempLongitude && tempLatitude) {
+                    let existingData = localStorage.getItem('temporaryStations');
+                    if (existingData) {
+                        // 如果存在之前的数据，将其解析为数组
+                        existingData = JSON.parse(existingData);
+                    } else {
+                        // 如果不存在，初始化为空数组
+                        existingData = [];
+                    }
+                    const latitudeValue = parseFloat(allparams.latitude);
+                    const longitudeValue = parseFloat(allparams.longitude);
+                    axiosClient.post("station/add", allparams)
+                        .then((res) => {
+                            let flag = res.data.code;
+                            if (!flag) { // 假设code为false表示成功
+                                cocoMessage.success("新添成功");
+                                localStorage.setItem('myMessage', 'Hello from parent at ' + new Date().toLocaleTimeString());
+                                // 将新数据追加到数组中
+                                mapPage.contentWindow.postMessage("Hello from parent!", "*");
+                                if (typeof latitudeValue == "number" && typeof longitudeValue == "number") {
+                                    existingData.push(allparams);
+                                } else {
+                                    cocoMessage.error("经纬度必须是数字")
+                                    return
+                                }
+                                // 将更新后的数组保存到 localStorage 中
+                                // localStorage.setItem('temporaryStations', JSON.stringify(existingData));
+                                removeInputValue();
+                                myModal.hide();
+                            } else {
+                                cocoMessage.error("新增失败，请勿重复名字");
+                                myModal.hide();
+                                removeInputValue();
+                            }
+                        })
+                        .catch((error) => {
+                            console.log("catch", error);
+                        });
+
+                } else {
+                    cocoMessage.error("新增失败，经纬度不能为空");
+                }
+            } catch (e) {
+                // 如果用户取消了输入或者密码多次错误导致放弃，这里可以处理异常情况
+                console.log(e); // 或者其他的异常处理逻辑
+            }
+
+            // // 检查经纬度是否为空
+            // if (tempLongitude && tempLatitude) {
+            //     // 从 localStorage 中获取之前保存的数据
+            //     let existingData = localStorage.getItem('temporaryStations');
+            //     if (existingData) {
+            //         // 如果存在之前的数据，将其解析为数组
+            //         existingData = JSON.parse(existingData);
+            //     } else {
+            //         // 如果不存在，初始化为空数组
+            //         existingData = [];
+            //     }
+            //     const latitudeValue = parseFloat(allparams.latitude);
+            //     const longitudeValue = parseFloat(allparams.longitude);
+            //     // 将新数据追加到数组中
+            //     if(typeof latitudeValue =="number" && typeof longitudeValue =="number" ){
+            //         existingData.push(allparams);
+            //     }else{
+            //         cocoMessage.error("经纬度必须是数字")
+            //         return
+            //     }
+            //     console.log(typeof allparams.latitude =="number" ,typeof allparams.longitude =="number",typeof allparams.latitude =="number" && typeof allparams.longitude =="number");
+
+            //     // 将更新后的数组保存到 localStorage 中
+            //     localStorage.setItem('temporaryStations', JSON.stringify(existingData));
+            //     removeInputValue();
+            //     myModal.hide();
+            // } else {
+            //     cocoMessage.error("新增失败，经纬度不能为空");
+            //     myModal.hide();
+            //     removeInputValue();
+            // }
+        }
+        async function addCuurrentPoint() {
+            // 示例：简单地关闭模态框
+            var myModal = bootstrap.Modal.getInstance(document.getElementById('exampleModal'));
+            let siteName = document.getElementById('siteName').value;
+            let addlongitude = document.getElementById('addlongitude').value;
+            let addlatitude = document.getElementById('addlatitude').value;
+            let allparams = {
+                latitude: addlatitude,
+                longitude: addlongitude,
+                positionX: 0,
+                positionY: 0,
+                positionZ: 0,
+                orientationX: 0,
+                orientationY: 0,
+                orientationZ: 0,
+                orientationW: 0,
+                stationName: siteName, // 添加站点名称到参数中
+                stationCode: 2
+            };
+
+            try {
+                // await inputPsw(); // 等待密码验证成功
+                if (addlongitude && addlatitude) {
+                    axiosClient.post("station/add", allparams)
+                        .then((res) => {
+                            let flag = res.data.code;
+                            if (!flag) { // 假设code为false表示成功
+                                cocoMessage.success("新添成功");
+                                mapPage.contentWindow.postMessage("Hello from parent!", "*");
+                                removeInputValue();
+                                myModal.hide();
+                            } else {
+                                cocoMessage.error("新增失败，请勿重复名字");
+                                myModal.hide();
+                                removeInputValue();
+                            }
+                        })
+                        .catch((error) => {
+                            console.log("catch", error);
+                        });
+                } else {
+                    cocoMessage.error("新增失败，经纬度不能为空");
+                }
+            } catch (e) {
+                // 如果用户取消了输入或者密码多次错误导致放弃，这里可以处理异常情况
+                console.log(e); // 或者其他的异常处理逻辑
+            }
+        }
+        function inputPsw() {
+            return new Promise((resolve, reject) => {
+                const password = prompt("请输入密码：");
+                if (password !== null) { // 用户点击了确定按钮
+                    if (checkPassword(password)) {
+                        resolve(); // 密码正确，继续执行
+                    } else {
+                        alert("密码错误，请重试");
+                        inputPsw().then(resolve).catch(reject); // 递归调用，直到密码正确
+                    }
+                } else { // 用户点击了取消按钮
+                    reject(new Error("用户取消了密码输入")); // 用户取消输入，抛出异常
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,186 @@
+/* titillium-web-300 - latin */
+@font-face {
+  font-family: 'Titillium Web';
+  font-style: normal;
+  font-weight: 300;
+  src: url('../fonts/titillium-web-v10-latin-300.eot'); /* IE9 Compat Modes */
+  src: local(''),
+        url('../fonts/titillium-web-v10-latin-300.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+        url('../fonts/titillium-web-v10-latin-300.woff2') format('woff2'), /* Super Modern Browsers */
+        url('../fonts/titillium-web-v10-latin-300.woff') format('woff'), /* Modern Browsers */
+        url('../fonts/titillium-web-v10-latin-300.ttf') format('truetype'), /* Safari, Android, iOS */
+        url('../fonts/titillium-web-v10-latin-300.svg#TitilliumWeb') format('svg'); /* Legacy iOS */
+}
+/* titillium-web-700 - latin */
+@font-face {
+  font-family: 'Titillium Web';
+  font-style: normal;
+  font-weight: 700;
+  src: url('../fonts/titillium-web-v10-latin-700.eot'); /* IE9 Compat Modes */
+  src: local(''),
+        url('../fonts/titillium-web-v10-latin-700.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+        url('../fonts/titillium-web-v10-latin-700.woff2') format('woff2'), /* Super Modern Browsers */
+        url('../fonts/titillium-web-v10-latin-700.woff') format('woff'), /* Modern Browsers */
+        url('../fonts/titillium-web-v10-latin-700.ttf') format('truetype'), /* Safari, Android, iOS */
+        url('../fonts/titillium-web-v10-latin-700.svg#TitilliumWeb') format('svg'); /* Legacy iOS */
+}
+
+/* jetbrains-mono-300 - latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 300;
+  src: url('../fonts/jetbrains-mono-v6-latin-300.eot'); /* IE9 Compat Modes */
+  src: local(''),
+        url('../fonts/jetbrains-mono-v6-latin-300.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+        url('../fonts/jetbrains-mono-v6-latin-300.woff2') format('woff2'), /* Super Modern Browsers */
+        url('../fonts/jetbrains-mono-v6-latin-300.woff') format('woff'), /* Modern Browsers */
+        url('../fonts/jetbrains-mono-v6-latin-300.ttf') format('truetype'), /* Safari, Android, iOS */
+        url('../fonts/jetbrains-mono-v6-latin-300.svg#JetBrainsMono') format('svg'); /* Legacy iOS */
+}
+/* jetbrains-mono-700 - latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  src: url('../fonts/jetbrains-mono-v6-latin-700.eot'); /* IE9 Compat Modes */
+  src: local(''),
+        url('../fonts/jetbrains-mono-v6-latin-700.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+        url('../fonts/jetbrains-mono-v6-latin-700.woff2') format('woff2'), /* Super Modern Browsers */
+        url('../fonts/jetbrains-mono-v6-latin-700.woff') format('woff'), /* Modern Browsers */
+        url('../fonts/jetbrains-mono-v6-latin-700.ttf') format('truetype'), /* Safari, Android, iOS */
+        url('../fonts/jetbrains-mono-v6-latin-700.svg#JetBrainsMono') format('svg'); /* Legacy iOS */
+}
+
+html {
+    -webkit-text-size-adjust: none;
+    touch-action: manipulation;
+  margin:0; /* iOS prevent rubber banding */
+  padding:0; /* iOS prevent rubber banding */
+  overflow: hidden; /* iOS prevent rubber banding */
+}
+
+body {
+    font-family: 'Titillium Web', sans-serif;
+    background:#202020;
+    color:#f0f0f0;
+    touch-action: pan-x pan-y; /* prevent iOS late versions pinch zooming */
+    overscroll-behavior-y: contain; /* ios/android prevent pull-to-refresh */
+    position: absolute; /* iOS prevent rubber banding */
+    width:100%; /* iOS prevent rubber banding */
+    height:100%; /* iOS prevent rubber banding */
+    overflow: auto; /* iOS prevent rubber banding */
+}
+
+div {touch-action: pan-x pan-y;}  /* prevent iOS late versions pinch zooming */
+    
+h1, h2, h3, h4, h5, h6, b, strong { font-weight:700; }
+
+
+  /* disable all text selection by default*/
+* {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* enable text selection on input elements */
+input, textarea, *[contenteditable=true] {
+    -webkit-touch-callout:default;
+    -webkit-user-select:text;
+    -moz-user-select:text;
+    -ms-user-select:text;
+    user-select:text;
+}
+
+/* scrollbar 滚动条 */
+/* width */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background:rgba(28,30,37,0.4)
+}
+
+::-webkit-scrollbar-track {
+  background:rgba(28,30,37,0.2)
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #44b0e0; 
+}
+
+/* 开机点按钮样式 */
+.set-startup-btn {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  margin-right: 5px;
+  transition: all 0.3s ease;
+}
+
+.set-startup-btn:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.set-startup-btn:active {
+  transform: translateY(0);
+}
+
+/* 开机点状态高亮样式 */
+.startup-station {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-left: 4px solid #2196f3;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+  position: relative;
+}
+
+.startup-station::before {
+  content: "🏠";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.startup-station .station-name {
+  color: #1565c0;
+  font-weight: 600;
+}
+
+/* 按钮组样式优化 */
+.btn-group .btn {
+  border-radius: 0;
+  margin: 0;
+}
+
+.btn-group .btn:first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.btn-group .btn:last-child {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+/* 删除按钮样式保持原有 */
+.btn-group .btn-danger {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-group .btn-danger:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}

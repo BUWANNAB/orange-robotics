@@ -1,0 +1,91 @@
+<html>
+
+<head>
+<script>location.replace("/ui/map-workbench.html#point");</script>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+	<title>PCD visulize</title>
+	<link rel="stylesheet" href="./css/index.css">
+	<style>
+		#viewReset{
+			background-image: url('../../../src/assets/imges/重置.png');
+			background-size: cover;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="z-range-container">
+		<div class="z-range-input">
+			<label for="z-max">Z轴最大值:</label>
+			<div class="input-with-buttons">
+				<button class="arrow-btn left" id="z-max-decrease">◀</button>
+				<input type="number" id="z-max" step="0.1" value="10">
+				<button class="arrow-btn right" id="z-max-increase">▶</button>
+			</div>
+		</div>
+		<div class="z-range-input">
+			<label for="z-min">Z轴最小值:</label>
+			<div class="input-with-buttons">
+				<button class="arrow-btn left" id="z-min-decrease">◀</button>
+				<input type="number" id="z-min" step="0.1" value="-10">
+				<button class="arrow-btn right" id="z-min-increase">▶</button>
+			</div>
+		</div>
+	</div>
+	
+	<!-- 触摸大屏视角控制面板 -->
+	<div class="touch-view-controls" id="touchViewControls">
+		<div class="view-control-row">
+			<button class="view-button top" id="viewTop">↑</button>
+		</div>
+		<div class="view-control-row">
+			<button class="view-button left" id="viewLeft">←</button>
+			<button class="view-button center" id="viewReset"></button>
+			<button class="view-button right" id="viewRight">→</button>
+		</div>
+		<div class="view-control-row">
+			<button class="view-button bottom" id="viewBottom">↓</button>
+		</div>
+		<div class="view-control-row">
+			<div class="view-button up">
+				<img src="../../../src/assets/imges/放大缩小_Y.png" alt="up" id="viewUp">
+			</div>
+			<div class="view-button down">
+				<img src="../../../src/assets/imges/放大缩小_X.png" alt="down" id="viewDown">
+			</div>
+		</div>
+	</div>
+	
+	
+	<!-- 触摸提示 -->
+	<div class="touch-hint" id="touchHint">
+		<div id="hintText">触摸屏幕设置切割方向</div>
+	</div>
+	
+	<!-- 触摸反馈效果 -->
+	<div class="touch-feedback" id="touchFeedback"></div>
+	
+	<!-- 加载动画 -->
+	<div class="loading-spinner" id="loadingSpinner"></div>
+	
+	<!-- 触摸手势提示 -->
+	<div class="gesture-hint" id="gestureHint">
+		<div id="gestureText">单指触摸：设置起点<br>单指拖动：设置方向</div>
+	</div>
+
+	<script type="importmap">
+		{
+		  "imports": {
+			"three": "../../libs/three/three.module.js",
+			"three/addons/": "../../libs/three/examples/jsm/",
+			"api": "../../api"
+		  }
+		}
+	  </script>
+	<script type="text/javascript" src="../../tools/roslibjs/build/roslib.js"></script>
+	<script type="text/javascript" src="../../libs/coco-message.js"></script>
+	<script type="module" src="js/main.js"> </script>
+</body>
+
+</html>

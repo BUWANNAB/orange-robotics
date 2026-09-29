@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ROS2 录制话题</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .connected {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .disconnected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .topic-list {
+      margin-top: 20px;
+    }
+    .topic-item {
+      padding: 8px;
+      margin: 5px 0;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+    }
+    .topics-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .topic-content {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+    .topic-checkbox {
+      margin-bottom: 5px;
+    }
+    .topic-name {
+      margin-bottom: 5px;
+      word-break: break-all;
+    }
+    .topic-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .topic-actions button {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .batch-controls {
+      background-color: #e9ecef;
+    }
+    button {
+      padding: 8px 16px;
+      margin: 5px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0069d9;
+    }
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    input {
+      padding: 8px;
+      margin: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    /* 响应式布局 */
+    .topics-container .topic-item {
+      flex: 0 0 250px;
+      margin: 5px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    @media (min-width: 768px) {
+      .topics-container .topic-item {
+        flex: 0 0 250px;
+      }
+    }
+    @media (min-width: 992px) {
+      .topics-container .topic-item {
+        flex: 0 0 250px;
+      }
+    }
+    @media (min-width: 1200px) {
+      .topics-container .topic-item {
+        flex: 0 0 250px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>ROS2 连接测试</h1>
+  
+  <div>
+    <label for="rosUrl">ROS2 WebSocket URL:</label>
+    <input type="text" id="rosUrl" placeholder="默认连接当前网页主机的 9090 端口" style="width: 300px; max-width: 100%;">
+    <button id="connectBtn">连接</button>
+    <button id="disconnectBtn">断开连接</button>
+  </div>
+  
+  <div id="connectionStatus" class="status disconnected">未连接</div>
+  
+  <div class="topic-list">
+    <h2>所有可用话题</h2>
+    <button id="fetchAllTopicsBtn">获取所有话题</button>
+    <div id="allTopics"></div>
+  </div>
+  
+  <div style="display: none;" class="topic-list">
+    <h2>订阅的话题</h2>
+    <div id="subscribedTopics"></div>
+  </div>
+  
+  <div style="display: none;" class="topic-list">
+    <h2>发布的话题</h2>
+    <div id="publishedTopics"></div>
+  </div>
+  
+  <div class="topic-list">
+    <h2>消息日志</h2>
+    <div id="messageLog" style="height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
+  </div>
+  <!-- ros2 launch rosbridge_server rosbridge_websocket_launch.xml -->
+  <script src="../../tools/roslibjs/build/roslib.js"></script>
+  <script src="./js/recordBag.js"></script>
+</body>
+
+</html>
+

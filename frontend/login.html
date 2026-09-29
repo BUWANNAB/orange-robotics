@@ -1,0 +1,573 @@
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>智驾系统</title>
+    <link rel="icon" href="./src/assets/logo/favicon.svg" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+ 	<!-- <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script> -->
+	 <script src="./src/libs/particles.min.js"></script>
+    <link href="./src/libs/css/boxicons.min.css" rel="stylesheet">
+	<script type="text/javascript" src="./src/libs/jquery-3.1.0.min.js"></script>
+    <script type="text/javascript" src="./src/libs/coco-message.js"></script>
+    <style>
+        /* 基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #431407 0%, #ea580c 100%);
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        /* 粒子背景 */
+        #particles-js {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        /* 加载动画 */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 26, 47, 0.9);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .loader-animation {
+            position: relative;
+            width: 96px;
+            height: 96px;
+            margin-bottom: 32px;
+        }
+        
+        .loader-wave-1, .loader-wave-2 {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 4px solid rgba(234, 88, 12, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        .loader-wave-2 {
+            animation-delay: 1s;
+        }
+        
+        .loader-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+        }
+        
+        .loader-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        /* 登录卡片 */
+        .login-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 0 16px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .login-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .login-header {
+            padding: 32px;
+            text-align: center;
+        }
+        
+        .login-logo {
+            width: 64px;
+            height: 64px;
+            background: #ea580c;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 5px 15px rgba(234, 88, 12, 0.3);
+        }
+        
+        .login-logo i {
+            color: white;
+            font-size: 24px;
+        }
+        
+        .login-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .login-subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .login-form {
+            background: white;
+            padding: 32px;
+            border-radius: 24px 24px 0 0;
+        }
+        
+        .form-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .form-group i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+            font-size: 18px;
+            z-index: 1;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f8f9fa;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #ea580c;
+            box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: #aaa;
+        }
+        
+        .form-input:focus::placeholder {
+            color: #ccc;
+        }
+        
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 14px;
+            color: #888;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        
+        .toggle-password:hover {
+            color: #ea580c;
+        }
+        
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+        }
+        
+        .remember-me input {
+            margin-right: 8px;
+        }
+        
+        .forgot-password {
+            color: #ea580c;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .forgot-password:hover {
+            color: #c2410c;
+        }
+        
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: #ea580c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-button:hover {
+            background: #c2410c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(234, 88, 12, 0.3);
+        }
+        
+        .login-button:active {
+            transform: translateY(0);
+        }
+        
+        .login-button i {
+            margin-left: 8px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+        }
+        
+        .footer p {
+            margin-bottom: 4px;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 0 24px;
+            }
+            
+            .login-card {
+                border-radius: 16px;
+            }
+            
+            .login-form {
+                border-radius: 16px 16px 0 0;
+                padding: 24px;
+            }
+            
+            .login-header {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 粒子背景容器 -->
+    <div id="particles-js"></div>
+    
+    <!-- 加载动画容器 -->
+    <div id="loader">
+        <div class="loader-animation">
+            <div class="loader-wave-1"></div>
+            <div class="loader-wave-2"></div>
+            <div class="loader-icon">
+                <!-- 替换为 Boxicons 的地球图标 -->
+                <i class="bx bx-globe"></i>
+            </div>
+        </div>
+        <p class="loader-text">正在连接数据库...</p>
+    </div>
+    
+    <!-- 登录容器 -->
+    <div class="login-container">
+        <div class="login-card">
+            <!-- 头部 -->
+            <div class="login-header">
+                <div class="login-logo">
+                    <span style="font-size: 36px; line-height: 1;">🍊</span>
+                </div>
+                <h1 class="login-title"><!-- 待填写系统名称 --></h1>
+                <p class="login-subtitle"><!-- 待填写副标题 --></p>
+            </div>
+            
+            <!-- 表单 -->
+            <div class="login-form">
+                <h2 class="form-title">账户登录</h2>
+                 <button type="button" style="display: none;"  id="registerBtn">注册账号</button>
+                <form id="loginForm" autocomplete="off">
+                    <div class="form-group">
+                        <!-- 用户名输入框图标替换 -->
+                        <i class="bx bx-user"></i>
+                        <input type="text" name="username" value="" class="form-input"
+                               placeholder="请输入用户名" autocomplete="off"
+                               onfocus="this.placeholder=''" 
+                               onblur="this.placeholder='请输入用户名'">
+                    </div>
+                    
+                    <div class="form-group">
+                        <!-- 密码输入框图标替换 -->
+                    <i class="bx bx-lock-alt"></i>
+                        <input type="password" name="password" value="" class="form-input"
+                               placeholder="请输入密码" autocomplete="new-password"
+                               onfocus="this.placeholder=''" 
+                               onblur="this.placeholder='请输入密码'">
+                        <span class="toggle-password" id="togglePassword">
+                            <!-- 密码可见性切换图标 -->
+                        </span>
+                    </div>
+                    
+                    <div style="display: none;" class="form-options">
+                        <div class="remember-me">
+                            <input type="checkbox" id="remember">
+                            <label for="remember">记住登录状态</label>
+                        </div>
+                        <a href="#" class="forgot-password">忘记密码?</a>
+                    </div>
+                    
+                    <button type="submit" class="login-button">
+                        <span>登录系统</span>
+                        <!-- 登录按钮图标替换 -->
+                       <i class='bx  bx-arrow' ></i> 
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 页脚 -->
+        <!-- <div class="footer">
+            <p>© 2025 中国地址调查局海洋地质研究所 版权所有</p>
+            <p>地质数据安全等级保护三级认证</p>
+        </div> -->
+    </div>
+
+    <script type="module">
+		import axiosClient from "./src/api/ApiManager.js"
+        // 初始化粒子背景
+        document.addEventListener('DOMContentLoaded', function() {
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 80,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": "#ffffff"
+                    },
+                    "shape": {
+                        "type": "circle",
+                        "stroke": {
+                            "width": 0,
+                            "color": "#000000"
+                        }
+                    },
+                    "opacity": {
+                        "value": 0.5,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 1,
+                            "opacity_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 3,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 2,
+                            "size_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 150,
+                        "color": "#ffffff",
+                        "opacity": 0.2,
+                        "width": 1
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 1,
+                        "direction": "none",
+                        "random": true,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "grab"
+                        },
+                        "onclick": {
+                            "enable": true,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    },
+                    "modes": {
+                        "grab": {
+                            "distance": 140,
+                            "line_linked": {
+                                "opacity": 0.5
+                            }
+                        },
+                        "push": {
+                            "particles_nb": 4
+                        }
+                    }
+                },
+                "retina_detect": true
+            });
+            
+            // 密码显示/隐藏切换
+            const togglePassword = document.getElementById('togglePassword');
+            const passwordInput = document.querySelector('input[name="password"]');
+            
+            togglePassword.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+            });
+           
+            // 登录表单提交处理
+            const loginForm = document.getElementById('loginForm');
+            const loader = document.getElementById('loader');
+            
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // 获取表单数据
+                const username = document.querySelector('input[name="username"]').value;
+                const password = document.querySelector('input[name="password"]').value;
+                
+                // 显示加载动画
+                loader.style.display = 'flex';
+                
+                // 使用真实API进行登录验证
+                const params = {
+                    userAccount: username,
+                    userPassword: password
+                }
+               
+                axiosClient.post('user/login', params)
+                .then((res) => {
+                    let token = res.data.data;
+                    if(res.data.code === 0){
+                    // 存储token和创建时间
+                    localStorage.setItem("token", token);
+                    localStorage.setItem("tokenCreateTime", Date.now().toString());
+                    // 存储用户名，用于后续判断用户角色
+                    localStorage.setItem("username", username);
+                    window.location.href = "/";
+                    } else {
+                        // 处理服务器返回的错误码
+                        loader.style.display = 'none';
+                        let errorMessage = '登录失败';
+                        if(res.data.code === 10001) {
+                            errorMessage = '用户名不存在';
+                        } else if(res.data.code === 10002) {
+                            errorMessage = '密码错误';
+                        } else if(res.data.message) {
+                            errorMessage = res.data.message;
+                        }
+                            cocoMessage.error(登录失败,请检查账号和密码);
+                    }
+                })
+                .catch((error) => {
+                    console.error("登录失败:", error);
+                    // 登录失败时隐藏加载动画
+                    loader.style.display = 'none';
+                    
+                    // 尝试从错误响应中获取错误信息
+                    let errorMessage = '登录失败，请检查账号和密码';
+                    if(error.response && error.response.data) {
+                        if(error.response.data.code === 10001) {
+                            errorMessage = '用户名不存在';
+                        } else if(error.response.data.code === 10002) {
+                            errorMessage = '密码错误';
+                        } else if(error.response.data.message) {
+                            errorMessage = error.response.data.message;
+                        }
+                    }
+                    cocoMessage.error(errorMessage);
+                });
+            });
+            
+            // 注册按钮点击事件
+            document.getElementById('registerBtn').addEventListener('click', function() {
+                const params = {
+                    userAccount: "",
+                    userPassword: "",
+                    checkPassword: ""
+                };
+                axiosClient.post('user/register', params)
+                .then((res) => {
+                   
+                })
+                .catch((error) => {
+                    console.error("注册请求失败:", error);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,521 @@
+/* 报警信息展示组件样式 */
+
+.alarm-container {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    padding: 24px;
+    margin: 20px;
+    min-height: 600px;
+}
+
+/* 标题栏 */
+.alarm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #f0f0f0;
+    margin-bottom: 24px;
+}
+
+.alarm-header h4 {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+.alarm-header h4 i {
+    color: #e74c3c;
+    margin-right: 8px;
+}
+
+.alarm-controls {
+    display: flex;
+    gap: 12px;
+}
+
+.alarm-controls .btn {
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+/* 统计信息卡片 */
+.alarm-stats {
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-radius: 12px;
+    color: white;
+    min-height: 100px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.stat-card.error {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.stat-card.warning {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+}
+
+.stat-card.info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.stat-card.total {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    margin-right: 16px;
+    opacity: 0.9;
+}
+
+.stat-info {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    font-weight: 500;
+}
+
+/* 筛选器 */
+.alarm-filters {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border: 1px solid #e9ecef;
+}
+
+.alarm-filters .form-control,
+.alarm-filters .form-select {
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    padding: 10px 15px;
+    font-size: 14px;
+}
+
+.alarm-filters .form-control:focus,
+.alarm-filters .form-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+.alarm-filters .btn {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+/* 报警列表 */
+.alarm-list {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.alarm-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.alarm-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.alarm-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.alarm-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.alarm-item {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 20px 70px 20px 20px;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.alarm-item:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.alarm-item.error {
+    border-left: 4px solid #e74c3c;
+    background: linear-gradient(135deg, #ffffff, #fdf2f2);
+}
+
+.alarm-item.warning {
+    border-left: 4px solid #f39c12;
+    background: linear-gradient(135deg, #ffffff, #fff8f0);
+}
+
+.alarm-item.info {
+    border-left: 4px solid #3498db;
+    background: linear-gradient(135deg, #ffffff, #f0f8ff);
+}
+
+.alarm-item.acknowledged {
+    opacity: 0.7;
+    background: #f8f9fa;
+}
+
+.alarm-header-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.alarm-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.alarm-level {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    margin-right: 50px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.alarm-level.error {
+    background: #e74c3c;
+    color: white;
+}
+
+.alarm-level.warning {
+    background: #f39c12;
+    color: white;
+}
+
+.alarm-level.info {
+    background: #3498db;
+    color: white;
+}
+
+.alarm-time {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    margin-bottom: 8px;
+}
+
+.alarm-description {
+    color: #34495e;
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.alarm-source {
+    font-size: 0.85rem;
+    color: #95a5a6;
+    background: #ecf0f1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.alarm-actions {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.alarm-actions .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alarm-actions .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #95a5a6;
+    display: none;
+}
+
+.empty-state.show {
+    display: block;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    color: #2ecc71;
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+.empty-state h5 {
+    color: #34495e;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.empty-state p {
+    color: #7f8c8d;
+    margin-bottom: 0;
+}
+
+/* 模态框样式 */
+.modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 12px 12px 0 0;
+    padding: 20px 24px;
+}
+
+.modal-title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.2rem;
+}
+
+.modal-title i {
+    color: #e74c3c;
+    margin-right: 8px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-radius: 0 0 12px 12px;
+    padding: 16px 24px;
+}
+
+/* 详情样式 */
+.alarm-detail-item {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.alarm-detail-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.alarm-detail-label {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.alarm-detail-value {
+    color: #34495e;
+    line-height: 1.5;
+}
+
+.alarm-detail-value.pre-formatted {
+    background: #f8f9fa;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    border: 1px solid #e9ecef;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .alarm-container {
+        margin: 10px;
+        padding: 16px;
+    }
+    
+    .alarm-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    
+    .alarm-controls {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .alarm-item {
+        padding: 16px 60px 16px 16px;
+    }
+    
+    .alarm-actions {
+        top: 16px;
+        right: 16px;
+        gap: 6px;
+    }
+    
+    .alarm-actions .btn {
+        min-width: 28px;
+        height: 28px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+    
+    .stat-card {
+        margin-bottom: 12px;
+        min-height: 80px;
+        padding: 16px;
+    }
+    
+    .stat-icon {
+        font-size: 2rem;
+        margin-right: 12px;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .alarm-filters {
+        padding: 16px;
+    }
+    
+    .alarm-header-info {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .alarm-actions {
+        position: static;
+        margin-top: 12px;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 576px) {
+    .alarm-stats .row > div {
+        margin-bottom: 12px;
+    }
+    
+    .alarm-filters .row > div {
+        margin-bottom: 12px;
+    }
+    
+    .alarm-filters .col-md-3:last-child {
+        margin-bottom: 0;
+    }
+}
+
+/* 动画效果 */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alarm-item {
+    animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
+}
+
+.alarm-item.error:not(.acknowledged) {
+    animation: pulse 2s infinite;
+}
+
+/* 加载状态 */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

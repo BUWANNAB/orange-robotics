@@ -1,0 +1,38 @@
+# ROS 2 / colcon output
+/install/
+/build/
+/log/
+/ros/orange_nav_ws/install/
+/ros/orange_nav_ws/build/
+/ros/orange_nav_ws/log/
+
+# Runtime data and local secrets
+/runtime_data/*
+!/runtime_data/*/
+!/runtime_data/*/.gitkeep
+/backend/.env
+/backend/.env.*
+!/backend/.env.operations.example
+/runtime.env
+**/runtime.env
+/backend/*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+
+# Local archives are retained for reference, not published with the new system
+/archive/java-legacy/
+/archive/legacy-docs/
+/archive/map-examples/
+
+# Generated Python / frontend / editor files
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.vscode/
+.idea/
+.deps-build/
+.DS_Store
+Thumbs.db

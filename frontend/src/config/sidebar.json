@@ -1,0 +1,145 @@
+{
+  "sidebar": [
+    {
+      "id": "rcsOperations",
+      "title": "RCS / RDS 管理",
+      "icon": "bx bx-grid-alt",
+      "url": "/ui/operations.html",
+      "visible": true,
+      "order": 0
+    },
+        {
+      "id": "leftmap_simple",
+      "title": "操作运行",
+      "icon": "bx bx-map",
+      "url": "/src/components/outdoor-map/outdoor-map.html?mode=simple",
+      "visible": false,
+      "order": 0
+    },
+    {
+      "id": "leftmap",
+      "title": "路线规划",
+      "icon": "bx bx-git-compare",
+      "url": "/src/components/outdoor-map/outdoor-map.html",
+      "visible": false,
+      "order": 1
+    },
+
+        {
+      "id": "carPosition",
+      "title": "室内导航",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/indoor-map/drag_move.html",
+      "visible": true,
+      "order": 3
+    },
+        {
+      "id": "drawMap",
+      "title": "地图创建",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/process-map/handle_map.html",
+      "visible": true,
+      "order": 4
+    }  ,
+
+    {
+      "id": "dataAdmin",
+      "title": "数据管理",
+      "icon": "bx bx-table",
+      "url": "/src/modules/data-admin/data_admin.html",
+      "visible": true,
+      "order": 6
+    },
+
+    {
+      "id": "globalPath",
+      "title": "自动规划",
+      "icon": "bx bx-shape-square",
+      "url": "/src/components/outdoor-map/area-traversal.html",
+      "visible": false,
+      "order": 5
+    },
+
+    {
+      "id": "robot_data",
+      "title": "机器参数",
+      "icon": "bx bx-cog",
+      "url": "/src/components/global-data/robot_data.html",
+      "visible": false,
+      "order": 6
+    },
+    {
+      "id": "robotLog",
+      "title": "日志数据",
+      "icon": "bx bxs-cloud-download",
+      "url": "/src/components/logs/erpLog/erpLog.html",
+      "visible": false,
+      "order": 7
+    },
+    {
+      "id": "exportData",
+      "title": "数据导出",
+      "icon": "bx bxs-cloud-download",
+      "url": "/src/modules/company-projects/company-b/exportData/exportData.html",
+      "visible": false,
+      "order": 8
+    },
+    {
+      "id": "clock",
+      "title": "任务管理",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/clock/clock.html",
+      "visible": false,
+      "order": 10
+    },        {
+      "id": "machine_control",
+      "title": "遥控操作",
+      "icon": "bx bxs-joystick",
+      "url": "/src/components/machine_control/machine_control.html",
+      "visible": false,
+      "order": 11
+    },
+
+        {
+      "id": "recordBag",
+      "title": "录制话题",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/recordBag/recordBag.html",
+      "visible": false,
+      "order": 12
+    },
+    {
+      "id": "playBack",
+      "title": "操作日志",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/logs/agvLog/agvLog.html",
+      "visible": false,
+      "order": 13
+    },
+
+    {
+      "id": "mapRoom",
+      "title": "地图房间",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/sub-map/mapRoom.html",
+      "visible": false,
+      "order": 14
+    },
+        {
+      "id": "wornMsg",
+      "title": "报警信息",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/alarm-display/alarm-display.html",
+      "visible": false,
+      "order": 15
+    },
+    {
+      "id": "wornMsg",
+      "title": "车辆安全",
+      "icon": "bx bx-buildings",
+      "url": "/src/components/global-data/vehicle-safety.html",
+      "visible": false,
+      "order": 16
+    }
+  ]
+}

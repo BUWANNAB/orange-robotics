@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路线定时任务管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ea580c',
+                        success: '#00B42A',
+                        warning: '#FF7D00',
+                        danger: '#F53F3F',
+                        info: '#86909C',
+                        dark: '#1D2129',
+                        light: '#F2F3F5',
+                        'primary-light': '#fff7ed',
+                        'success-light': '#E8FFF3',
+                        'warning-light': '#FFF7E8',
+                        'danger-light': '#FFE8E8',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 2px 14px 0 rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 8px 24px 0 rgba(0, 0, 0, 0.12)',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .animate-pulse-slow {
+                animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .animate-slide-up {
+                animation: slideUp 0.3s ease-out forwards;
+            }
+            .animate-fade-in {
+                animation: fadeIn 0.3s ease-out forwards;
+            }
+            .text-balance {
+                text-wrap: balance;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        .tooltip {
+        transition: opacity 0.2s, visibility 0.2s;
+        opacity: 0;
+        visibility: hidden;
+        }
+        .relative:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        .rounded-full {
+            transition: all 0.2s ease;
+        }
+    </style>
+</head>
+<body class="font-inter bg-gray-50 text-dark min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header style="display: none;" class="bg-white shadow-sm sticky top-0 z-50 transition-all duration-300" id="navbar">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fa-solid fa-road text-primary text-2xl mr-2"></i>
+                        <span class="font-bold text-xl text-primary">RouteScheduler</span>
+                    </div>
+                    <div class="hidden md:block ml-10">
+                        <div class="flex items-baseline space-x-4">
+                            <a href="#" class="text-primary border-b-2 border-primary px-3 py-2 text-sm font-medium">控制台</a>
+                            <a href="#" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium transition-colors duration-200">路线管理</a>
+                            <a href="#" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium transition-colors duration-200">执行历史</a>
+                            <a href="#" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium transition-colors duration-200">系统设置</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="hidden md:block">
+                    <div class="flex items-center">
+                        <button class="p-2 rounded-full text-gray-400 hover:text-primary hover:bg-gray-100 transition-colors duration-200">
+                            <i class="fa-solid fa-bell"></i>
+                        </button>
+                        <div class="ml-3 relative">
+                            <div class="flex items-center">
+                                <img class="h-8 w-8 rounded-full object-cover" src="https://picsum.photos/200/200?random=1" alt="用户头像">
+                                <span class="ml-2 text-sm font-medium text-gray-700">管理员</span>
+                                <i class="fa-solid fa-chevron-down ml-1 text-xs text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="p-2 rounded-md text-gray-400 hover:text-primary hover:bg-gray-100 transition-colors duration-200">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 移动端菜单 -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t animate-slide-up">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#" class="bg-primary-light text-primary block px-3 py-2 rounded-md text-base font-medium">控制台</a>
+                <a href="#" class="text-gray-500 hover:bg-gray-100 hover:text-primary block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">路线管理</a>
+                <a href="#" class="text-gray-500 hover:bg-gray-100 hover:text-primary block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">执行历史</a>
+                <a href="#" class="text-gray-500 hover:bg-gray-100 hover:text-primary block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">系统设置</a>
+            </div>
+            <div class="pt-4 pb-3 border-t border-gray-200">
+                <div class="flex items-center px-5">
+                    <div class="flex-shrink-0">
+                        <img class="h-10 w-10 rounded-full object-cover" src="https://picsum.photos/200/200?random=1" alt="用户头像">
+                    </div>
+                    <div class="ml-3">
+                        <div class="text-base font-medium text-gray-800">管理员</div>
+                        <div class="text-sm font-medium text-gray-500">admin@example.com</div>
+                    </div>
+                </div>
+                <div class="mt-3 px-2 space-y-1">
+                    <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-primary transition-colors duration-200">个人资料</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-primary transition-colors duration-200">退出登录</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区域 -->
+    <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- 页面标题 -->
+        <div class="mb-8">
+            <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-gray-800 mb-2">路线定时任务管理</h1>
+            <p class="text-gray-500">管理和监控所有路线的定时执行任务，确保业务流程顺畅运行</p>
+        </div>
+        
+        <!-- 状态概览卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- 总路线卡片 -->
+            <div class="bg-white rounded-xl shadow-card hover:shadow-card-hover p-6 transition-all duration-300 transform hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm mb-1">总路线数</p>
+                        <h3 class="text-3xl font-bold text-gray-800" id="total-routes"></h3>
+                        <p class="text-success text-sm mt-2 flex items-center" style="display: none;">
+                            <i class="fa-solid fa-arrow-up mr-1"></i> 
+                            <span>5% 较上周</span>
+                        </p>
+                    </div>
+                    <div class="bg-primary-light p-3 rounded-lg">
+                        <i class="fa-solid fa-road text-primary text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 运行中卡片 -->
+            <div class="bg-white rounded-xl shadow-card hover:shadow-card-hover p-6 transition-all duration-300 transform hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm mb-1">运行中</p>
+                        <h3 class="text-3xl font-bold text-gray-800" id="running-routes"></h3>
+                        <p class="text-success text-sm mt-2 flex items-center" style="display: none;">
+                            <i class="fa-solid fa-arrow-up mr-1"></i> 
+                            <span>3% 较上周</span>
+                        </p>
+                    </div>
+                    <div class="bg-success-light p-3 rounded-lg">
+                        <i class="fa-solid fa-play-circle text-success text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 已暂停卡片 -->
+            <div class="bg-white rounded-xl shadow-card hover:shadow-card-hover p-6 transition-all duration-300 transform hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm mb-1">已暂停</p>
+                        <h3 class="text-3xl font-bold text-gray-800" id="paused-routes"></h3>
+                        <p class="text-warning text-sm mt-2 flex items-center" style="display: none;">
+                            <i class="fa-solid fa-minus mr-1"></i> 
+                            <span>相同 较上周</span>
+                        </p>
+                    </div>
+                    <div class="bg-warning-light p-3 rounded-lg"> 
+                        <i class="fa-solid fa-pause-circle text-warning text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 失败卡片 -->
+            <div class="bg-white rounded-xl shadow-card hover:shadow-card-hover p-6 transition-all duration-300 transform hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm mb-1">失败</p>
+                        <h3 class="text-3xl font-bold text-gray-800" id="failed-routes"></h3>
+                        <p class="text-success text-sm mt-2 flex items-center" style="display: none;">
+                            <i class="fa-solid fa-arrow-down mr-1"></i> 
+                            <span>100% 较上周</span>
+                        </p>
+                    </div>
+                    <div class="bg-danger-light p-3 rounded-lg">
+                        <i class="fa-solid fa-exclamation-circle text-danger text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 路线管理区域 -->
+        <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+                <div>
+                    <h3 class="font-semibold text-lg text-gray-800">路线任务列表</h3>
+                    <p class="text-gray-500 text-sm mt-1">所有路线定时任务的详细信息和状态</p>
+                </div>
+                <div class="mt-4 md:mt-0 flex items-center">
+                    <div class="relative mr-4">
+                       <input type="text" id="search-input" placeholder="搜索路线..." class="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2 pl-10">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <i class="fa-solid fa-search text-gray-400"></i>
+                        </div>
+                    </div>
+                    <button id="add-route-btn" class="bg-primary hover:bg-primary/90  font-medium py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center">
+                        <i class="fa-solid fa-plus mr-2"></i> 添加路线
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 路线过滤器 -->
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+                <!-- 路线过滤器下拉菜单添加id -->
+                <div class="relative">
+                    <select id="status-filter" class="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2 pr-8 appearance-none cursor-pointer">
+                        <option value="">所有状态</option>
+                        <option value="running">运行中</option>
+                        <option value="paused">已暂停</option>
+                        <option value="failed">已失败</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+                <!-- <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors duration-200">
+                    <i class="fa-solid fa-sliders mr-1"></i> 更多筛选
+                </button> -->
+            </div>
+            
+            <!-- 路线表格 -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">路线名称</th>
+                            <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                            <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">执行频率</th>
+                            <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">描述</th>
+                            <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="route-list">
+                        <!-- 路线列表将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 分页 -->
+            <div class="flex items-center justify-between px-4 py-3 sm:px-6 mt-4">
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            显示第 <span class="font-medium" id="current-page-range-start">1</span> 到 <span class="font-medium" id="current-page-range-end">10</span> 条，共 <span class="font-medium" id="total-items">12</span> 条记录
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination" id="pagination">
+                            <!-- 分页按钮将通过JavaScript动态生成 -->
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer style="display: none;" class="bg-white border-t border-gray-200 py-6">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-sm text-gray-500">&copy; 2025 RouteScheduler. 保留所有权利。</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#" class="text-gray-500 hover:text-primary transition-colors duration-200">
+                        <i class="fa-brands fa-github"></i>
+                    </a>
+                    <a href="#" class="text-gray-500 hover:text-primary transition-colors duration-200">
+                        <i class="fa-brands fa-twitter"></i>
+                    </a>
+                    <a href="#" class="text-gray-500 hover:text-primary transition-colors duration-200">
+                        <i class="fa-brands fa-linkedin"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+<!-- 添加/编辑路线模态框 -->
+<div id="route-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">添加新路线</h3>
+                        <div class="mt-2 space-y-4">
+                        <!-- HTML 中的 select 框 -->
+                        <div>
+                            <label for="route-name" class="block text-sm font-medium text-gray-700 mb-1">路线名称 <span class="text-danger">*</span></label>
+                            <select id="route-name" name="route-name" class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                                <option value="">请选择路线</option>
+                                <!-- 动态生成的option，value为routeId，文本为routeName -->
+                            </select>
+                        </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">执行类型 <span class="text-danger">*</span></label>
+                                <div class="flex items-center space-x-4">
+                                    <input type="radio" id="single-execution" name="execution-type" value="single" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded" checked>
+                                    <label for="single-execution" class="text-sm text-gray-700">只执行一次</label>
+                                    
+                                    <input type="radio" id="repeat-execution" name="execution-type" value="repeat" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                    <label for="repeat-execution" class="text-sm text-gray-700">多次执行（每周）</label>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <label for="single-execution-time" class="block text-sm font-medium text-gray-700 mb-1">执行时间 <span class="text-danger">*</span></label>
+                                <input type="time" id="single-execution-time" name="single-execution-time" class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                            </div>
+
+                            <div id="single-execution-container" class="mt-4 hidden">
+                                <label for="single-execution-date" class="block text-sm font-medium text-gray-700 mb-1">执行日期 <span class="text-danger">*</span></label>
+                                <input type="date" id="single-execution-date" name="single-execution-date" class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                            </div>
+                            
+                            <div id="weekdays-container" class="mt-4 hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">选择执行日期</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="mon" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周一</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="tue" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周二</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="wed" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周三</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="thu" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周四</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="fri" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周五</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="sat" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周六</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" value="sun" name="weekday" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <span class="ml-1 text-sm text-gray-700">周日</span>
+                                    </label>
+                                </div>
+                                <div class="mt-2 flex justify-between items-center">
+                                    <button type="button" id="select-weekdays-work" class="bg-primary-light text-primary px-2 py-1 rounded-md text-sm">工作日</button>
+                                    <button type="button" id="select-weekdays-weekend" class="bg-primary-light text-primary px-2 py-1 rounded-md text-sm">周末</button>
+                                </div>
+                            </div>
+
+                            <div >
+                                <label for="route-description" class="block text-sm font-medium text-gray-700 mb-1">路线描述</label>
+                                <textarea id="route-description" name="route-description" rows="3" class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" placeholder="请输入路线描述（可选）"></textarea>
+                            </div>
+
+                            <div style="display: none;" >
+                                <label class="block text-sm font-medium text-gray-700 mb-1">执行配置</label>
+                                <div class="bg-gray-50 p-4 rounded-md space-y-3">
+                                    <div class="flex items-center">
+                                        <input id="retry-on-failure" name="retry-on-failure" type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <label for="retry-on-failure" class="ml-2 block text-sm text-gray-700">失败时自动重试</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="send-notification" name="send-notification" type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <label for="send-notification" class="ml-2 block text-sm text-gray-700">执行完成后发送通知</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="priority" name="priority" type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
+                                        <label for="priority" class="ml-2 block text-sm text-gray-700">高优先级</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" id="save-route" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium  hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200">
+                    保存
+                </button>
+                <button type="button" id="close-route-modal" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- 确认对话框 -->
+    <div id="confirm-dialog" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="dialog-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-danger-light sm:mx-0 sm:h-10 sm:w-10">
+                            <i class="fa-solid fa-exclamation-triangle text-danger text-xl"></i>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="dialog-title">确认删除</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500" id="dialog-message">
+                                    你确定要删除这个路线任务吗？此操作无法撤销。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="confirm-action" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-danger text-base font-medium  hover:bg-danger/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-danger sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200">
+                        确认删除
+                    </button>
+                    <button type="button" id="cancel-action" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知组件 -->
+    <div id="notification" class="fixed top-4 right-4 z-50 hidden animate-slide-up">
+        <div class="bg-white rounded-lg shadow-lg border-l-4 border-success p-4 flex items-center w-80">
+            <div class="flex-shrink-0">
+                <i class="fa-solid fa-check-circle text-success text-xl"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-gray-800" id="notification-message">操作成功</p>
+                <p class="text-xs text-gray-500 mt-1" id="notification-details">路线已成功添加</p>
+            </div>
+            <button type="button" class="ml-auto flex-shrink-0 rounded-full bg-gray-100 p-1 hover:bg-gray-200 transition-colors duration-200">
+                <i class="fa-solid fa-times text-gray-500 text-xs"></i>
+            </button>
+        </div>
+    </div>
+
+
+<script type="module">
+import axiosClient from "../../api/ApiManager.js";
+    // 全局变量
+    let currentFilter = null;
+    let currentEditingRoute = null;
+    let routes = null
+    let  allRoutedata =null
+async function getAllMessage() {
+    try {
+        const res = await axiosClient.get('task/queryall');
+        // 直接使用后端返回的status，无需本地转换
+        routes = res.data.data.map(item => ({
+            ...item,
+            weekdays: item.weekdays.split(",").map(Number)
+        }));
+        console.log('获取到后端数据:', routes);
+    } catch (error) {
+        console.error('获取任务失败:', error);
+    }
+}
+
+ let routeDemo = [
+        {
+    "createTime": "2025-05-28 07:38:56", // 转换为本地时间（移除时区）
+    "description": "qqqqqqqqqqq",
+    "executionType": "repeat",
+    "id": 11,
+    "isDelete": false, // 0转布尔值
+    "lastExecution": null, // 空值表示未执行
+    "nextExecution": "2025-05-28 18:41:00", // 计算最近执行时间（若当前时间未过当天18:41）
+    "priority": null, // 空值转null
+    "repeatExecutionTime": "18:41:00", // 补全秒数
+    "retryOnFailure": false, // 字符串转布尔值
+    "routeId": "607",
+    "routeName": "2", // 空值填充默认名
+    "sendNotification": false, // 空值默认关闭
+    "singleExecution": null, // 非单次执行类型留空
+    "status": "running", // 空值默认运行中
+    "updateTime": "2025-05-28 07:38:56", // 转换为本地时间
+    "weekdays": "2,3,5,6"
+   , "weekdaysText": "周二、周三、周五、周六" // 新增中文显示字段（方便前端渲染）
+},
+{
+    "createTime": "2025-05-28 07:30:07", // 转换为本地时间格式（去掉时区偏移）
+    "description": "dsfsdf",
+    "executionType": "single",
+    "id": 10,
+    "isDelete": false, // 数值0转为布尔值
+    "lastExecution": null, // 空字符串转为null（表示未执行）
+    "nextExecution": "2025-05-28 17:31:00", // 补全秒数为00
+    "priority": null, // 空字符串转为null
+    "repeatExecutionTime": null, // 非重复类型留空
+    "retryOnFailure": false, // 字符串"false"转为布尔值
+    "routeId": "607",
+    "routeName": "1", // 空字符串填充默认值
+    "sendNotification": false, // 空字符串转为默认值false
+    "singleExecution": "2025-05-28T17:31:00", // 补全秒数
+    "status": "running", // 空字符串填充默认状态
+    "updateTime": "2025-05-28 07:30:07", // 转换为本地时间格式
+    "weekdays": "" // 空字符串转为空数组（避免后续length报错）
+    }
+  ]
+ 
+
+// 周几映射表
+const dayMap = {mon: '周一', tue: '周二', wed: '周三', thu: '周四', fri: '周五', sat: '周六', sun: '周日'};
+const statusMap = {
+    running: {text: '运行中', class: 'bg-success-light text-success'},
+    paused: {text: '已暂停', class: 'bg-gray-100 text-gray-500'},
+    failed: {text: '失败', class: 'bg-danger-light text-danger'}
+};
+// DOM元素获取
+const statusFilter = document.getElementById('status-filter');
+const routeList = document.getElementById('route-list');
+const addRouteBtn = document.getElementById('add-route-btn');
+const routeModal = document.getElementById('route-modal');
+const saveRoute = document.getElementById('save-route');
+const confirmDialog = document.getElementById('confirm-dialog');
+const notification = document.getElementById('notification');
+const mobileMenuButton = document.getElementById('mobile-menu-button');
+const navbar = document.getElementById('navbar');
+const routeNameSelect = document.getElementById('route-name');
+const weekdaysContainer = document.getElementById('weekdays-container');
+const totalItems = document.getElementById('total-items');
+const paginationNav = document.getElementById('pagination');
+const singleExecutionContainer = document.getElementById('single-execution-container');
+const singleExecutionDate = document.getElementById('single-execution-date');
+const singleExecutionTime = document.getElementById('single-execution-time');
+const searchInput = document.getElementById('search-input'); // 添加这一行
+// 设置默认日期为今天
+singleExecutionDate.valueAsDate = new Date();
+const paginationConfig = {itemsPerPage: 10, currentPage: 1, totalPages: 1};
+let  totalRoutes   = document.getElementById("total-routes")
+let  runningRoutes = document.getElementById("running-routes")
+let  pausedRoutes  = document.getElementById("paused-routes")
+let  failedRoutes  = document.getElementById("failed-routes")
+// 初始化函数
+async function init() {
+    await getAllMessage() 
+    await getAllRoute()
+    populateRouteNames();
+    initEventListeners();
+    renderRouteList();
+    //updateStatusBadges(); // 新增：更新状态显示
+    await refreshData(); // 使用统一的数据刷新函数
+    // setDefaultTime();
+    renderTitleMessage();
+    
+    // 设置默认时间为当前时间
+    const now = new Date();
+    singleExecutionTime.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+}
+
+    // 统一数据刷新函数
+    async function refreshData() {
+        try {
+            const res = await axiosClient.get("task/queryall");
+            routes = res.data.data.map(item => ({
+                ...item,
+                weekdays: item.weekdays.split(",").map(Number)
+            }));
+            populateRouteNames();
+            renderRouteList();
+        } catch (error) {
+            console.error('数据刷新失败:', error);
+            showNotification('错误', '数据加载失败，请重试', 'error');
+        }
+    }
+
+    async function renderTitleMessage(){
+        let allRoute = routes.length;
+        let statusRunning = 0
+        let statusPaused = 0
+        let errorRoute = 0
+        routes.forEach(item =>{
+            if(item.status == "running"){
+                statusRunning += 1;
+            }else if(item.status == "paused"){
+                statusPaused += 1;
+            }else{
+                errorRoute += 1;
+            }
+        })
+        totalRoutes.textContent = allRoute
+        runningRoutes.textContent =statusRunning
+        pausedRoutes.textContent =statusPaused
+        failedRoutes.textContent =errorRoute
+    }
+
+
+
+
+// 新增：更新状态标签显示（如运行中、暂停）
+function updateStatusBadges() {
+    const statusElements = document.querySelectorAll('[data-id]');
+    statusElements.forEach(el => {
+        const taskId = parseInt(el.getAttribute('data-id'));
+        const route = routes.find(r => r.id === taskId);
+        if (route) {
+            el.querySelector('.toggle-status-btn i').className = `fa-solid fa-${route.status === 'running' ? 'pause' : 'play'}`;
+            const statusInfo = statusMap[route.status] || statusMap.running;
+            el.querySelector(`.${statusInfo.class}`).textContent = statusInfo.text;
+        }
+    });
+}
+
+// 修改populateRouteNames函数，使用allRoutedata
+function populateRouteNames() {
+    routeNameSelect.innerHTML = '<option value="">请选择路线</option>';
+    
+    // 处理allRoutedata，确保数据存在且格式正确
+    if (!allRoutedata || !Array.isArray(allRoutedata)) {
+        console.warn('allRoutedata为空或格式不正确');
+        return;
+    }
+
+    // 根据routeId去重
+    const uniqueRoutes = [...new Set(allRoutedata.map(route => route.routeId))].map(id => 
+        allRoutedata.find(route => route.routeId === id)
+    );
+
+    uniqueRoutes.forEach(route => {
+        const option = document.createElement('option');
+        option.value = route.routeId; // 使用routeId作为value
+        option.textContent = route.routeName || '未命名路线'; // 确保名称存在
+        routeNameSelect.appendChild(option);
+    });
+}
+
+
+// 在getAllRoute函数中处理数据（确保routeId和routeName存在）
+async function getAllRoute() {
+    try {
+        const response = await axiosClient.get("route/queryall");
+        if (response && response.data && Array.isArray(response.data.data)) {
+            // 过滤无效数据，确保每个对象包含routeId和routeName
+            allRoutedata = response.data.data.filter(route => 
+                route.routeId !== undefined && route.routeName !== undefined
+            );
+           
+        } else {
+            allRoutedata = []; // 空数据处理
+            console.error('API返回数据格式不正确');
+        }
+    } catch (error) {
+        console.error('获取路线数据失败:', error);
+        allRoutedata = []; // 失败时设为空数组
+    }
+}
+let demo1 = [
+  {
+    routeId: 607,
+    routeName: "141",
+    mapCoverage: "16.4",
+    edges: [],
+    stations: []
+  },
+  {
+    routeId: 612,
+    routeName: "阿是",
+    routesource: "0",
+    mapCoverage: "17.7"
+  }
+];
+// 初始化事件监听
+function initEventListeners() {
+    addRouteBtn.addEventListener('click', openAddRouteModal);
+    statusFilter.addEventListener('change', handleFilterChange);
+    mobileMenuButton.addEventListener('click', () => document.getElementById('mobile-menu').classList.toggle('hidden'));
+    window.addEventListener('scroll', handleScroll);
+     searchInput.addEventListener('input', handleSearch); // 添加这一行
+    // 模态框事件
+    document.getElementById('close-route-modal').addEventListener('click', () => routeModal.classList.add('hidden'));
+    document.querySelectorAll('input[name="execution-type"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const isSingle = radio.value === 'single';
+            singleExecutionContainer.classList.toggle('hidden', !isSingle);
+            weekdaysContainer.classList.toggle('hidden', isSingle);
+            
+            // 清空不需要的输入
+            if(isSingle) {
+                document.querySelectorAll('input[name="weekday"]').forEach(checkbox => checkbox.checked = false);
+            } else {
+                singleExecutionDate.valueAsDate = new Date();
+            }
+        });
+    });
+    document.getElementById('select-weekdays-work').addEventListener('click', () => selectWeekdays(['mon', 'tue', 'wed', 'thu', 'fri']));
+    document.getElementById('select-weekdays-weekend').addEventListener('click', () => selectWeekdays(['sat', 'sun']));
+    saveRoute.addEventListener('click', saveRouteHandler);
+}
+
+// 切换工作日显示
+function selectWeekdays(days) {
+    document.querySelectorAll('input[name="weekday"]').forEach(checkbox => checkbox.checked = days.includes(checkbox.value));
+}
+
+
+// 添加搜索处理函数
+function handleSearch(e) {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    // 重置状态过滤器（如果有）
+    currentFilter = null;
+    statusFilter.value = '';
+    paginationConfig.currentPage = 1;
+    renderRouteList(searchTerm); // 修改调用，传递搜索词
+}
+
+// 筛选处理
+function handleFilterChange(e) {
+    currentFilter = e.target.value || null;
+    paginationConfig.currentPage = 1;
+    renderRouteList();
+}
+
+// 修改渲染路线列表函数，支持搜索
+function renderRouteList(searchTerm = '') {
+    // 根据搜索词和状态过滤器过滤路线
+    let filteredRoutes = routes;
+    
+    // 先应用搜索过滤
+    if (searchTerm) {
+        filteredRoutes = routes.filter(route => 
+            route.routeName.toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    // 再应用状态过滤
+    if (currentFilter) {
+        filteredRoutes = filteredRoutes.filter(route => route.status === currentFilter);
+    }
+    
+   // const filteredRoutes = currentFilter ? routes.filter(route => route.status === currentFilter) : routes;
+    totalItems.textContent = filteredRoutes.length;
+    paginationConfig.totalPages = Math.max(1, Math.ceil(filteredRoutes.length / paginationConfig.itemsPerPage));
+    
+    if(paginationConfig.currentPage > paginationConfig.totalPages) {
+        paginationConfig.currentPage = paginationConfig.totalPages;
+    }
+    
+    const start = (paginationConfig.currentPage - 1) * paginationConfig.itemsPerPage;
+    const end = start + paginationConfig.itemsPerPage;
+    const pageRoutes = filteredRoutes.slice(start, end);
+    
+    routeList.innerHTML = pageRoutes.length ? '' : getEmptyStateHtml();
+    
+
+pageRoutes.forEach(route => {
+    const row = document.createElement('tr');
+    row.className = 'hover:bg-gray-50 transition-colors duration-150';
+    row.setAttribute('data-id', route.id); // 任务ID
+    row.setAttribute('data-route-id', route.routeId); // 路线ID
+
+    // 解析频率显示
+    let frequencyDisplay = '';
+    if (route.executionType === 'single') {
+        frequencyDisplay = `单次执行 ${new Date(route.singleExecution).toLocaleString()}`;
+    } else if (route.executionType === 'repeat') {
+        const days = route.weekdays.map(day => {
+            const dayMap = { 1: '周一', 2: '周二', 3: '周三', 4: '周四', 5: '周五', 6: '周六', 7: '周日' };
+            return dayMap[day] || '未知';
+        }).join('、');
+        frequencyDisplay = `每周 ${days} ${route.repeatExecutionTime}`;
+    }
+
+    // 处理描述截断和悬浮提示
+    const description = route.description || '无描述';
+    const truncatedDescription = description.length > 50 ? `${description.slice(0, 50)}...` : description;
+
+    // 构建表格行内容
+    row.innerHTML = `
+        <td class="px-4 py-3 flex items-center space-x-3">
+            <div class="h-10 w-10 bg-primary-light rounded-full flex items-center justify-center">
+                <i class="fa-solid fa-road text-primary"></i>
+            </div>
+            <div>
+                <div class="text-sm font-medium">${route.routeName}</div>
+             
+            </div>
+        </td>
+        <td class="px-4 py-3">
+            <span class="px-2 py-1 rounded-full ${(statusMap[route.status] || statusMap.running).class}">
+                ${(statusMap[route.status] || statusMap.running).text}
+            </span>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-500">
+            <span class="bg-gray-100 rounded px-2 py-1">${frequencyDisplay}</span>
+        </td>
+        <td class="px-4 py-3 relative">
+            <span class="block max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap" title="${description}">
+                ${truncatedDescription}
+            </span>
+        </td>
+        <td class="px-4 py-3 flex space-x-3">
+            <!-- 编辑按钮 -->
+            <button class="edit-btn text-primary hover:text-primary/80" title="编辑">
+                <i class="fa-solid fa-pencil-alt"></i>
+            </button>
+            <!-- 状态切换按钮 -->
+            <button 
+                class="toggle-status-btn ${(statusMap[route.status] || statusMap.running).class}" 
+                title="${route.status === 'running' ? '暂停任务' : '启动任务'}" 
+                data-id="${route.id}"
+            >
+                <i class="fa-solid fa-${route.status === 'running' ? 'pause' : 'play'}"></i>
+            </button>
+            <!-- 删除按钮 -->
+            <button class="delete-btn text-danger hover:text-danger/80" title="删除" data-id="${route.id}">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    routeList.appendChild(row);
+});
+  
+  document.querySelectorAll('.toggle-status-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const taskId = parseInt(btn.getAttribute('data-id'));
+            toggleRouteStatus(taskId);
+        });
+    });
+    
+    // 删除按钮（示例）
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const tr = e.currentTarget.closest('tr');
+            const taskId = parseInt(tr.getAttribute('data-id'));
+            const routeId = tr.getAttribute('data-route-id');
+            
+            openDeleteConfirmation(taskId); // 传递双ID
+        });
+    });
+    // 绑定编辑按钮事件
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+   // 修改后（正确）
+            const taskId = parseInt(e.currentTarget.closest('tr').getAttribute('data-id'));
+            openEditRouteModal(taskId);
+        });
+    });
+    
+    renderPagination();
+}
+
+async function toggleRouteStatus(taskId) { // 仅需任务ID即可定位数据
+    const route = routes.find(r => r.id === taskId);
+    if (!route) return;
+
+    // 构造请求数据
+    const newStatus = route.status === 'running' ? 'paused' : 'running';
+    const data = { id: taskId, status: newStatus }; // 后端需接收ID和status
+
+    try {
+        const response = await axiosClient.post('task/update', data); // 假设接口为PUT/POST
+        if (response.data.code === 0) {
+            // 更新前端数据
+            route.status = newStatus;
+            showNotification('成功', `路线已${newStatus === 'paused' ? '暂停' : '启动'}`);
+            renderRouteList(); // 重新渲染列表确保状态更新
+            renderTitleMessage()
+        } else {
+            showNotification('错误', response.data.msg, 'error');
+            // 若失败，回滚状态
+            route.status = newStatus === 'paused' ? 'running' : 'paused';
+        }
+    } catch (error) {
+        console.error('状态切换失败:', error);
+        showNotification('错误', '状态切换失败，请重试', 'error');
+        // 回滚状态
+        route.status = newStatus === 'paused' ? 'running' : 'paused';
+    }
+}
+
+    // 更新路线
+    async function updateStatusRoute(data) {
+        try {
+            const response = await axiosClient.post("task/update", data);
+            if (response.data.code == 0) {
+                showNotification('成功', '路线已成功更新');
+                renderRouteList();
+            } else {
+                showNotification('错误', response.data.msg, 'error');
+            }
+        } catch (error) {
+            console.error('更新路线失败:', error);
+            showNotification('错误', '更新路线失败，请重试', 'error');
+        }
+}
+
+// 打开删除确认对话框
+function openDeleteConfirmation(taskId) {
+    console.log(taskId,"0--------------0");
+    
+    const route = routes.find(r => r.id === taskId);
+    if(!route) return;
+    
+    document.getElementById('dialog-message').textContent = `你确定要删除路线"${route.routeName}"吗？此操作无法撤销。`;
+    confirmDialog.classList.remove('hidden');
+    
+    // 确认删除
+    document.getElementById('confirm-action').onclick = async() => {
+        const index = routes.findIndex(r => r.id === taskId);
+        if(index !== -1) {
+         routes.splice(index, 1);
+         await axiosClient
+        .delete("task/delete/" + taskId)
+        .then(async(res) => {
+          let flag = res;
+          console.log(flag,"flag444444444444444");
+          if (flag) {
+            renderTitleMessage()
+          } else {
+            cocoMessage.error("删除失败");
+          }
+        })
+        .catch((error) => {
+          console.log("catch");
+        });
+            showNotification('成功', '路线已删除');
+            renderRouteList();
+        }
+        confirmDialog.classList.add('hidden');
+    };
+    
+
+    // 取消删除
+    document.getElementById('cancel-action').onclick = () => {
+        confirmDialog.classList.add('hidden');
+    };
+}
+
+// 空状态渲染
+function getEmptyStateHtml() {
+    return `
+        <tr>
+            <td colspan="7" class="px-4 py-10 text-center">
+                <div class="flex flex-col items-center">
+                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                        <i class="fa-solid fa-road text-gray-400 text-2xl"></i>
+                    </div>
+                    <p class="text-gray-500 mt-4">${currentFilter ? `暂无${statusMap[currentFilter]?.text || '状态'}的路线` : '暂无路线数据'}</p>
+                    ${!currentFilter && '<button id="add-first-route" class="mt-3 bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg">添加第一条路线</button>'}
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+// 分页渲染
+function renderPagination() {
+    paginationNav.innerHTML = '';
+    const { currentPage, totalPages } = paginationConfig;
+    
+    // 上一页按钮
+    const prevBtn = createPaginationButton('«', currentPage - 1, 'prev');
+    paginationNav.appendChild(prevBtn);
+    
+    // 页码按钮
+    for(let i = 1; i <= totalPages; i++) {
+        const btn = createPaginationButton(i, i);
+        paginationNav.appendChild(btn);
+    }
+    
+    // 下一页按钮
+    const nextBtn = createPaginationButton('»', currentPage + 1, 'next');
+    paginationNav.appendChild(nextBtn);
+    
+    // 更新页码范围显示
+    document.getElementById('current-page-range-start').textContent = Math.min((currentPage - 1) * paginationConfig.itemsPerPage + 1, totalItems.textContent);
+    document.getElementById('current-page-range-end').textContent = Math.min(currentPage * paginationConfig.itemsPerPage, totalItems.textContent);
+}
+
+// 创建分页按钮
+function createPaginationButton(label, page, type = 'page') {
+    const { currentPage, totalPages } = paginationConfig;
+    const btn = document.createElement('button');
+    btn.className = `px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${type === 'page' && currentPage === page ? 'bg-primary ' : 'text-gray-500 hover:bg-gray-50'}`;
+    btn.textContent = label;
+    
+    if(type === 'page' || (type === 'prev' && page >= 1) || (type === 'next' && page <= totalPages)) {
+        btn.addEventListener('click', () => {
+            if(page < 1 || page > totalPages) return;
+            paginationConfig.currentPage = page;
+            renderRouteList();
+        });
+    } else {
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+    
+    return btn;
+}
+
+// 打开添加模态框
+function openAddRouteModal() {
+    currentEditingRoute = null;
+    document.getElementById('modal-title').textContent = '添加新路线';
+    routeNameSelect.value = '';
+    document.getElementById('single-execution').checked = true;
+    singleExecutionContainer.classList.remove('hidden');
+    weekdaysContainer.classList.add('hidden');
+    singleExecutionDate.valueAsDate = new Date();
+    singleExecutionTime.value = '';
+    document.querySelectorAll('input[name="weekday"]').forEach(checkbox => checkbox.checked = false);
+    routeModal.classList.remove('hidden');
+}
+
+  // 打开编辑模态框（修改获取路线逻辑）
+    function openEditRouteModal(routeId) {
+        const route = routes.find(r => r.id === routeId);
+        if (!route) return;
+        
+        currentEditingRoute = { ...route }; // 创建副本避免直接修改原数据
+        document.getElementById('modal-title').textContent = '编辑路线';
+        routeNameSelect.value = route.routeId;
+
+        // 设置执行类型
+        if (route.executionType === 'single') {
+            document.getElementById('single-execution').checked = true;
+            singleExecutionContainer.classList.remove('hidden');
+            weekdaysContainer.classList.add('hidden');
+            if (route.singleExecution) {
+                const [date, time] = route.singleExecution.split('T');
+                singleExecutionDate.value = date;
+                singleExecutionTime.value = time.slice(0, 5);
+            }
+        } else {
+            document.getElementById('repeat-execution').checked = true;
+            singleExecutionContainer.classList.add('hidden');
+            weekdaysContainer.classList.remove('hidden');
+            if (route.weekdays) {
+                route.weekdays.forEach(day => {
+                    const checkbox = document.querySelector(`input[name="weekday"][value="${dayMap[day]?.toLowerCase() || 'sun'}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+            }
+            if (route.repeatExecutionTime) {
+                singleExecutionTime.value = route.repeatExecutionTime.slice(0, 5);
+            }
+        }
+        document.getElementById('route-description').value = route.description || '';
+        routeModal.classList.remove('hidden');
+    }
+
+// 保存路线处理函数 - 修改为与现有数据格式一致
+    // 保存路线处理函数
+   async  function saveRouteHandler() {
+        const selectedRouteId = routeNameSelect.value;
+        if (!selectedRouteId) return showNotification('错误', '请选择路线名称', 'error');
+        const executionType = document.querySelector('input[name="execution-type"]:checked')?.value;
+        if (!executionType) return showNotification('错误', '请选择执行类型', 'error');
+        const executionTime = singleExecutionTime.value;
+        if (!executionTime) return showNotification('错误', '请选择执行时间', 'error');
+
+        // 构建基础数据
+        const baseData = {
+            routeId: selectedRouteId,
+            routeName: routeNameSelect.options[routeNameSelect.selectedIndex].text,
+            description: document.getElementById('route-description').value || '',
+            executionType,
+            status: 'running',
+            retryOnFailure: false,
+            sendNotification: false,
+            priority: null
+        };
+
+        // 处理执行类型相关数据
+        if (executionType === 'single') {
+            const date = singleExecutionDate.value;
+            if (!date) return showNotification('错误', '请选择执行日期', 'error');
+            baseData.singleExecution = `${date}T${executionTime}:00`;
+            baseData.weekdays = "";
+        } else {
+            const weekdays = Array.from(document.querySelectorAll('input[name="weekday"]:checked')).map(checkbox => {
+                const dayMap = {mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7};
+                return dayMap[checkbox.value] || 0;
+            }).filter(day => day > 0);
+            if (!weekdays.length) return showNotification('错误', '请至少选择一个执行日期', 'error');
+            baseData.repeatExecutionTime = `${executionTime}:00`;
+            baseData.weekdays = weekdays.toString();
+        }
+
+        // 处理新增/编辑逻辑
+        if (currentEditingRoute) {
+            // 编辑模式：携带后端返回的ID
+            baseData.id = currentEditingRoute.id;
+            updateRoute(baseData);
+        } else {
+            // 新增模式：不包含ID字段
+            createRoute(baseData);
+        }
+
+        // 关闭模态框
+        routeModal.classList.add('hidden');
+        await populateRouteNames();
+        await renderRouteList();
+    }
+
+    
+//  // 新增路线
+//     async function createRoute(data) {
+//             console.log(data,"tasktasktasktaskadddddddddddddddddddddd");
+//         try {
+//             const response = await axiosClient.post("task/add", data);
+
+//             if (response.data.code === 0) {
+//                 // 后端返回包含ID的完整数据
+//                 const newRoute = response.data.data;
+//                 routes.push(newRoute);
+//                 showNotification('成功', '路线已成功添加');
+//                  renderRouteList();
+//             } else {
+//                 showNotification('错误', response.data.msg, 'error');
+//             }
+//         } catch (error) {
+//             console.error('新增路线失败:', error);
+//             showNotification('错误', '新增路线失败，请重试', 'error');
+//         }
+//     }
+// 创建路线时确保数据完整并触发渲染
+async function createRoute(data) {
+    console.log(data,"dataooooooooooooooooooooooooooooooooooo");
+    try {
+        const response = await axiosClient.post("task/add", data);
+        if (response.data.code === 0 && response.data.data) {
+            const newRoute = {
+                ...data,
+                weekdays: response.data.data.weekdays?.split(",").map(Number) || []
+            };
+            console.log(routes,"1111");
+            console.log(newRoute,"222");
+            await getAllMessage()
+            console.log(routes,"333");
+            showNotification('成功', '路线已添加');
+            renderRouteList(); // 关键：强制重新渲染
+            renderTitleMessage()
+        } else {
+            showNotification('错误', '添加失败');
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+    // 更新路线
+    async function updateRoute(data) {
+        try {
+            const response = await axiosClient.post("task/update", data);
+            if (response.data.code === 0) {
+                const index = routes.findIndex(r => r.id === data.id);
+                if (index !== -1) {
+                    routes.splice(index, 1, data); // 直接使用后端返回的数据更新（假设后端返回完整数据）
+                }
+                showNotification('成功', '路线已成功更新');
+                renderRouteList();
+                renderTitleMessage()
+            } else {
+                showNotification('错误', response.data.msg, 'error');
+            }
+        } catch (error) {
+            console.error('更新路线失败:', error);
+            showNotification('错误', '更新路线失败，请重试', 'error');
+        }
+    }
+// // 更新路线
+// async function updateRoute(data) {
+//     try {
+//         const response = await axiosClient.post("task/update", data);
+//         console.log(response.data, "updateRoute响应"); // 新增日志查看响应结构
+//         if (response.data.code === 0) { // 修改状态码判断
+//             const updatedRoute = {
+//                 ...response.data.data,
+//                 weekdays: response.data.data.weekdays.split(",").map(Number)
+//             };
+//             const index = routes.findIndex(r => r.id === updatedRoute.id);
+//             if (index !== -1) {
+//                 routes.splice(index, 1, updatedRoute); // 用后端返回的完整数据替换
+//             }
+//             showNotification('成功', '路线已成功更新');
+//             renderRouteList(); // 强制重新渲染
+//         } else {
+//             showNotification('错误', response.data.msg || '更新失败', 'error');
+//         }
+//     } catch (error) {
+//         console.error('更新路线失败:', error);
+//         showNotification('错误', '更新路线失败，请重试', 'error');
+//     }
+// }
+
+
+
+// 计算下次执行时间
+function calculateNextExecution(routeData) {
+    if(routeData.executionType === 'single') {
+        return routeData.singleExecution.replace('T', ' ');
+    }
+    
+    if(routeData.executionType === 'repeat' && routeData.weekdays && routeData.weekdays.length > 0) {
+        const now = new Date();
+        const [hours, minutes, seconds] = routeData.repeatExecutionTime.split(':').map(Number);
+        
+        // 设置为今天的执行时间
+        const targetTime = new Date(now);
+        targetTime.setHours(hours, minutes, seconds, 0);
+        
+        // 如果今天的执行时间已过，从明天开始计算
+        if(targetTime <= now) {
+            targetTime.setDate(targetTime.getDate() + 1);
+        }
+        
+        // 找到最近的执行日期
+        let closestDay = null;
+        let minDaysAhead = Infinity;
+        
+        // JavaScript的getDay()返回0(周日)到6(周六)
+        const jsDayMap = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 0};
+        
+        for(const weekday of routeData.weekdays) {
+            const jsWeekday = jsDayMap[weekday];
+            let daysAhead = (jsWeekday - targetTime.getDay() + 7) % 7;
+            
+            // 如果是今天且时间已过，需要等到下周
+            if(daysAhead === 0 && targetTime <= now) {
+                daysAhead = 7;
+            }
+            
+            if(daysAhead < minDaysAhead) {
+                minDaysAhead = daysAhead;
+                closestDay = jsWeekday;
+            }
+        }
+        
+        // 计算最近的执行日期
+        if(closestDay !== null) {
+            targetTime.setDate(targetTime.getDate() + minDaysAhead);
+            return targetTime.toISOString().slice(0, 19).replace('T', ' ');
+        }
+    }
+    
+    return "未设置执行时间";
+}
+
+// 显示通知
+function showNotification(title, message, type = 'success') {
+    const notificationEl = notification;
+    if(!notificationEl) return;
+    
+    notificationEl.classList.remove('hidden');
+    notificationEl.querySelector('.border-l-4').className = `border-l-4 border-${type}`;
+    notificationEl.querySelector('i').className = `fa-solid fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} text-${type} text-xl`;
+    notificationEl.querySelector('#notification-message').textContent = title;
+    notificationEl.querySelector('#notification-details').textContent = message;
+    
+    setTimeout(() => notificationEl.classList.add('hidden'), 3000);
+}
+
+// 滚动处理
+function handleScroll() {
+    navbar.classList.toggle('shadow-md', window.scrollY > 10);
+    navbar.classList.toggle('shadow-sm', window.scrollY <= 10);
+}
+
+// 初始化调用
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>

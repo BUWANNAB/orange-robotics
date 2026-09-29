@@ -1,0 +1,115 @@
+/* 地图加载动画样式 */
+.map-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    flex-direction: column;
+}
+
+.map-loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #ea580c;
+    border-radius: 50%;
+    animation: map-loading-spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+.map-loading-text {
+    color: white;
+    font-size: 16px;
+    font-family: "Microsoft YaHei", sans-serif;
+    text-align: center;
+}
+
+.map-loading-progress {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin-top: 15px;
+    overflow: hidden;
+}
+
+.map-loading-progress-bar {
+    height: 100%;
+    background: #ea580c;
+    border-radius: 2px;
+    width: 0%;
+    animation: map-loading-progress 2s ease-in-out infinite;
+}
+
+@keyframes map-loading-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes map-loading-progress {
+    0% { width: 0%; }
+    50% { width: 70%; }
+    100% { width: 100%; }
+}
+
+/* 地图容器样式 */
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* 加载完成后的淡出效果 */
+.map-loading-overlay.fade-out {
+    animation: map-loading-fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes map-loading-fadeOut {
+    0% { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .map-loading-spinner {
+        width: 40px;
+        height: 40px;
+        border-width: 3px;
+    }
+    
+    .map-loading-text {
+        font-size: 14px;
+    }
+    
+    .map-loading-progress {
+        width: 150px;
+    }
+}
+
+/* 不同主题的加载动画 */
+.map-loading-overlay.light-theme {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.map-loading-overlay.light-theme .map-loading-text {
+    color: #333;
+}
+
+.map-loading-overlay.light-theme .map-loading-spinner {
+    border-color: rgba(0, 0, 0, 0.3);
+    border-top-color: #ea580c;
+}
+
+.map-loading-overlay.light-theme .map-loading-progress {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.map-loading-overlay.light-theme .map-loading-progress-bar {
+    background: #ea580c;
+}

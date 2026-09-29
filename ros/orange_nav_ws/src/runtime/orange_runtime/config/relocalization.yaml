@@ -1,0 +1,13 @@
+global_relocalization:
+  ros__parameters:
+    voxel: 0.3
+    minimum_overlap: 0.65
+    maximum_rmse: 0.15
+    ambiguity_margin: 0.08
+    max_tilt: 0.15
+    max_height: 0.30
+    max_points: 200000
+    attempts: 4
+    iterations: 50000
+    timeout_seconds: 90.0
+    base_frame: base_link

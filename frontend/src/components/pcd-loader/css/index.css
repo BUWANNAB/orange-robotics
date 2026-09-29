@@ -1,0 +1,360 @@
+
+body {
+			margin: 0;
+			overflow: auto;
+			touch-action: none;
+			user-select: none;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+		}
+		
+		/* 移动端优化的Z轴范围容器 */
+		.z-range-container {
+			position: absolute;
+			top: 50px;
+			left: 10px;
+			background-color: rgba(0, 0, 0, 0.7);
+			padding: 10px;
+			border-radius: 5px;
+			color: white;
+			z-index: 100;
+			backdrop-filter: blur(5px);
+			-webkit-backdrop-filter: blur(5px);
+		}
+		
+		.z-range-input {
+			margin: 5px 0;
+			display: flex;
+			align-items: center;
+			gap: 5px;
+		}
+		
+		.z-range-input label {
+			display: inline-block;
+			width: 80px;
+			font-size: 14px;
+		}
+		
+		.z-range-input input {
+			width: 60px;
+			padding: 5px;
+			border: 1px solid #ccc;
+			border-radius: 3px;
+			background-color: rgba(255, 255, 255, 0.9);
+			color: #333;
+			font-size: 14px;
+			text-align: center;
+		}
+		
+		.input-with-buttons {
+			display: flex;
+			align-items: center;
+			gap: 2px;
+		}
+		
+		.arrow-btn {
+			background-color: rgba(76, 175, 80, 0.8);
+			color: white;
+			border: none;
+			width: 24px;
+			height: 24px;
+			border-radius: 3px;
+			cursor: pointer;
+			font-size: 12px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			transition: all 0.2s ease;
+			user-select: none;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+		}
+		
+		.arrow-btn:hover {
+			background-color: rgba(76, 175, 80, 1);
+			transform: scale(1.1);
+		}
+		
+		.arrow-btn:active {
+			background-color: rgba(61, 139, 64, 1);
+			transform: scale(0.95);
+		}
+		
+		/* Z轴范围控制箭头按钮 */
+		.z-range-arrow {
+			background-color: rgba(76, 175, 80, 0.8);
+			color: white;
+			border: none;
+			width: 24px;
+			height: 24px;
+			border-radius: 3px;
+			cursor: pointer;
+			font-size: 14px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			transition: all 0.2s ease;
+			user-select: none;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+		}
+		
+		.z-range-arrow:hover {
+			background-color: rgba(76, 175, 80, 1);
+			transform: scale(1.1);
+		}
+		
+		.z-range-arrow:active {
+			background-color: rgba(61, 139, 64, 1);
+			transform: scale(0.95);
+		}
+		
+		.z-range-arrow:disabled {
+			background-color: rgba(128, 128, 128, 0.5);
+			cursor: not-allowed;
+			transform: none;
+		}
+		
+		/* 移动端触摸友好的输入框 */
+		.z-range-input input:focus {
+			outline: none;
+			border-color: #4CAF50;
+			box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+		}
+		
+		/* 移动端控制面板 */
+		.mobile-controls {
+			position: absolute;
+			bottom: 20px;
+			left: 50%;
+			transform: translateX(-50%);
+			display: none;
+			background-color: rgba(0, 0, 0, 0.8);
+			padding: 15px;
+			border-radius: 10px;
+			color: white;
+			z-index: 100;
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+		}
+		
+		/* 触摸友好的按钮 */
+		.touch-button {
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			padding: 12px 20px;
+			margin: 5px;
+			border-radius: 25px;
+			cursor: pointer;
+			font-size: 16px;
+			min-width: 120px;
+			touch-action: manipulation;
+			-webkit-tap-highlight-color: transparent;
+			transition: all 0.2s ease;
+		}
+		
+		.touch-button:hover {
+			background-color: #45a049;
+			transform: scale(1.05);
+		}
+		
+		.touch-button:active {
+			background-color: #3d8b40;
+			transform: scale(0.95);
+		}
+		
+		.touch-button.secondary {
+			background-color: #757575;
+		}
+		
+		.touch-button.secondary:hover {
+			background-color: #616161;
+		}
+		
+		/* 状态指示器 */
+		.status-indicator {
+			position: absolute;
+			top: 10px;
+			right: 10px;
+			background-color: rgba(0, 0, 0, 0.7);
+			padding: 8px 12px;
+			border-radius: 5px;
+			color: white;
+			font-size: 12px;
+			z-index: 100;
+			backdrop-filter: blur(5px);
+			-webkit-backdrop-filter: blur(5px);
+		}
+		
+		/* 触摸提示 */
+		.touch-hint {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			background-color: rgba(0, 0, 0, 0.8);
+			color: white;
+			padding: 20px;
+			border-radius: 10px;
+			text-align: center;
+			font-size: 16px;
+			z-index: 200;
+			display: none;
+			max-width: 80%;
+			line-height: 1.5;
+		}
+		
+
+		
+		
+		/* 高DPI屏幕优化 */
+		@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+			.z-range-input input {
+				border-width: 2px;
+			}
+			
+			.touch-button {
+				border-width: 2px;
+			}
+		}
+		
+		/* 防止移动端双击缩放 */
+		* {
+			touch-action: manipulation;
+		}
+		
+		/* 触摸反馈效果 */
+		.touch-feedback {
+			position: absolute;
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+			background-color: rgba(76, 175, 80, 0.3);
+			pointer-events: none;
+			transform: translate(-50%, -50%);
+			opacity: 0;
+			transition: opacity 0.3s ease;
+			z-index: 1000;
+		}
+		
+		.touch-feedback.active {
+			opacity: 1;
+		}
+		
+		/* 加载动画 */
+		.loading-spinner {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			width: 40px;
+			height: 40px;
+			border: 4px solid rgba(255, 255, 255, 0.3);
+			border-top: 4px solid #4CAF50;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+			display: none;
+			z-index: 300;
+		}
+		
+		@keyframes spin {
+			0% { transform: translate(-50%, -50%) rotate(0deg); }
+			100% { transform: translate(-50%, -50%) rotate(360deg); }
+		}
+		
+		/* 触摸手势提示 */
+		.gesture-hint {
+			position: absolute;
+			top: 20px;
+			left: 50%;
+			transform: translateX(-50%);
+			background-color: rgba(0, 0, 0, 0.8);
+			color: white;
+			padding: 10px 15px;
+			border-radius: 20px;
+			font-size: 14px;
+			z-index: 150;
+			display: none;
+			backdrop-filter: blur(5px);
+			-webkit-backdrop-filter: blur(5px);
+		}
+		
+		/* 触摸大屏视角控制面板 */
+		.touch-view-controls {
+			position: absolute;
+			top: 20px;
+			right: 0px;
+			background-color: rgba(0, 0, 0, 0.8);
+			padding: 15px;
+			border-radius: 15px;
+			z-index: 100;
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.view-control-row {
+			display: flex;
+			justify-content: center;
+			gap: 10px;
+		}
+		
+		.view-button {
+			width: 60px;
+			height: 60px;
+			border: none;
+			border-radius: 50%;
+			background-color: #3498DB;
+			color: white;
+			font-size: 24px;
+			font-weight: bold;
+			cursor: pointer;
+			touch-action: manipulation;
+			-webkit-tap-highlight-color: transparent;
+			transition: all 0.2s ease;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		
+		.view-button:hover {
+			background-color: #2ECC71;
+			transform: scale(1.1);
+		}
+		
+		.view-button:active {
+			background-color: rgba(61, 139, 64, 0.9);
+			transform: scale(0.95);
+		}
+		
+		.view-button.center {
+			background-color: rgba(33, 150, 243, 0.9);
+			width: 60px;
+			height: 60px;
+			font-size: 18px;
+		}
+		
+		.view-button.center:hover {
+			background-color: rgba(33, 150, 243, 0.8);
+		}
+		
+		.view-button.center:active {
+			background-color: rgba(33, 150, 243, 0.8);
+		}
+		
+		.view-button.up, .view-button.down {
+			background-color: rgba(33, 150, 243, 0.8);
+		}
+		
+		.view-button.up:hover, .view-button.down:hover {
+			background-color: rgba(33, 150, 243, 0.9);
+		}
+		
+		.view-button.up:active, .view-button.down:active {
+			background-color: rgba(25, 118, 210, 0.9);
+		}

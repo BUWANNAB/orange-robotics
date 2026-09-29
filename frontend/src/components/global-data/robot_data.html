@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汽车参数表</title>
+    <link href="../../libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <script type="text/javascript" src="../../libs/jquery-3.1.0.min.js"></script>
+    <style>
+        ::placeholder {
+            font-size: 0.875rem;
+            /* 14px */
+        }
+
+        .error-message,
+        .webRemoteDataError {
+            color: red;
+            font-size: 0.875rem;
+        }
+
+        .lidarExtrin {
+            width: 50%;
+        }
+
+
+        .saveData {
+            width: 300px;
+            margin-left: calc(50% - 150px);
+        }
+
+
+        .noSeaSys {}
+
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+        }
+
+        /* 开关基础样式 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+
+        /* 隐藏原生 checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* 滑块样式 */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
+
+        /* 滑块圆点 */
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        /* 选中状态（开启） */
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(30px);
+        }
+
+        /* 圆形滑块 */
+        .slider.round {
+            border-radius: 30px;
+        }
+        
+        /* 参数信息按钮样式 */
+        .param-info-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .param-info-btn:hover {
+            background-color: #5a6268;
+        }
+        
+        /* 参数标签容器 */
+        .param-label-container {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h2 class="mb-4">机器参数设置</h2>
+        <!-- 添加全局开关按钮 -->
+        <div style="display: none;" class="row mb-3">
+            <div class="col-md-12">
+                <div class="d-flex align-items-center">
+                    <label class="form-label me-3">全局参数显示控制:</label>
+                    <div class="toggle-switch">
+                        <label class="switch">
+                            <input type="checkbox" id="globalVisibilitySwitch">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <button type="button" class="btn btn-primary ms-3" id="saveVisibilityConfig">保存显示配置</button>
+                </div>
+            </div>
+        </div>
+        <form>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="model" class="form-label">车型选择:</label>
+                        <button class="param-info-btn" data-param="model" title="查看车型说明">?</button>
+                    </div>
+                    <select class="form-select" id="model" name="model">
+                        <option value="" disabled>请选择或输入车型</option>
+                        <!-- <option value="1">阿克曼车型</option>
+                        <option value="2">舵轮车型</option>
+                        <option value="3">差速舵轮车型</option>
+                        <option value="4">麦克纳姆轮车型</option> -->
+                        <option value="5" selected>差速履带型</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="controlModel" class="form-label">控制模式：</label>
+                        <button class="param-info-btn" data-param="controlModel" title="查看控制模式说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="controlModel" placeholder="请输入控制模式 ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="navigationMode" class="form-label">导航模式选择:</label>
+                        <button class="param-info-btn" data-param="navigationMode" title="查看导航模式说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="navigationMode" placeholder="请输入导航模式">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="vehicleMotionParams" class="form-label">车辆运动参数:</label>
+                        <button class="param-info-btn" data-param="vehicleMotionParams" title="查看车辆运动参数说明">?</button>
+                    </div>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="deceleration" step="0.01" placeholder="减速带">
+                        <input type="number" class="form-control" id="parkingCompensation" step="0.01"
+                            placeholder="停车提前补偿值">
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="webRemoteData" class="form-label">web遥控器数据:</label>
+                        <button class="param-info-btn" data-param="webRemoteData" title="查看web遥控器数据说明">?</button>
+                    </div>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="x1" step="0.01" min="-100" max="100"
+                            placeholder="X1">
+                        <input type="number" class="form-control" id="y1" step="0.01" min="-100" max="100"
+                            placeholder="Y1">
+                        <input type="number" class="form-control" id="x2" step="0.01" min="-100" max="100"
+                            placeholder="X2">
+                        <input type="number" class="form-control" id="y2" step="0.01" min="-100" max="100"
+                            placeholder="Y2">
+                    </div>
+                    <div id="webRemoteDataError" class="error-message"></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="remoteAutoSwitch" class="form-label">遥控/自动切换:</label>
+                        <button class="param-info-btn" data-param="remoteAutoSwitch" title="查看遥控/自动切换说明">?</button>
+                    </div>
+                    <input type="number" class="form-control" id="remoteAutoSwitch" placeholder="0为遥控模式，1为自动模式" min="0"
+                        max="1">
+                    <div id="remoteAutoSwitchError" class="error-message"></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lookaheadDistance" class="form-label">初始推进器增益</label>
+                        <button class="param-info-btn" data-param="initpropeller" title="查看初始推进器增益说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="initpropeller" placeholder="推进初始增益，0-1取值范围  ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="dirpropeller" class="form-label">推进器增益方向</label>
+                        <button class="param-info-btn" data-param="dirpropeller" title="查看推进器增益方向说明">?</button>
+                    </div>
+                    <!-- 添加 pattern 用于表单提交校验 -->
+                    <input type="text" class="form-control" id="dirpropeller" placeholder="推进器增益（-1或1）" pattern="^-?1$">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="Propulsion" class="form-label">左推进器开关</label>
+                        <button class="param-info-btn" data-param="leftPropulsion" title="查看左推进器开关说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="leftPropulsion" placeholder="请输入左推进器比例 ">
+                </div>
+
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="Propulsion" class="form-label">右推进器开关</label>
+                        <button class="param-info-btn" data-param="rightPropulsion" title="查看右推进器开关说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="rightPropulsion" placeholder="请输入右推进器比例 ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lookaheadDistance" class="form-label">极限角速度</label>
+                        <button class="param-info-btn" data-param="iimtw" title="查看极限角速度说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="iimtw" placeholder="请输入转弯限制速度">
+                </div>
+
+                <div class="col-md-4">
+                    <button type="button" class="btn btn-primary " id="getMapLoading">获取当前位置</button>
+                    <div class="param-label-container">
+                        <label for="webRemoteData" class="form-label">地图默认载入原点:</label>
+                        <button class="param-info-btn" data-param="mapOrigin" title="查看地图默认载入原点说明">?</button>
+                    </div>
+                    <div class="input-group">
+                        <input  class="form-control" id="longitude" placeholder="经度">
+                        <input  class="form-control" id="latitude" placeholder="纬度">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="rotation" class="form-label">转角弧度阈值(0.2-0.5):</label>
+                        <button class="param-info-btn" data-param="rotation" title="查看转角弧度阈值说明">?</button>
+                    </div>
+                    <input type="text" max="0.5" min="0.2" class="form-control" id="rotation" placeholder="请输入自转角度 ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="remoteAutoSwitch" class="form-label">采样间隔 单位/米:</label>
+                        <button class="param-info-btn" data-param="getRobotMsgmsg" title="查看采样间隔说明">?</button>
+                    </div>
+                    <input type="number" class="form-control" id="getRobotMsgmsg" placeholder="请输入机器的采样间隔">
+                    <div id="remoteAutoSwitchError" class="error-message"></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lookaheadDistance" class="form-label">运行速度（米/秒）:</label>
+                        <button class="param-info-btn" data-param="carRunSpeed" title="查看运行速度说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="carRunSpeed" placeholder="请输入运行速度 ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lookaheadDistance" class="form-label">预瞄距离 单位/米:</label>
+                        <button class="param-info-btn" data-param="lookaheadDistance" title="查看预瞄距离说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="lookaheadDistance" placeholder="请输入预瞄距离 ">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lookaheadDistance" class="form-label">自转角速度系数</label>
+                        <button class="param-info-btn" data-param="vvwk" title="查看自转角速度系数说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="vvwk" placeholder="0是关闭">
+                </div>
+
+                <!-- <div class="col-md-4">
+                    <label for="lookaheadDistance" class="form-label">运行模式</label>
+                    <input type="text" class="form-control" id="runmode" placeholder="运行模式，默认0，转弯模式，1：自转模式 ">
+                </div> -->
+
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="model" class="form-label">运行模式:</label>
+                        <button class="param-info-btn" data-param="runmode" title="查看运行模式说明">?</button>
+                    </div>
+                    <select class="form-select" id="runmode" name="model">
+                        <option value="" disabled>请选择运行模式</option>
+                        <option value="0">转弯模式</option>
+                        <option value="1">自转模式</option>
+                        <!-- <option value="1">阿克曼车型</option>
+                        <option value="4">麦克纳姆轮车型</option> -->
+                        <!-- <option value="5" selected>差速履带型</option> -->
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label class="form-label d-block">履带开关</label>
+                        <button class="param-info-btn" data-param="closetrack" title="查看履带开关说明">?</button>
+                    </div>
+                    <!-- 开关容器 -->
+                    <div class="toggle-switch">
+                        <!-- 隐藏的输入框，用于存储实际值（0=关闭，1=开启） -->
+                        <input type="hidden" id="closetrack" value="0">
+                        <!-- 开关按钮（视觉上的开关） -->
+                        <label class="switch">
+                            <input type="checkbox" id="closetrackSwitch">
+                            <span class="slider round"></span>
+                        </label>
+
+                        <!-- 状态文字提示 -->
+                        <span id="switchStatus" class="ms-2 text-muted">当前：关闭</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="forkliftRaisedWheelbase" class="form-label">叉车升起轴距 单位/米:</label>
+                        <button class="param-info-btn" data-param="forkliftRaisedWheelbase" title="查看叉车升起轴距说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="forkliftRaisedWheelbase" placeholder="请输入叉车升起轴距">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="forkliftLoweredWheelbase" class="form-label">叉车落下轴距 单位/米:</label>
+                        <button class="param-info-btn" data-param="forkliftLoweredWheelbase" title="查看叉车落下轴距说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="forkliftLoweredWheelbase" placeholder="请输入叉车落下轴距">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="lidarScanDistance" class="form-label">激光雷达扫描距离 单位/米:</label>
+                        <button class="param-info-btn" data-param="lidarScanDistance" title="查看激光雷达扫描距离说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="lidarScanDistance" placeholder="请输入激光雷达扫描距离">
+                    <div id="lidarScanSwitchError" class="error-message"></div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="proportion" class="form-label">比例系数</label>
+                        <button class="param-info-btn" data-param="proportion" title="查看比例系数说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="proportion" placeholder="">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="xy_goal_tolerance" class="form-label">xy目标点容差</label>
+                        <button class="param-info-btn" data-param="xygoaltolerance" title="查看xy目标点容差说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="xygoaltolerance" placeholder="">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="xy_middle_tolerance" class="form-label">xy中间点容差</label>
+                        <button class="param-info-btn" data-param="xymiddletolerance" title="查看xy中间点容差说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="xymiddletolerance" placeholder="">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="yaw_goal_tolerance" class="form-label">yaw目标点容差</label>
+                        <button class="param-info-btn" data-param="yawgoaltolerance" title="查看yaw目标点容差说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="yawgoaltolerance" placeholder="">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="maxSpeed" class="form-label">最大速度</label>
+                        <button class="param-info-btn" data-param="maxSpeed" title="查看最大速度说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="maxSpeed" placeholder="请输入最大速度">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="minSpeed" class="form-label">最小速度</label>
+                        <button class="param-info-btn" data-param="minSpeed" title="查看最小速度说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="minSpeed" placeholder="请输入最小速度">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="wheelBase" class="form-label">轮距</label>
+                        <button class="param-info-btn" data-param="wheelBase" title="查看轮距说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="wheelBase" placeholder="请输入轮距">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="leftObstacleDistance" class="form-label">左转检测距离 单位/米:</label>
+                        <button class="param-info-btn" data-param="leftObstacleDistance" title="查看左转检测距离说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="leftObstacleDistance" placeholder="请输入左绕障检测距离">
+                </div>
+                <div class="col-md-4">
+                    <div class="param-label-container">
+                        <label for="rightObstacleDistance" class="form-label">右转检测距离 单位/米:</label>
+                        <button class="param-info-btn" data-param="rightObstacleDistance" title="查看右转检测距离说明">?</button>
+                    </div>
+                    <input type="text" class="form-control" id="rightObstacleDistance" placeholder="请输入右绕障检测距离">
+                </div>
+                <div class="col-md-4 lidarExtrin">
+                    <div class="param-label-container">
+                        <label for="lidarExtrinsics" class="form-label">激光雷达外参 单位/米:</label>
+                        <button class="param-info-btn" data-param="lidarExtrinsics" title="查看激光雷达外参说明">?</button>
+                    </div>
+                    <!-- <input type="text" class="form-control" placeholder="请输入激光雷达外参"> -->
+                    <div class="input-group" id="lidarExtrinsics">
+                        <input type="number" class="form-control" id="lidar-x" step="0.01" min="-100" max="100"
+                            placeholder="x">
+                        <input type="number" class="form-control" id="lidar-y" step="0.01" min="-100" max="100"
+                            placeholder="y">
+                        <input type="number" class="form-control" id="lidar-z" step="0.01" min="-100" max="100"
+                            placeholder="z">
+                        <input type="number" class="form-control" id="lidar-yaw" step="0.01" min="-100" max="100"
+                            placeholder="yaw">
+                        <input type="number" class="form-control" id="lidar-pitch" step="0.01" min="-100" max="100"
+                            placeholder="pitch">
+                        <input type="number" class="form-control" id="lidar-roll" step="0.01" min="-100" max="100"
+                            placeholder="roll">
+                    </div>
+                    <div class="col-md-4 noSeaSys">
+                        <div class="param-label-container">
+                            <label for="safetyParameters" class="form-label">辅助安全防护参数 单位/米:</label>
+                            <button class="param-info-btn" data-param="safetyParameters" title="查看辅助安全防护参数说明">?</button>
+                        </div>
+                        <input type="text" class="form-control" id="safetyParameters" placeholder="请输入辅助安全防护参数">
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary saveData" id="saveData">保存机器参数</button>
+
+        </form>
+        <div>
+        </div>
+    </div>
+    <!-- 引入Bootstrap JS -->
+    <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
+    <script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript" src="../../tools/roslibjs/build/roslib.js"></script>
+    <script type="module" src="../../rosManage/RosManager.js"></script>
+    <script type="module" src="./js/robot_data.js"></script>
+    <!-- 引入参数信息弹出框组件 -->
+    <script type="module" src="./js/parameter-info-modal.js"></script>
+    <script type="module" src="./js/init-parameter-info.js"></script>
+    <script type="module">
+        import RosManager from "../../rosManage/RosManager.js";
+        import axiosClient from "../../api/ApiManager.js";
+        const rosManager = new RosManager();
+        // 避障状态常量对象
+        const AVOID_STATUS = {
+            ON: '1',
+            OFF: '0'
+        };
+
+        // 避障开关初始化
+        function initAvoidanceSwitch() {
+            const avoidtrackSwitch = document.getElementById('avoidtrackSwitch');
+            const avoidtrack = document.getElementById('avoidtrack');
+            const avoidSwitchStatus = document.getElementById('avoidSwitchStatus');
+
+            if (!avoidtrackSwitch || !avoidtrack || !avoidSwitchStatus) {
+                console.warn('避障开关相关元素未找到');
+                return;
+            }
+
+            // avoidtrack.value === AVOID_STATUS.ON 表示避障功能已开启
+            avoidtrackSwitch.checked = avoidtrack.value === AVOID_STATUS.ON;
+            updateAvoidSwitchStatus();
+
+            // 避障开关事件监听
+            avoidtrackSwitch.addEventListener('change', function () {
+                if (this.checked) {
+                    avoidtrack.value = AVOID_STATUS.ON;
+                } else {
+                    avoidtrack.value = AVOID_STATUS.OFF;
+                }
+                updateAvoidSwitchStatus();
+            });
+        }
+
+        // 更新避障开关状态显示
+        function updateAvoidSwitchStatus() {
+            const avoidtrackSwitch = document.getElementById('avoidtrackSwitch');
+            const avoidtrack = document.getElementById('avoidtrack');
+            const avoidSwitchStatus = document.getElementById('avoidSwitchStatus');
+
+            if (!avoidtrackSwitch || !avoidtrack || !avoidSwitchStatus) {
+                console.warn('避障开关相关元素未找到');
+                return;
+            }
+            // avoidtrack.value === AVOID_STATUS.ON 表示避障功能处于开启状态
+            if (avoidtrack.value === AVOID_STATUS.ON) {
+                avoidSwitchStatus.textContent = '避障开启';
+                avoidSwitchStatus.className = 'ms-2 text-success';
+
+                let aviodMsg = new ROSLIB.Message({
+                    data: 1,
+                });
+                rosManager.avoidanceSwitch.publish(aviodMsg);
+            } else {
+                // avoidtrack.value !== AVOID_STATUS.ON 表示避障功能处于关闭状态
+                avoidSwitchStatus.textContent = '避障关闭';
+                avoidSwitchStatus.className = 'ms-2 text-muted';
+                let aviodMsg = new ROSLIB.Message({
+                    data: 0,
+                });
+                rosManager.avoidanceSwitch.publish(aviodMsg);
+            }
+        }
+        // 页面加载完成后初始化避障开关
+        document.addEventListener('DOMContentLoaded', function () {
+            initAvoidanceSwitch();
+        });
+    </script>
+</body>
+
+</html>

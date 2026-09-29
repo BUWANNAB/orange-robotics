@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Leaflet Map with Station Labels</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <script type="text/javascript" src="../../../src/libs/jquery-3.1.0.min.js"></script>
+    <link rel="stylesheet" href="../../../src/libs/bootstrap/css/bootstrap.min.css" />
+    <script src="../../../src/libs/bootstrap/js/popper.min.js"></script>
+    <script src="../../../src/libs/bootstrap/js/bootstrap.min.js"></script>
+    <!-- bootstrap-switch-->
+    <link href="../../../src/libs/bootstrap/css/bootstrap-switch.min.css" rel="stylesheet">
+    <script src="../../../src/libs/bootstrap/js/bootstrap-switch.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="../../../src/libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Bundle JS (includes Popper) -->
+    <script src="../../../src/libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="../../../src/libs/css/leaflet.css" />
+    <script src="../../../src/libs/leaflet.js"></script>
+    <script src="../../../src/libs/css/3.4.16.es"></script>
+    <link href="../../../src/libs/css/css2.css" rel="stylesheet">
+    <link href="../../../src/libs/css/all.min.css" rel="stylesheet">
+    <!-- 地图加载动画样式 -->
+    <link href="./css/map-loading.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ea580c',
+                        success: '#00B42A',
+                        warning: '#FF7D00',
+                        danger: '#F53F3F',
+                        info: '#86909C',
+                        dark: '#1D2129',
+                        light: '#F2F3F5',
+                        'primary-light': '#fff7ed',
+                        'success-light': '#E8FFF3',
+                        'warning-light': '#FFF7E8',
+                        'danger-light': '#FFE8E8',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 2px 14px 0 rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 8px 24px 0 rgba(0, 0, 0, 0.12)',
+                    }
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .animate-pulse-slow {
+                animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .animate-slide-up {
+                animation: slideUp 0.3s ease-out forwards;
+            }
+            .animate-fade-in {
+                animation: fadeIn 0.3s ease-out forwards;
+            }
+            .text-balance {
+                text-wrap: balance;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+             .progress-ring-circle {
+                transition: stroke-dashoffset 0.35s;
+                transform: rotate(-90deg);
+                transform-origin: 50% 50%;
+            }
+            .circle-container {
+                aspect-ratio: 1 / 1;
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="./css/outdoor-map.css">
+</head>
+
+<body>
+    <!-- 这是删除的模态框 -->
+    <!-- Modal -->
+    <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmationModalLabel">确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    确定要删除所选路线吗？
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteButton">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="contentBox">
+        <div id="mapDiv"></div>
+        <div id="buttonContainer">
+            <div class="icon-right">
+                <div class="container-editLine">
+                    <div class="text-editLine">新增路线:
+                    </div>
+                    <div class="image-editLine" id="controlButton">
+                        <img src="../../../src/assets/imges/img-right/绘制路线 (1).png" id="addEdit" alt="路线编辑">
+                    </div>
+                </div>
+
+                <div class="container-edit">
+                    <div class="text-edit">开始编辑</div>
+                    <div class="image-edit" id="editButton">
+                        <img src="../../../src/assets/imges/img-right/编辑.png" id="imgEdit" alt="编辑">
+                    </div>
+                </div>
+                <div class="container-callback">
+                    <div class="text-callback">撤回上一步</div>
+                    <div class="image-callback" id="callBack">
+                        <img src="../../../src/assets/imges/img-right/撤回色块.png" alt="撤回色块">
+                    </div>
+                </div>
+                <div class="container-imag">
+                    <div class="text-container">保存路线</div>
+                    <div class="image-container" id="saveButton">
+                        <img src="../../../src/assets/imges/img-right/保存.png" alt="保存">
+                    </div>
+                </div>
+                <div class="container-update disPlaynoe">
+                    <div class="text-update">更新</div>
+                    <div class="image-update" id="saveRouteDataButton">
+                        <img src="../../../src/assets/imges/img-right/更新数据.png" alt="更新数据">
+                    </div>
+                </div>
+                <div class="container-clear disPlaynoe">
+                    <div class="text-clear">重置连线</div>
+                    <div class="image-clear" id="clearLineBtn">
+                        <img src="../../../src/assets/imges/img-right/清屏.png" alt="清屏">
+                    </div>
+                </div>
+                <div class="container-clearscreen">
+                    <div class="text-clearscreen">清屏重置</div>
+                    <div class="image-clearscreen" id="clearScreenBtn">
+                        <img src="../../../src/assets/imges/img-right/清屏.png" alt="清屏重置">
+                    </div>
+                </div>
+                <div class="container-disedit editorDisplay">
+                    <div class="text-disedit">关闭编辑状态</div>
+                    <div class="image-disedit" id="stopEditBtn">
+                        <img src="../../../src/assets/imges/img-right/关闭编辑域.png" alt="关闭编辑">
+                    </div>
+                </div>
+                <div class="container-delete">
+                    <div class="text-delete editorDisplay">删除当前路线</div>
+                    <div class="image-delete" id="deleteRoute">
+                        <img src="../../../src/assets/imges/img-right/删除 (1).png" alt="删除">
+                    </div>
+                </div>
+                <div class="container-location">
+                    <div class="text-location">机器实时位置</div>
+                    <div class="image-location" id="currentCarPosePose">
+                        <img src="../../../src/assets/imges/img-right/当前位置 (1).png" alt="当前位置">
+                    </div>
+                </div>
+
+                <div class="container-savelocation">
+                    <div class="text-savelocation">保存机器当前位置</div>
+                    <div class="image-savelocation" id="getCurrentPositonXY">
+                        <img src="../../../src/assets/imges/img-right/场景保存.png" data-bs-toggle="modal"
+                            data-bs-target="#exampleModal">
+                        </img>
+                    </div>
+                </div>
+                <div class="container-showhide">
+                    <div class="text-showhide">显示/隐藏特殊站点</div>
+                    <div class="image-showhide" id="toggleStationVisibilityButton">
+                        <img src="../../../src/assets/imges/img-right/显示隐藏.png" id="showHideImg" alt="显示和隐藏">
+                    </div>
+                </div>
+
+                <div class="container-editPositon">
+                    <div class="text-editPositon">机器重定位</div>
+                    <div class="image-editPositon" id="openDrawerBtn">
+                        <img src="../../../src/assets/imges/img-right/站点管理.png" alt="站点编辑">
+                    </div>
+                </div>
+                <div style="display: none;" class="container-clearlabels">
+                    <div class="text-clearlabels">清除路线标签</div>
+                    <div class="image-clearlabels" id="clearRouteLabelsBtn">
+                        <img src="../../../src/assets/imges/img-right/清屏.png" alt="清除标签">
+                    </div>
+                </div>
+                <div class="container-renderlabels">
+                    <div class="text-renderlabels">全局设置</div>
+                    <div class="image-renderlabels" id="globalSettingsBtn">
+                        <img src="../../../src/assets/imges/setting.svg" alt="全局设置">
+                    </div>
+                </div>
+                <!-- <div class="container-globalsettings">
+                <div class="text-globalsettings">全局设置</div>
+                <div class="image-globalsettings" id="renderRouteLabelsBtn">
+                    <img src="../../../src/assets/imges/setting.svg" alt="全局设置">
+                </div>
+            </div> -->
+
+            </div>
+            <!-- 一行展示容器 -->
+            <div class="workAction">
+                <div class="bg-white rounded-xl shadow-lg p-2 w-full  flex flex-wrap items-center justify-evenly gap-2">
+
+                    <div style="display: flex; align-items: center;">
+                        <img src="../../../src/assets/imges/闹钟.png" style="display: none;" id="openDrawerBtn" alt=""
+                            srcset="">
+
+                        <div class="route-select-panel" style="margin-right:15px;width:220px">
+                            <div class="select-wrapper">
+                                <button id="toggleCheckboxPanel" class="select-button">
+                                    <span class="select-text">请选择路线</span>
+                                    <span class="select-arrow">▼</span>
+                                </button>
+                                <div id="routeCheckboxContainer" class="select-dropdown collapsed">
+                                    <div class="select-search">
+                                        <input type="text" id="routeSearchInput" placeholder="搜索路线..."
+                                            class="form-control form-control-sm">
+                                    </div>
+                                    <div id="routeCheckboxList" class="select-options"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <select id="routeSelect" class="form-select" aria-label="Default select example">
+                            <option value="" disabled selected>请选择路线</option>
+                        </select>
+                        <div style="display: none;" id="routeSpeed">
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 items-center">
+
+                        <select style="display: none;" name="" id="publishAvoidnmodel">
+                            <option value="">选择模式</option>
+                            <option value="0">保持原路线</option>
+                            <option value="1">备选1</option>
+                            <option value="2">备选2</option>
+                            <option value="3">停车</option>
+                        </select>
+                        <div style="display: none;" id="progress-container" class="flex-shrink-0">
+                            <div class="progress-bar" id="myProgressBar">
+                                <span class="progress-text" id="progressText">0%</span>
+                            </div>
+                        </div>
+                        <select id="publishRouteModel">
+                            <option value="0">调试模式</option>
+                            <option value="1">任务模式</option>
+                        </select>
+                        <button type="button" id="printCurrentRouteId"
+                            class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200">
+                            发布任务
+                        </button>
+                        <button onclick="start()" type="button" id="btnSend" value="Stop" class="btn btn-success">
+                            启动
+                        </button>
+                        <button onclick="stop()" type="button" id="carstop" value="Stop" class="btn btn-warning">
+                            暂停
+                        </button>
+                        <button onclick="cancel()" type="button" id="btnCloseRoute" class="btn btn-danger">
+                            任务取消
+                        </button>
+                    </div>
+                    <div style="display: none;" class="flex items-center gap-2">
+                        <span id="alreadysend" class="text-gray-700 flex items-center">
+                            <i class="fa fa-check-circle text-success mr-1"></i>
+                            已发送: <span class="font-semibold text-primary ml-1">0</span>
+                        </span>
+                        <span id="needsend" class="text-gray-700 flex items-center">
+                            <i class="fa fa-tasks text-primary mr-1"></i>
+                            总站点: <span class="font-semibold text-primary ml-1">0</span>
+                        </span>
+                    </div>
+
+                    <div style="display: none;" class="relative w-16 h-16 shrink-0">
+                        <svg class="w-full h-full" viewBox="0 0 100 100">
+                            <!-- 背景圆环 -->
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="#E5E7EB" stroke-width="5" />
+                            <!-- 进度圆环 -->
+                            <circle id="progressCircle" class="progress-ring-circle" cx="50" cy="50" r="45" fill="none"
+                                stroke="#ea580c" stroke-width="5" stroke-dasharray="282.74"
+                                stroke-dashoffset="226.19" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span id="percentage" class="text-lg font-bold text-gray-800">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="display: none;">
+                <button type="button" id="printCurrentRouteId1" class="btn  btn-info">确定路线left</button>
+                <button type="button" id="printCurrentRouteId2" class="btn  btn-info">确定路线right</button>
+                <!-- <div> <span id="alreadysend">已经发送0</span> <span id="needsend">需要发送0</span></div> -->
+                <!-- <button type="button" id="btnSend" value="Stop" class="btn btn-success">运行</button>
+            <button type="button" id="btnCloseRoute" class="btn btn-danger">任务取消</button>  -->
+            </div>
+            <button type="button" id="closeRobot" class="btn btn-danger disPlaynoe">关机</button>
+            <button type="button" id="hidePoint" class="editorLine ">隐藏所有站点</button>
+            <button type="button" id="showAllPoint" class="editorLine">显示所有站点</button>
+            <button type="button" class="btn disPlaynoe">显示/隐藏所有站点</button>
+            <div id="mousePosition">鼠标指针纬度: --, 经度: --</div>
+            <div id="coordinatesCarPos">机器当前纬度: --, 经度: --</div>
+            <span style="font-size: 17px;" class="route_choose"></span>
+        </div>
+    </div>
+    <div class="bottomBox" style="display: none;">
+        <!-- <button id="mousePosition">鼠标位置：纬度 - ，经度 - </button> -->
+        <!-- <button id="controlButton">增加路线</button> -->
+        <!-- <button id="dragButton" class="starDrag">开启拖动</button> -->
+        <!-- <button id="saveButton">保存路线</button> -->
+        <!-- <button id="callBack">撤回上一步</button> -->
+        <!-- <button id="editButton">开始编辑</button> 添加编辑按钮 -->
+        <button id="randomMoveButton">随机移动点</button> <!-- 添加编辑按钮 -->
+        <!-- <button id="saveRouteDataButton">更新路线和更新避障</button> 新增的按钮 -->
+        <!-- <button id="toggleStationVisibilityButton">切换站点可见性</button> -->
+        <button id="clearButton">清空所有路线</button>
+        <div id="infoBox" class="info-box"></div>
+
+    </div>
+    <div class="modal fade" id="routeNameModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">输入路线名称</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="routeNameInput" class="form-label">路线名称</label>
+                        <input type="text" id="routeNameInput" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label for="routeSpeedInput" class="form-label">路线速度 (m/s)</label>
+                        <input type="number" placeholder="默认速度0.2" id="routeSpeedInput" class="form-control" step="0.1"
+                            min="0.1" value="0.2">
+                    </div>
+                    <div id="duplicateError" class="text-danger mt-2" style="display:none">名称已存在，请重新输入</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmSave">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">添加站点信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="siteForm">
+                        <div class="mb-3">
+                            <label for="siteName" class="form-label">站点名字</label>
+                            <input type="text" class="form-control" id="siteName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="longitude" class="form-label">经度</label>
+                            <input type="text" class="form-control" id="addlongitude" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="latitude" class="form-label">纬度</label>
+                            <input type="text" class="form-control" id="addlatitude" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="addNewPoint">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 录制名称输入模态框 -->
+    <div class="modal fade" id="recordNameModal" tabindex="-1" aria-labelledby="recordNameModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="recordNameModalLabel">是否保存当前预览路线？</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="recordNameInput" class="form-control" placeholder="请输入录制名称:" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelRecordName"
+                        data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmRecordName">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局设置模态框 -->
+    <div class="modal fade" id="globalSettingsModal" tabindex="-1" aria-labelledby="globalSettingsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="globalSettingsModalLabel">全局设置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- 全局设置内容 -->
+                    <div id="global-settings-container">
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="globalRouteSpeed" class="form-label">路线默认速度 (m/s)</label>
+                            <input type="number" id="globalRouteSpeed" style="max-width: 100px; margin-left: 10px;"
+                                class="form-control" step="0.1" min="-1" max="1" value="0.2">
+                        </div>
+                        <div class="mb-3">
+                            <label for="globalDefaultDirection" class="form-label">站点默认方向:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption" id="useNextPoint"
+                                    value="useNextPoint" checked>
+                                <label class="form-check-label" for="useNextPoint">
+                                    指向下一点
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption"
+                                    id="keepDirection" value="keepDirection">
+                                <label class="form-check-label" for="keepDirection">
+                                    保持当前方向
+                                </label>
+                            </div>
+                            <div style="display: flex; align-items: normal;" class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption" id="useAngle"
+                                    value="useAngle" >
+                                <label for="useAngle">
+                                    使用输入角度:
+                                </label>
+                                <div style="min-width: 158px;  border-radius: 3px;   margin-left: 20px; "
+                                    id="directionInputContainer">
+                                    <input type="number" style="min-width: 158px; border: 1px solid #ced4da;"
+                                        id="globalDefaultDirection" placeholder="输入角度值" min="-180" max="180"
+                                        value="-360">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: flex;   align-items: end;">
+                            <label for="globalNavigationMode" class="form-label">导航模式:</label>
+                            <select id="globalNavigationMode" style="margin-left: 20px;" class="form-select">
+                                <option value="1">室内</option>
+                                <option value="2">室外</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" style="display: none;   align-items: end;">
+                            <label for="globalActionSelect" class="form-label">动作选择:</label>
+                            <select id="globalActionSelect" class="form-select"
+                                style="width: 160px; margin-left: 20px;">
+                                <option value="0">任务1</option>
+                                <option value="1">任务2</option>
+                                <option value="2">任务3</option>
+                                <option value="3">任务4</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" style="display: none;  align-items: end;">
+                            <label for="globalObstacleLevel" class="form-label">避障等级:</label>
+                            <select id="globalObstacleLevel" class="form-select"
+                                style="width: 160px;  margin-left: 20px;">
+                                <option value="1">等级1</option>
+                                <option value="2">等级2</option>
+                                <option value="3">等级3</option>
+                                <option value="4">等级4</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" style="display: flex;  align-items: end;">
+                            <label for="globalLanechange" class="form-label">变道绕障:</label>
+                            <select id="globalLanechange" class="form-select" style="width: 160px;  margin-left: 20px;">
+                        <option value="0">禁止变道</option>
+                        <option value="1">左变道</option>
+                        <option value="2">右变道</option>
+                        <option value="3">左右均可变道</option>
+                        <option value="4">关闭变道和绕障</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="globalAvoidDistance" class="form-label">停障反应距离 (m)</label>
+                            <input type="number" id="globalAvoidDistance" style="max-width: 100px; margin-left: 10px;"
+                                class="form-control" step="0.1" min="0.1" max="5" value="0.5">
+                        </div>
+
+                        <div class="mb-3" style="display: flex;">
+                            <label class="form-label">转弯模式:</label>
+                            <div style="display: flex; align-items: center;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="turnMode" id="turnModeSelf"
+                                        value="1">
+                                    <label class="form-check-label" for="turnModeSelf">
+                                        自转模式
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="turnMode" id="turnModeContinuous"
+                                        value="0">
+                                    <label class="form-check-label" for="turnModeContinuous">
+                                        连续模式
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 当前路线设置内容 -->
+                    <div id="current-route-settings-container" style="display: none;">
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="currentRouteName" class="form-label">当前路线名称</label>
+                            <input type="text" id="currentRouteName" class="form-control"
+                                style="max-width: 200px; margin-left: 10px;">
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateRouteName">
+                                <label class="form-check-label" for="updateRouteName">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="currentRouteSpeed" class="form-label">当前路线速度 (m/s)</label>
+                            <input type="number" id="currentRouteSpeed" class="form-control"
+                                style="max-width: 100px; margin-left: 10px;" class="form-control" step="0.1" min="-1"
+                                max="1">
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateSpeed">
+                                <label class="form-check-label" for="updateSpeed">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="currentRouteDirection" class="form-label">站点默认方向:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentUseNextPoint" value="useNextPoint" checked>
+                                <label class="form-check-label" for="currentUseNextPoint">
+                                    指向下一点
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentKeepDirection" value="keepDirection">
+                                <label class="form-check-label" for="currentKeepDirection">
+                                    保持原方向
+                                </label>
+                            </div>
+                            <div style="display: flex; align-items: normal;" class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentUseAngle" value="useAngle" >
+                                <label for="currentUseAngle">
+                                    使用输入角度:
+                                </label>
+                                <div style="min-width: 158px;  border-radius: 3px;   margin-left: 20px; "
+                                    id="currentDirectionInputContainer">
+                                    <input type="number" style="min-width: 158px; border: 1px solid #ced4da;"
+                                        id="currentRouteDirection" placeholder="输入角度值" min="-180" max="180"
+                                        value="-360">
+                                </div>
+                                <div class="form-check" style="margin-left: 10px;">
+                                    <input class="form-check-input" type="checkbox" id="updateDirection">
+                                    <label class="form-check-label" for="updateDirection">更新</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: flex;   align-items: end;">
+                            <label for="currentRouteNavigationMode" class="form-label">导航模式:</label>
+                            <select id="currentRouteNavigationMode" style="margin-left: 20px;" class="form-select">
+                                <option value="1">室内</option>
+                                <option value="2">室外</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateNavigationMode">
+                                <label class="form-check-label" for="updateNavigationMode">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: none;   align-items: end;">
+                            <label for="currentRouteActionSelect" class="form-label">动作选择:</label>
+                            <select id="currentRouteActionSelect" class="form-select"
+                                style="width: 160px; margin-left: 20px;">
+                                <option value="0">任务1</option>
+                                <option value="1">任务2</option>
+                                <option value="2">任务3</option>
+                                <option value="3">任务4</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateActionSelect">
+                                <label class="form-check-label" for="updateActionSelect">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: none;  align-items: end;">
+                            <label for="currentRouteObstacleLevel" class="form-label">避障等级:</label>
+                            <select id="currentRouteObstacleLevel" class="form-select"
+                                style="width: 160px;  margin-left: 20px;">
+                                <option value="1">等级1</option>
+                                <option value="2">等级2</option>
+                                <option value="3">等级3</option>
+                                <option value="4">等级4</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateObstacleLevel">
+                                <label class="form-check-label" for="updateObstacleLevel">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: flex;  align-items: end;">
+                            <label for="currentRouteLanechange" class="form-label">变道绕障:</label>
+                            <select id="currentRouteLanechange" class="form-select"
+                                style="width: 160px;  margin-left: 20px;">
+                                <option value="0">禁止变道</option>
+                                <option value="1">左变道</option>
+                                <option value="2">右变道</option>
+                                <option value="3">左右均可变道</option>
+                                <option value="4">关闭变道和绕障</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateLanechange">
+                                <label class="form-check-label" for="updateLanechange">更新</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="currentAvoidDistance" class="form-label">停障反应距离 (m)</label>
+                            <input type="number" id="currentAvoidDistance" class="form-control"
+                                style="max-width: 100px; margin-left: 10px;" step="0.1" min="0.1" max="5">
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateAvoidDistance">
+                                <label class="form-check-label" for="updateAvoidDistance">更新</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">转弯模式:</label>
+                            <div style="display: flex; align-items: center;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="currentTurnMode"
+                                        id="currentTurnModeSelf" value="1" checked>
+                                    <label class="form-check-label" for="currentTurnModeSelf">
+                                        自转模式
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="currentTurnMode"
+                                        id="currentTurnModeContinuous" value="0">
+                                    <label class="form-check-label" for="currentTurnModeContinuous">
+                                        连续模式
+                                    </label>
+                                </div>
+                                <div class="form-check" style="margin-left: 10px;">
+                                    <input class="form-check-input" type="checkbox" id="updateTurnMode">
+                                    <label class="form-check-label" for="updateTurnMode">更新</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveGlobalSettings">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-5 page-content" id="pageContent" style="display:none">
+    </div>
+    <!-- 自定义右侧抽屉 -->
+    <div class="custom-drawer" id="customDrawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h3>站点编辑</h3>
+                <button type="button" class="btn-close" id="closeDrawerBtn" aria-label="Close"></button>
+            </div>
+
+            <div class="drawer-body">
+                <div class="container py-5">
+                    <div class="row justify-content-center">
+                        <div>
+                            <!-- 筛选区域 -->
+                            <div class="filter-container">
+                                <div class="input-group">
+                                    <input type="text" id="filterInput" class="form-control" placeholder="搜索站点名称...">
+                                    <button class="btn btn-outline-secondary" id="resetFilterBtn">重置筛选</button>
+                                </div>
+                            </div>
+                            <!-- 列表容器 -->
+                            <div class="list-container">
+                                <ul class="list-group" id="itemList">
+                                    <!-- 列表项将通过JavaScript动态添加 -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="pointInfoBox"
+        style="position: absolute; z-index: 1000; background: white; padding: 8px; border: 1px solid #ccc; border-radius: 4px; display: none;">
+        <!-- 内容将通过JS动态填充 -->
+    </div>
+    <script type="text/javascript" src="../../../src/libs/roslib.min.js"></script>
+    <script type="module" src="../../../src/rosManage/RosManager.js"></script>
+    <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
+
+    <script type="module">
+        import RosManager from '../../../src/rosManage/RosManager.js';
+        import axiosClient from "../../../src/api/ApiManager.js";
+        const rosManager = new RosManager();
+        // 订阅 rossub 话题
+        rosManager.subscribeGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", (message) => {
+            console.log("收到RemoteCtrlAutomaticSwitch 消息:", message.data);
+        });
+
+        function switchToAutoMode() {
+            const newMode = {
+                "manual": 0,//手动模式
+                "auto": 1,//自动模式
+            }
+            if (localStorage.getItem('currentInterface') != '3') {
+                const response = axiosClient.post(`ros2/mode/${newMode.auto}`);
+            }
+        }
+        switchToAutoMode();
+
+        // 模拟发布一条消息到 RemoteCtrlAutomaticSwitch 话题
+        // function publishHandMove() {
+        //   const message = new ROSLIB.Message({
+        //     data: 1,
+        //   });
+        //   const messageContorl = new ROSLIB.Message({
+        //     data: 0,
+        //   });
+        //   if(localStorage.getItem('currentInterface') == '3'){
+        //     rosManager.publishGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", messageContorl);
+        //   }else{
+        //     rosManager.publishGeneralTopic("RemoteCtrlAutomaticSwitch", "std_msgs/msg/UInt8", message);
+        //   }
+        //   console.log("消息已发布:", message.data);
+        // // }
+        // window.onload = () => {
+        //   publishHandMove()
+        // }
+
+    </script>
+
+    <script type="module" src="./js/map-setting.js"></script>
+    <script src="../../../src/libs/axios.min.js"></script>
+    <script src="../../../src/api/api-simple.js"></script>
+    <script>
+        // url参数处理函数
+        function getUrlParams() {
+            const params = {};
+            const urlSearchParams = new URLSearchParams(window.location.search);
+            for (const [key, value] of urlSearchParams) {
+                params[key] = value;
+            }
+            return params;
+        }
+
+        // 根据模式控制按钮显示隐藏
+        function controlButtonsByMode(mode) {
+            let buttonsToHide = []
+            if (mode === 'simple') {
+                // 简化模式：隐藏编辑相关的按钮
+                buttonsToHide = [
+                    '.container-editline',
+                    '.container-edit',
+                    '.container-callback',
+                    '.container-imag',
+                    '.container-update',
+                    '.container-clear',
+                    '.container-clearscreen',
+                    '.container-disedit',
+                    '.container-delete',
+                    '.container-savelocation',
+                    '.container-clearlabels',
+                    '.container-renderlabels',
+                    '.container-editLine',
+                ];
+            } else {
+                buttonsToHide = [
+                    '.container-editline',
+                    '.container-edit',
+                    '.container-callback',
+                    '.container-imag',
+                    '.container-update',
+                    '.container-clear',
+                    '.container-clearscreen',
+                    '.container-disedit',
+                    '.container-delete',
+                    '.container-savelocation',
+                    '.container-editpositon',
+                    '.container-clearlabels',
+                    '.container-renderlabels',
+                    '.container-editLine',
+                    '.container-editPositon',
+                    '.workAction'
+                ];
+            }
+            buttonsToHide.forEach(selector => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+
+            // 显示简化模式下需要的按钮
+            const buttonsToShow = [
+                '.container-location'
+            ];
+
+            buttonsToShow.forEach(selector => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.style.display = 'flex';
+                }
+            });
+        }
+
+        // 全局设置相关函数
+        document.addEventListener('DOMContentLoaded', function () {
+            // 检查url参数
+            const params = getUrlParams();
+            if (params.mode === 'simple') {
+                controlButtonsByMode('simple');
+            } else if (params.mode === 'control') {
+                controlButtonsByMode('control');
+            }
+            // 加载全局设置
+            function loadGlobalSettings() {
+                const globalRouteSpeed = localStorage.getItem('globalRouteSpeed') || '0.2';
+                const globalDefaultDirection = localStorage.getItem('globalDefaultDirection') || '-360';
+                const globalNavigationMode = localStorage.getItem('globalNavigationMode') || '1';
+                const globalActionSelect = localStorage.getItem('globalActionSelect') || '0';
+                const globalObstacleLevel = localStorage.getItem('globalObstacleLevel') || '1';
+                const globalLanechange = localStorage.getItem('globalLanechange') || '0';
+                const globalTurnMode = localStorage.getItem('globalTurnMode') || '1';
+                const globalAvoidDistance = localStorage.getItem('globalAvoidDistance') || '0.5';
+
+                document.getElementById('globalRouteSpeed').value = globalRouteSpeed;
+                document.getElementById('globalNavigationMode').value = globalNavigationMode;
+                document.getElementById('globalActionSelect').value = globalActionSelect;
+                document.getElementById('globalObstacleLevel').value = globalObstacleLevel;
+                document.getElementById('globalLanechange').value = globalLanechange;
+                document.getElementById('globalAvoidDistance').value = globalAvoidDistance;
+
+                // 根据存储的值决定使用输入角度还是指向下一个点
+                if (globalDefaultDirection === '360') {
+                    // 存储的值是360，表示指向下一个点
+                    document.getElementById('useAngle').checked = false;
+                    document.getElementById('useNextPoint').checked = true;
+                    document.getElementById('keepDirection').checked = false;
+                    document.getElementById('globalDefaultDirection').value = '';
+                } else if (globalDefaultDirection === '-360') {
+                    document.getElementById('useAngle').checked = false;
+                    document.getElementById('useNextPoint').checked = false;
+                    document.getElementById('keepDirection').checked = true;
+                    document.getElementById('globalDefaultDirection').value = '';
+                }
+                else {
+                    // 存储的是角度值，使用输入角度
+                    document.getElementById('useAngle').checked = true;
+                    document.getElementById('keepDirection').checked = false;
+                    document.getElementById('useNextPoint').checked = false;
+                    document.getElementById('globalDefaultDirection').value = globalDefaultDirection;
+                }
+
+                // 设置转弯模式
+                if (globalTurnMode === '1') {
+                    document.getElementById('turnModeSelf').checked = true;
+                    document.getElementById('turnModeContinuous').checked = false;
+                } else {
+                    document.getElementById('turnModeSelf').checked = false;
+                    document.getElementById('turnModeContinuous').checked = true;
+                }
+                // 加载当前路线设置
+                const currentRouteName = localStorage.getItem('currentRouteName');
+                const currentRouteSpeed = localStorage.getItem('currentRouteSpeed');
+                const currentRouteDirection = localStorage.getItem('currentRouteDirection') || '-360';
+                const currentRouteNavigationMode = localStorage.getItem('currentRouteNavigationMode');
+                const currentRouteActionSelect = localStorage.getItem('currentRouteActionSelect');
+                const currentRouteObstacleLevel = localStorage.getItem('currentRouteObstacleLevel');
+                const currentRouteLanechange = localStorage.getItem('currentRouteLanechange');
+                const currentRouteAvoidDistance = localStorage.getItem('currentRouteAvoidDistance');
+                const currentRouteTurnMode = localStorage.getItem('currentRouteTurnMode') || '1';
+
+                if (currentRouteName) {
+                    document.getElementById('currentRouteName').value = currentRouteName;
+                }
+
+                if (currentRouteSpeed) {
+                    document.getElementById('currentRouteSpeed').value = currentRouteSpeed;
+                }
+
+                const dir = (currentRouteDirection && currentRouteDirection.trim() !== '') 
+                    ? currentRouteDirection 
+                    : (localStorage.getItem('globalDefaultDirection') || '-360');
+                if (dir === '360') {
+                    document.getElementById('currentUseAngle').checked = false;
+                    document.getElementById('currentUseNextPoint').checked = true;
+                    document.getElementById('currentKeepDirection').checked = false;
+                    document.getElementById('currentRouteDirection').value = '';
+                } else if (dir === '-360') {
+                    document.getElementById('currentUseAngle').checked = false;
+                    document.getElementById('currentUseNextPoint').checked = false;
+                    document.getElementById('currentKeepDirection').checked = true;
+                    document.getElementById('currentRouteDirection').value = '';
+                } else {
+                    document.getElementById('currentUseAngle').checked = true;
+                    document.getElementById('currentKeepDirection').checked = false;
+                    document.getElementById('currentUseNextPoint').checked = false;
+                    document.getElementById('currentRouteDirection').value = dir;
+                }
+
+                // 设置当前路线的其他设置
+                if (currentRouteNavigationMode) {
+                    document.getElementById('currentRouteNavigationMode').value = currentRouteNavigationMode;
+                }
+
+                if (currentRouteActionSelect) {
+                    document.getElementById('currentRouteActionSelect').value = currentRouteActionSelect;
+                }
+
+                if (currentRouteObstacleLevel) {
+                    document.getElementById('currentRouteObstacleLevel').value = currentRouteObstacleLevel;
+                }
+
+                if (currentRouteLanechange) {
+                    document.getElementById('currentRouteLanechange').value = currentRouteLanechange;
+                }
+
+                if (currentRouteAvoidDistance) {
+                    document.getElementById('currentAvoidDistance').value = currentRouteAvoidDistance;
+                }
+
+                // 设置当前路线的转弯模式
+                if (currentRouteTurnMode === '1') {
+                    document.getElementById('currentTurnModeSelf').checked = true;
+                    document.getElementById('currentTurnModeContinuous').checked = false;
+                } else {
+                    document.getElementById('currentTurnModeSelf').checked = false;
+                    document.getElementById('currentTurnModeContinuous').checked = true;
+                }
+            }
+
+            // 保存全局设置
+            async function saveGlobalSettings() {
+                // 保存全局设置
+                const globalRouteSpeed = document.getElementById('globalRouteSpeed').value;
+                const globalNavigationMode = document.getElementById('globalNavigationMode').value;
+                const globalActionSelect = document.getElementById('globalActionSelect').value;
+                const globalObstacleLevel = document.getElementById('globalObstacleLevel').value;
+                const globalLanechange = document.getElementById('globalLanechange').value;
+                const globalAvoidDistance = document.getElementById('globalAvoidDistance').value;
+                const globalTurnMode = document.querySelector('input[name="turnMode"]:checked').value;
+                const useAngle = document.getElementById('useAngle').checked;
+                const keepDirection = document.getElementById('keepDirection').checked;
+                // 根据选择保存不同的方向值
+                let globalDefaultDirection;
+                if (useAngle) {
+                    globalDefaultDirection = document.getElementById('globalDefaultDirection').value || '-360';
+                } else if (keepDirection) {
+                    globalDefaultDirection = '-360';
+                } else {
+                    // 指向下一个点时，存储值为360
+                    globalDefaultDirection = '360';
+                }
+
+                localStorage.setItem('globalRouteSpeed', globalRouteSpeed);
+                localStorage.setItem('globalDefaultDirection', globalDefaultDirection);
+                localStorage.setItem('globalNavigationMode', globalNavigationMode);
+                localStorage.setItem('globalActionSelect', globalActionSelect);
+                localStorage.setItem('globalObstacleLevel', globalObstacleLevel);
+                localStorage.setItem('globalLanechange', globalLanechange);
+                localStorage.setItem('globalAvoidDistance', globalAvoidDistance);
+                localStorage.setItem('globalTurnMode', globalTurnMode);
+
+                // 保存当前路线设置
+                const currentRouteSettingsContainer = document.getElementById('current-route-settings-container');
+                if (currentRouteSettingsContainer && currentRouteSettingsContainer.style.display !== 'none') {
+                    // 只有当前路线设置显示时才保存其数据
+                    const currentRouteName = document.getElementById('currentRouteName').value;
+                    const currentRouteSpeed = document.getElementById('currentRouteSpeed').value;
+
+                    // 获取当前路线的方向设置
+                    const currentUseAngle = document.getElementById('currentUseAngle').checked;
+                    const currentKeepDirection = document.getElementById('currentKeepDirection').checked;
+                    let currentRouteDirection;
+                    if (currentUseAngle) {
+                        currentRouteDirection = document.getElementById('currentRouteDirection').value || '-360';
+                    } else if (currentKeepDirection) {
+                        currentRouteDirection = '-360';
+                    } else {
+                        // 指向下一个点时，存储值为360
+                        currentRouteDirection = '360';
+                    }
+                    // 获取当前路线的其他设置
+                    const currentRouteNavigationMode = document.getElementById('currentRouteNavigationMode').value;
+                    const currentRouteActionSelect = document.getElementById('currentRouteActionSelect').value;
+                    const currentRouteObstacleLevel = document.getElementById('currentRouteObstacleLevel').value;
+                    const currentRouteLanechange = document.getElementById('currentRouteLanechange').value;
+                    const currentAvoidDistance = document.getElementById('currentAvoidDistance').value;
+                    const currentRouteTurnMode = document.querySelector('input[name="currentTurnMode"]:checked').value;
+                    
+                    // 保存当前路线设置到localStorage
+                    localStorage.setItem('currentRouteName', currentRouteName);
+                    localStorage.setItem('currentRouteSpeed', currentRouteSpeed);
+                    localStorage.setItem('currentRouteDirection', currentRouteDirection);
+                    localStorage.setItem('currentRouteNavigationMode', currentRouteNavigationMode);
+                    localStorage.setItem('currentRouteActionSelect', currentRouteActionSelect);
+                    localStorage.setItem('currentRouteObstacleLevel', currentRouteObstacleLevel);
+                    localStorage.setItem('currentRouteLanechange', currentRouteLanechange);
+                    localStorage.setItem('currentAvoidDistance', currentAvoidDistance);
+                    localStorage.setItem('currentRouteTurnMode', currentRouteTurnMode);
+
+                    // 获取当前选中的路线ID
+                    const routeSelect = document.getElementById('routeSelect');
+                    const selectedRouteId = routeSelect ? routeSelect.value : '';
+
+                    const updateMessage = {
+                    };
+
+                    const updateRouteName = {
+                        id: selectedRouteId,
+                        routeId: selectedRouteId,
+                    }
+                    // 只有当复选框被选中时，才添加对应的属性到updateMessage
+                    if (document.getElementById('updateRouteName').checked) {
+                        updateMessage.routeName = currentRouteName;
+                        updateRouteName.routeName = currentRouteName;
+                    }
+                    if (document.getElementById('updateSpeed').checked) {
+                        updateMessage.speed = currentRouteSpeed;
+                    }
+                    if (document.getElementById('updateDirection').checked) {
+                        updateMessage.direction = currentRouteDirection;
+                    }
+                    if (document.getElementById('updateNavigationMode').checked) {
+                        updateMessage.position = currentRouteNavigationMode;
+                    }
+                    if (document.getElementById('updateActionSelect').checked) {
+                        updateMessage.action = currentRouteActionSelect;
+                    }
+                    if (document.getElementById('updateObstacleLevel').checked) {
+                        updateMessage.area = currentRouteObstacleLevel;
+                    }
+                    if (document.getElementById('updateLanechange').checked) {
+                        updateMessage.lanechange = currentRouteLanechange;
+                    }
+                    if (document.getElementById('updateAvoidDistance').checked) {
+                        updateMessage.avoidDistance = currentAvoidDistance;
+                    }
+                    if (document.getElementById('updateTurnMode').checked) {
+                        updateMessage.runmode = currentRouteTurnMode;
+                    }
+
+
+                    try {
+                        const responseName = await axiosClient.post(`route/updateRoute`, updateRouteName);
+                        const response = await axiosClient.post(`route/updateAllRouteDetails/${selectedRouteId}`, updateMessage);
+                        if (response && response.data && !response.data.code) {
+                            cocoMessage.success("路线更新成功");
+                            // 发送广播通知leftmap.html更新routeSelect选择框
+                            const savedData = { id: 1, content: "示例数据" };
+                            localStorage.setItem("savedData", JSON.stringify(savedData));
+                            // 保存完成后，触发自定义事件通知模块JS
+                            const saveEvent = new CustomEvent("saveCompleted", {
+                                detail: {  // 携带的信息（可自定义）
+                                    success: true,
+                                    data: savedData,
+                                    timestamp: new Date().getTime()
+                                }
+                            });
+
+                            // 向window触发事件（模块JS能监听到window上的事件）
+                            window.dispatchEvent(saveEvent);
+                        } else {
+                            cocoMessage.error("路线更新失败");
+                        }
+                    } catch (error) {
+                        console.error("Error updating route:", error);
+                        cocoMessage.error("路线更新失败");
+                        throw error;
+                    }
+                }
+                // 关闭模态框
+                const modal = bootstrap.Modal.getInstance(document.getElementById('globalSettingsModal'));
+                modal.hide();
+            }
+
+            // 绑定全局设置按钮点击事件
+            document.getElementById('globalSettingsBtn').addEventListener('click', function () {
+                loadGlobalSettings();
+                checkAndShowCurrentRouteTab();
+                const modal = new bootstrap.Modal(document.getElementById('globalSettingsModal'));
+                modal.show();
+            });
+
+            // 检查是否有选择的路线，并显示或隐藏对应设置内容
+            function checkAndShowCurrentRouteTab() {
+                const routeSelect = document.getElementById('routeSelect');
+                const globalSettingsContainer = document.getElementById('global-settings-container');
+                const currentRouteSettingsContainer = document.getElementById('current-route-settings-container');
+                const modalTitle = document.getElementById('globalSettingsModalLabel');
+
+                if (routeSelect && routeSelect.value) {
+                    // 有选择的路线，显示当前路线设置，隐藏全局设置
+                    currentRouteSettingsContainer.style.display = 'block';
+                    globalSettingsContainer.style.display = 'none';
+                    modalTitle.textContent = '当前路线设置';
+
+                    // 获取当前路线信息
+                    const selectedRouteId = routeSelect.value;
+
+                    // 显示当前路线名称（使用select的选中选项的文本，切割掉冒号及冒号之前的内容）
+                    const selectedOption = routeSelect.options[routeSelect.selectedIndex];
+                    let routeName = selectedOption ? selectedOption.text : selectedRouteId;
+                    // 切割掉冒号及冒号之前的内容
+                    if (routeName.includes(':')) {
+                        routeName = routeName.split(':')[1].trim();
+                    }
+                    document.getElementById('currentRouteName').value = routeName;
+
+                    // 显示当前路线速度（使用routeSpeed元素的textContent值）
+                    const routeSpeedElement = document.getElementById('routeSpeed');
+
+                    const speedValue = routeSpeedElement ? parseFloat(routeSpeedElement.textContent) : '';
+                    document.getElementById('currentRouteSpeed').value = speedValue || '0.2'; // 如果没有速度值则使用默认值
+                    
+                    const dir = localStorage.getItem('currentRouteDirection') || localStorage.getItem('globalDefaultDirection') || '-360';
+                    if (dir === '360') {
+                        document.getElementById('currentUseAngle').checked = false;
+                        document.getElementById('currentUseNextPoint').checked = true;
+                        document.getElementById('currentKeepDirection').checked = false;
+                        document.getElementById('currentRouteDirection').value = '';
+                    } else if (dir === '-360') {
+                        document.getElementById('currentUseAngle').checked = false;
+                        document.getElementById('currentUseNextPoint').checked = false;
+                        document.getElementById('currentKeepDirection').checked = true;
+                        document.getElementById('currentRouteDirection').value = '';
+                    } else {
+                        document.getElementById('currentUseAngle').checked = true;
+                        document.getElementById('currentKeepDirection').checked = false;
+                        document.getElementById('currentUseNextPoint').checked = false;
+                        document.getElementById('currentRouteDirection').value = dir;
+                    }
+                } else {
+                    // 没有选择的路线，显示全局设置，隐藏当前路线设置
+                    currentRouteSettingsContainer.style.display = 'none';
+                    globalSettingsContainer.style.display = 'block';
+                    modalTitle.textContent = '全局设置';
+                }
+            }
+
+            // 绑定保存按钮点击事件
+            document.getElementById('saveGlobalSettings').addEventListener('click', saveGlobalSettings);
+
+            // 添加路线速度输入验证
+            document.getElementById('globalRouteSpeed').addEventListener('input', function () {
+                // 验证输入值是否在-1到1范围内
+                const value = parseFloat(this.value);
+                if (value < -1) {
+                    this.value = '-1';
+                } else if (value > 1) {
+                    this.value = '1';
+                }
+            });
+            
+            // 添加方向输入验证
+            document.getElementById('globalDefaultDirection').addEventListener('input', function () {
+                // 验证输入值是否在-180到180范围内
+                const value = parseFloat(this.value);
+                if (value < -180) {
+                    this.value = '-180';
+                } else if (value > 180) {
+                    this.value = '180';
+                }
+
+                // 当输入框有值时，自动选中"使用输入角度"单选按钮
+                if (this.value.trim() !== '') {
+                    document.getElementById('useAngle').checked = true;
+                    document.getElementById('useNextPoint').checked = false;
+                    document.getElementById('keepDirection').checked = false;
+                }
+            });
+
+            document.getElementById('useAngle').addEventListener('change', function () {
+                // 当选中"使用输入角度"且输入框为空时，设为默认值0
+                if (this.checked && document.getElementById('globalDefaultDirection').value.trim() === '') {
+                    document.getElementById('globalDefaultDirection').value = '';
+                    document.getElementById('globalDefaultDirection').ariaPlaceholder = '正为右转，负为左转';
+                    document.getElementById('keepDirection').checked = false;
+                }
+                // 显示或隐藏输入框
+                document.getElementById('directionInputContainer').style.display = this.checked ? 'block' : 'none';
+            });
+
+            document.getElementById('useNextPoint').addEventListener('change', function () {
+                // 当选中"指向下一个点"时，清空角度输入框
+                if (this.checked) {
+                    document.getElementById('globalDefaultDirection').value = '';
+                    document.getElementById('useAngle').checked = false;
+                    document.getElementById('keepDirection').checked = false;
+                }
+                // 隐藏输入框
+                document.getElementById('directionInputContainer').style.display = 'none';
+            });
+            document.getElementById('keepDirection').addEventListener('change', function () {
+                if (this.checked) {
+                    document.getElementById('globalDefaultDirection').value = '';
+                    document.getElementById('useAngle').checked = false;
+                    document.getElementById('useNextPoint').checked = false;
+                }
+                // 隐藏输入框
+                document.getElementById('directionInputContainer').style.display = 'none';
+            });
+
+            // 页面加载时根据useAngle的选中状态设置输入框的显示/隐藏
+            document.addEventListener('DOMContentLoaded', function () {
+                const useAngleChecked = document.getElementById('useAngle').checked;
+                document.getElementById('directionInputContainer').style.display = useAngleChecked ? 'block' : 'none';
+            });
+
+            // 页面加载时加载全局设置
+            loadGlobalSettings();
+        });
+
+    </script>
+    <!-- 地图加载动画脚本 -->
+    <!-- <script src="./js/map-loading.js"></script> -->
+    <!-- 页面特定的地图加载逻辑 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 显示加载动画
+
+            if (window.mapLoadingManager) {
+                window.mapLoadingManager.show('地图加载中...', 'dark');
+
+                // 使用优化的检查地图加载方法
+                window.mapLoadingManager.checkMapLoaded(
+                    // 检查地图是否已初始化完成的回调函数
+                    function () {
+                        return window.map && window.map._container;
+                    },
+                    200, // 检查间隔（毫秒）
+                    300  // 初始延迟（毫秒）
+                );
+            }
+        });
+
+        // 页面卸载时确保清除所有定时器
+        window.addEventListener('beforeunload', function () {
+            if (window.mapLoadingManager) {
+                window.mapLoadingManager.clearAllTimers();
+
+            }
+        });
+    </script>
+
+    <script type="module">
+        import axiosClient from "../../../src/api/ApiManager.js";
+        // 控制类型映射，增加代码可读性
+        const controlTypes = {
+            START: 0,
+            STOP: 1,
+            CANCEL: 2
+        };
+
+        // 操作名称映射，用于日志输出
+        const operationNames = {
+            0: "启动",
+            1: "停止",
+            2: "取消"
+        };
+
+        /**
+         * 车辆控制函数
+         * @param {number} controlType - 控制类型 (0:启动, 1:停止, 2:取消)
+         * @returns {Promise<Object|null>} 返回API响应或null（出错时）
+         */
+        async function vehicleControl(controlType) {
+            const operationName = operationNames[controlType] || `未知操作(${controlType})`;
+
+            try {
+                const response = await axiosClient.post(`ros2/vehicle/${controlType}`);
+                if (response.data.code == 0) {
+                    // cocoMessage.success("启动成功");
+                }
+                return response; // 返回响应数据，方便上层函数处理
+            } catch (error) {
+                console.error(`${operationName}操作失败:`, error);
+                // 可以根据需要添加错误处理逻辑，如重试机制或用户提示
+                return null;
+            }
+        }
+
+        window.start = async function () {
+            const response = await axiosClient.post(`ros2/vehicle/${controlTypes.START}`);
+            if (response.data.code == 0) {
+               
+            } else {
+                cocoMessage.error("启动失败");
+            }
+            return await vehicleControl(controlTypes.START);
+        }
+
+        window.stop = async function () {
+            return await vehicleControl(controlTypes.STOP);
+        }
+
+        window.cancel = async function () {
+            return await vehicleControl(controlTypes.CANCEL);
+        }
+        /**
+         * 设置进度条的百分比
+         * @param {number} percentage - 进度百分比，范围应在 0 到 100 之间
+         */
+        function setProgress(percentage) {
+            // 1. 获取 DOM 元素
+            const progressBar = document.getElementById('myProgressBar');
+            const progressText = document.getElementById('progressText');
+
+            // 2. 确保百分比在 0-100 的范围内
+            if (percentage < 0) percentage = 0;
+            if (percentage > 100) percentage = 100;
+
+            // 3. 更新进度条的宽度和文本内容
+            // 使用setProperty和!important确保样式优先级
+            progressBar.style.setProperty('width', percentage + '%', 'important');
+            progressText.textContent = Math.round(percentage) + '%';
+        }
+        setProgress(70)
+        // 将函数暴露到全局作用域，以便其他脚本可以调用
+        window.setProgress = setProgress;
+
+    </script>
+    <script>
+        // 监听来自父窗口的PostMessage
+        window.addEventListener('message', function(event) {
+            // 检查消息类型
+            if (event.data && event.data.type === 'REFRESH_ROUTE_SELECT') {
+                // 调用refreshRouteSelect函数刷新路线选择框
+                if (typeof refreshRouteSelect === 'function') {
+                    refreshRouteSelect();
+                }
+            }
+        });
+    </script>
+</body>

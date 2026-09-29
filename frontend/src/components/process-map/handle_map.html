@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>二维修图 · 地图工作台</title>
+    <script>if(!new URLSearchParams(location.search).has('embedded'))location.replace('/ui/map-workbench.html'+location.search+'#grid');</script>
+    <style>
+        @import url('css/handle_map.css');
+    </style>
+    <style>
+    body{background:#f2f5f7;color:#172b3a;font-family:'Segoe UI','Microsoft YaHei',sans-serif;padding:16px}
+    .container{padding:0;box-shadow:none;border-radius:0;background:transparent}
+    button{border-radius:6px!important;background:#183547;font:inherit;box-shadow:none!important}
+    button:hover{background:#294c62}.tools button i{display:none}button.active{background:#eb7424!important}
+    input,select,#mapSelector{border:1px solid #d8e1e7!important;border-radius:6px;padding:8px;background:#fff!important;color:#172b3a!important}
+    .panel{border:1px solid #d8e1e7;box-shadow:none!important;border-radius:8px}
+    #recordMap,#topMapRoomBtn,#mapRoomDropdown,#deleteMapBtn{display:none!important}
+    h2,h3{font-size:18px;color:#172b3a!important}#btnDownPGM,#btnDownPNG{background:#eb7424}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="display: flex; gap: 20px;">
+    <button id="recordMap" class="record-map-button">
+        录制3D地图
+    </button>
+    <button id="topMapRoomBtn" class="top-map-button">
+        创建2D地图
+    </button>
+
+    </div>
+    <!-- 3D房间地图下拉区域 -->
+    <div id="mapRoomDropdown" class="map-room-dropdown" style="display: none;">
+        <div class="dropdown-header">
+            <h2>3D房间地图</h2>
+            <h4 style="background-color: rgb(0, 0, 0);">（点击右上角按钮选择文件,看不见点云的话记得改改颜色或者缩放）</h4>
+            <button class="close-dropdown" title="收起">▲</button>
+        </div>
+        <div class="dropdown-content">
+            <iframe id="mapRoomFrame" src="../../components/pcd-loader/PCDLoader.html"></iframe>
+        </div> 
+    </div>
+    <div >
+        <div style="display: none;" class="file-upload">
+            <label for="pgmFile">点击选择PGM文件</label>
+            <input type="file" id="pgmFile" accept=".pgm">
+        </div>
+        <div class="tooltip">
+            <div class="status-message" id="statusMessage"></div>
+            <span class="tooltiptext">仅支持P5格式的PGM文件</span>
+        </div>
+
+        <div style="display: none;" class="instructions">
+            <h3>使用说明</h3>
+            <ul>
+                <li><span class="highlight">上传PGM文件</span> - 仅支持P5格式的PGM文件</li>
+                <li><span class="highlight">钢笔工具</span> - 支持多边形和矩形选区</li>
+                <li><span class="highlight">画笔工具</span> - 使用黑色或白色画笔编辑图像</li>
+                <li><span class="highlight">箭头工具</span> - 添加标注箭头到图像</li>
+                <li><span class="highlight">拖拽模式</span> - 点击按钮进入拖拽模式，可自由移动图像</li>
+                <li><span class="highlight">任务模式</span> - 用红色矩形框选区域并添加到任务队列</li>
+                <li><span class="highlight">小手工具</span> - 点击任务区域按点击顺序排序</li>
+                <li><span class="highlight">缩放功能</span> - 使用缩放工具调整图像大小</li>
+                <li><span class="highlight">清除功能</span> - 完全恢复原始图像，移除所有编辑痕迹</li>
+                <li><span class="highlight">生成抠图</span> - 根据路径或编辑区域生成抠图</li>
+                <li><span class="highlight">任务队列</span> - 可拖拽排序任务，点击任务跳转到对应区域</li>
+            </ul>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel" style="margin-bottom: 15px;">
+            <h3 style="color: #3498db; margin-bottom: 15px;">二维栅格编辑</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <select id="mapSelector" disabled style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #3498db; background: rgba(40, 44, 52, 0.8); color: #f0f0f0;">
+                    <option value="" disabled selected>请选择地图</option>
+                </select>
+                <button id="reloadMapsBtn">
+                    <i></i> 重新加载
+                </button>
+                <button id="deleteMapBtn" style="padding: 10px 15px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    <i>🗑️</i> 删除
+                </button>
+            </div>
+            <div id="subFilesContainer" style="margin-top: 10px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="color: #3498db; margin: 0;">子文件/目录</h4>
+                    <button  id="refreshSubFilesBtn" style="padding: 5px 10px; font-size: 0.9rem; display: none;">
+                        <i>🔄</i> 刷新
+                    </button>
+                </div>
+                <div id="subFilesList" class="sub-files-list"></div>
+            </div>
+        </div>
+        <div class="hand-mode-instruction" id="handModeInstruction">
+            小手模式已激活：请点击任务区域进行排序（第一个点击的任务将标记为任务1，第二个为任务2，依此类推）
+        </div>
+        <div class="hand-mode-preview" id="handModePreview" style="display: none;">
+            当前顺序: <span id="sequencePreview">未选择</span>
+        </div>
+        <div class="drawing-mode-hint">
+            <i>💡</i>
+            <span id="toolHint">提示：在钢笔模式下，点击添加多边形点，双击闭合路径；或拖拽绘制矩形选区</span>
+        </div>
+        <div class="canvas-container">
+            <div class="zoom-controls">
+                <button id="btnZoomOut" title="缩小">➖</button>
+                <button id="btnResetZoom" title="重置缩放">100%</button>
+                <button id="btnZoomIn" title="放大">➕</button>
+                <div class="zoom-display" id="zoomDisplay">100%</div>
+            </div>
+            <div class="drag-hint" id="dragHint">拖拽模式已激活</div>
+            <div class="point-highlight" id="pointHighlight"></div>
+            <canvas id="imageCanvas"></canvas>
+            <canvas id="drawCanvas"></canvas>
+            <canvas id="overlayCanvas" class="canvas-overlay"></canvas>
+            <!-- 任务区域高亮显示容器 -->
+            <div id="taskHighlightContainer"></div>
+            <!-- 触摸反馈元素 -->
+            <div class="touch-indicator" id="touchIndicator"></div>
+            <div class="pinch-indicator" id="pinchIndicator"></div>
+            <div class="touch-feedback" id="touchFeedback"></div>
+        </div>
+
+        <div class="tools">
+            <button id="btnPen" ><i>✒</i> 钢笔工具</button>
+            <button id="btnBrush" ><i>🖌</i> 画笔工具</button>
+            <button id="btnArrow" class="arrow-mode" style="display: none;"><i>➜</i> 箭头工具</button>
+            <button id="btnPerpendicular" ><i>┼</i> 垂直平分线</button>
+            <button id="btnDrag"><i>✥</i> 拖拽模式 <span class="mode-indicator"></span></button>
+            <button id="btnTask"  style="display: none;"><i>📋</i> 任务模式 <span class="mode-indicator"></span></button>
+            <button style="display: none;" id="btnHand" class="hand-mode"><i>👆</i> 小手工具 <span class="mode-indicator"></span></button>
+            <button id="btnUndo" disabled><i>↩</i> 撤销</button>
+            <button id="btnClear"><i>🗑</i> 清除编辑</button>
+            <button id="btnCut" ><i>✂</i> 生成抠图</button>
+        </div>
+
+        <div class="brush-tools">
+            <span>填充颜色:</span>
+            <div class="color-btn black-color active" data-color="black" title="黑色画笔"></div>
+            <div class="color-btn white-color" data-color="white" title="白色画笔"></div>
+            <span>画笔大小:</span>
+            <input type="range" id="brushSize" min="1" max="30" value="5">
+            <span id="brushSizeValue">5px</span>
+        </div>
+        <div class="task-queue" style="display: none;" id="taskQueue">
+            <div class="task-queue-header">
+                <div class="task-queue-title">任务队列 (可拖拽排序)</div>
+                <div class="task-queue-count" id="taskCount">0</div>
+            </div>
+            <div class="task-queue-empty" id="taskQueueEmpty">暂无任务，请在任务模式下用红色矩形框选区域</div>
+            <div id="taskItems"></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>结果预览</h2>
+        <div class="result-container" id="resultContainer">
+            <p class="result-placeholder">上传PGM文件并编辑后点击"生成抠图"按钮</p>
+        </div>
+        <div class="tools">
+            <button id="btnDownPNG"><i>📥</i> 另存地图</button>
+            <button id="btnDownPGM"><i>📥</i> 覆盖当前地图</button>
+        </div>
+    </div>
+
+
+</div>
+<script src="../../../src/libs/axios.min.js"></script>
+ <script src="../../../src/api/ApiManager-traditional.js"></script>
+ <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
+ <script src="../../../src/api/api-simple.js"></script>
+<script src="js/handle_map.js?v=workbench-2"></script>
+</body>
+</html>

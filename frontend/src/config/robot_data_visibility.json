@@ -1,0 +1,278 @@
+{
+  "settings": {
+    "description": "机器人参数显示/隐藏配置文件",
+    "version": "1.0.0"
+  },
+  "parameters": {
+    "basic_config": {
+      "model": {
+        "id": "model",
+        "label": "车型选择",
+        "visible": false,
+        "description": "选择机器人车型"
+      },
+      "controlModel": {
+        "id": "controlModel",
+        "label": "控制模式",
+        "visible": false,
+        "description": "选择控制模式"
+      },
+      "navigationMode": {
+        "id": "navigationMode",
+        "label": "导航模式",
+        "visible": false,
+        "description": "选择导航模式"
+      }
+    },
+    "motion_parameters": {
+      "maxSpeed": {
+        "id": "maxSpeed",
+        "label": "最大速度",
+        "visible": true,
+        "description": "最大行驶速度"
+      },
+      "acceleration": {
+        "id": "acceleration",
+        "label": "最大加速度",
+        "visible": false,
+        "description": "最大加速度限制"
+      },
+      "deceleration": {
+        "id": "deceleration",
+        "label": "最大减速度",
+        "visible": false,
+        "description": "最大减速度限制"
+      }
+    },
+    "remote_config": {
+      "x1": {
+        "id": "x1",
+        "label": "遥控器X1",
+        "visible": false,
+        "description": "遥控器X轴输入1"
+      },
+      "y1": {
+        "id": "y1",
+        "label": "遥控器Y1",
+        "visible": false,
+        "description": "遥控器Y轴输入1"
+      },
+      "x2": {
+        "id": "x2",
+        "label": "遥控器X2",
+        "visible": false,
+        "description": "遥控器X轴输入2"
+      },
+      "y2": {
+        "id": "y2",
+        "label": "遥控器Y2",
+        "visible": false,
+        "description": "遥控器Y轴输入2"
+      },
+      "remoteAutoSwitch": {
+        "id": "remoteAutoSwitch",
+        "label": "遥控/自动切换",
+        "visible": false,
+        "description": "遥控器与自动模式切换"
+      }
+    },
+    "thruster_config": {
+      "initpropeller": {
+        "id": "initpropeller",
+        "label": "初始推进器增益",
+        "visible": false,
+        "description": "推进器初始增益系数"
+      },
+      "dirpropeller": {
+        "id": "dirpropeller",
+        "label": "推进器增益方向",
+        "visible": false,
+        "description": "推进器增益方向设置"
+      },
+      "leftPropulsion": {
+        "id": "leftPropulsion",
+        "label": "左推进器开关",
+        "visible": false,
+        "description": "左推进器比例控制"
+      },
+      "rightPropulsion": {
+        "id": "rightPropulsion",
+        "label": "右推进器开关",
+        "visible": false,
+        "description": "右推进器比例控制"
+      }
+    },
+    "turn_thresholds": {
+      "rotation": {
+        "id": "rotation",
+        "label": "转角阈值",
+        "visible": true,
+        "description": "转弯角度触发阈值"
+      }
+    },
+    "tolerance_parameters": {
+      "proportion": {
+        "id": "proportion",
+        "label": "比例系数",
+        "visible": false,
+        "description": "比例系数设置"
+      },
+      "xygoaltolerance": {
+        "id": "xygoaltolerance",
+        "label": "xy目标点容差",
+        "visible": false,
+        "description": "xy坐标目标点容差设置"
+      },
+      "xymiddletolerance": {
+        "id": "xymiddletolerance",
+        "label": "xy中间点容差",
+        "visible": false,
+        "description": "xy坐标中间点容差设置"
+      },
+      "yawgoaltolerance": {
+        "id": "yawgoaltolerance",
+        "label": "yaw目标点容差",
+        "visible": false,
+        "description": "yaw角度目标点容差设置"
+      }
+    },
+    "speed_parameters": {
+      "minSpeed": {
+        "id": "minSpeed",
+        "label": "最小速度",
+        "visible": true,
+        "description": "最小行驶速度限制"
+      }
+    },
+    "map_origin": {
+      "longitude": {
+        "id": "longitude",
+        "label": "地图原点经度",
+        "visible": true,
+        "description": "地图坐标系原点经度"
+      },
+      "latitude": {
+        "id": "latitude",
+        "label": "地图原点纬度",
+        "visible": true,
+        "description": "地图坐标系原点纬度"
+      }
+    },
+    "sampling_config": {
+      "getRobotMsgmsg": {
+        "id": "getRobotMsgmsg",
+        "label": "采样间隔",
+        "visible": false,
+        "description": "数据采集间隔时间"
+      },
+      "carRunSpeed": {
+        "id": "carRunSpeed",
+        "label": "运行速度",
+        "visible": false,
+        "description": "正常运行速度"
+      },
+      "vvwk": {
+        "id": "vvwk",
+        "label": "自转角速度系数",
+        "visible": false,
+        "description": "自转角速度系数设置"
+      },
+      "safetyParameters": {
+        "id": "safetyParameters",
+        "label": "辅助安全防护参数",
+        "visible": false,
+        "description": "安全防护参数设置"
+      }
+    },
+    "run_mode": {
+      "runmode": {
+        "id": "runmode",
+        "label": "运行模式",
+        "visible": false,
+        "description": "机器人运行模式选择"
+      },
+      "closetrack": {
+        "id": "closetrack",
+        "label": "履带开关",
+        "visible": false,
+        "description": "履带系统开关状态"
+      },
+      "avoidtrack": {
+        "id": "avoidtrack",
+        "label": "避障开关",
+        "visible": true,
+        "description": "避障系统开关状态"
+      }
+    },
+    "vehicle_geometry": {
+      "wheelBase": {
+        "id": "wheelBase",
+        "label": "轮距",
+        "visible": true,
+        "description": "车轮轮距设置"
+      }
+    },
+    "lidar_extrinsics": {
+      "lidar-x": {
+        "id": "lidar-x",
+        "label": "X偏移",
+        "visible": false,
+        "description": "激光雷达X轴偏移量"
+      },
+      "lidar-y": {
+        "id": "lidar-y",
+        "label": "Y偏移",
+        "visible": false,
+        "description": "激光雷达Y轴偏移量"
+      },
+      "lidar-z": {
+        "id": "lidar-z",
+        "label": "Z偏移",
+        "visible": false,
+        "description": "激光雷达Z轴偏移量"
+      },
+      "lidar-yaw": {
+        "id": "lidar-yaw",
+        "label": "偏航角",
+        "visible": false,
+        "description": "激光雷达偏航角度"
+      },
+      "lidar-pitch": {
+        "id": "lidar-pitch",
+        "label": "俯仰角",
+        "visible": false,
+        "description": "激光雷达俯仰角度"
+      },
+      "lidar-roll": {
+        "id": "lidar-roll",
+        "label": "横滚角",
+        "visible": false,
+        "description": "激光雷达横滚角度"
+      },
+      "lidarScanDistance": {
+        "id": "lidarScanDistance",
+        "label": "激光雷达扫描距离",
+        "visible": false,
+        "description": "激光雷达扫描距离设置"
+      },
+      "forkliftRaisedWheelbase": {
+        "id": "forkliftRaisedWheelbase",
+        "label": "叉车升起轴距",
+        "visible": false,
+        "description": "叉车升起时的轴距"
+      },
+      "forkliftLoweredWheelbase": {
+        "id": "forkliftLoweredWheelbase",
+        "label": "叉车落下轴距",
+        "visible": false,
+        "description": "叉车落下时的轴距"
+      },
+      "iimtw": {
+        "id": "iimtw",
+        "label": "极限角速度",
+        "visible": false,
+        "description": "极限角速度"
+      }
+    }
+  }
+}

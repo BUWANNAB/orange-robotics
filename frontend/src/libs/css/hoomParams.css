@@ -1,0 +1,62 @@
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      
+      /* 替换 .btn-hover */
+      .btn-hover {
+        transition-property: transform;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+      }
+      .btn-hover:hover {
+        transform: scale(1.05);
+      }
+      
+      /* 替换 .card-shadow */
+      .card-shadow {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transition-property: box-shadow;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+      }
+      .card-shadow:hover {
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+      
+      /* 替换 .modal-backdrop */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0px;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        opacity: 0;
+        pointer-events: none;
+        transition-property: opacity;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+      }
+      .modal-backdrop.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      
+      /* 替换 .modal-content */
+      .modal-content {
+        background-color: white;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 28rem;
+        transform: scale(0.95);
+        transition-property: transform;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+      }
+      .modal-backdrop.active .modal-content {
+        transform: scale(1);
+      }
+    }

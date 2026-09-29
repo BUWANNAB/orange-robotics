@@ -1,0 +1,75 @@
+.flicker-box {
+	width: 100px;
+	height: 47px;
+	display: flex;
+	align-items: center;
+	margin-right: 20px;
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 20px;
+	padding: 10px;
+	text-align: center;
+	border: 1px solid transparent;
+	
+	-webkit-user-select:none;/*webkit浏览器 */
+	-moz-user-select:none;/*火狐*/ 
+	-ms-user-select:none;/*IE10*/ 
+	user-select:none;
+}
+
+.flicker-box:hover {
+	border-color: #444;
+}
+
+.flicker-box-ing {
+	/* display: none; */
+}
+
+.point {
+	width: 14px;
+	height: 14px;
+	background-color: #ff557f;
+	position: absolute;
+	border-radius: 50%;
+}
+
+/* 设置动画前颜色 */
+.point-flicker:after {
+	background-color: #ff557f;
+}
+
+/* 设置动画后颜色 */
+.point-flicker:before {
+	background-color: rgba(0, 168, 253, 0.2);
+}
+
+/* 设置动画 */
+.point-flicker:before,
+.point-flicker:after {
+	content: '';
+	width: 24px;
+	height: 24px;
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	margin-left: -12px;
+	margin-top: -12px;
+	border-radius: 50%;
+	animation: warn 1s ease-out 0s infinite;
+}
+
+@keyframes warn {
+	0% {
+		transform: scale(0.5);
+		opacity: 1;
+	}
+
+	30% {
+		transform: scale(0.7);
+		opacity: 1;
+	}
+
+	100% {
+		transform: scale(1.4);
+		opacity: 0;
+	}
+}

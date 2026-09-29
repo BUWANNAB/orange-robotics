@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROS2 Map Viewer</title>
+  <script src="../../tools/roslibjs/build/roslib.min.js"></script>
+  <style>
+    button {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>ROS2 Map Viewer</h1>
+  <button id="drawRectangleButton">开启矩形绘制</button>
+  <button id="clearRectanglesButton">清除矩形</button>
+  <button id="rotatePlusButton">增加旋转角度</button>
+  <button id="rotateMinusButton">减少旋转角度</button>
+  <button id="publishDataButton">发布数据</button>
+  <button id="poseArrowButton">开始设置位姿箭头</button>
+  <button id="poseinitButton">开始设置初始值位置</button>
+  <button id="printMarkersButton">打印标记数组</button>
+  <button id="markButton">开始标记</button>
+  <button id="undoButton">撤回标记</button> <!-- 新增撤回按钮 -->
+  <p id="positionInfo">Click on the map to get the position.</p>
+  <p id="rectangleInfo"></p>
+  <canvas id="mapCanvas" width="1920" height="960"></canvas>
+
+
+</body>
+<script src="./js/mapRoom.js"></script>
+</html>    

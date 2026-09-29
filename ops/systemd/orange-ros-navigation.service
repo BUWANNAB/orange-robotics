@@ -1,0 +1,19 @@
+[Unit]
+Description=Orange localization and navigation
+BindsTo=orange-ros-core.service
+After=orange-ros-core.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/orange-agv/runtime.env
+ExecStart=/usr/bin/bash %h/.config/orange-agv/ros-service.sh navigation
+KillMode=control-group
+KillSignal=SIGINT
+TimeoutStopSec=25
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

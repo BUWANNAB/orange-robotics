@@ -1,0 +1,13 @@
+# Source inventory for the Orange Robotics ROS workspace.
+# Original workstation paths are intentionally omitted.
+ros/orange_nav_ws/src/drivers/livox_ros_driver2 <- Livox ROS Driver 2
+ros/orange_nav_ws/src/mapping/lio_sam <- LIO-SAM-MID360
+ros/orange_nav_ws/src/mapping/build_map_manager <- build_map_manager
+ros/orange_nav_ws/src/localization/ndt_omp_ros2 <- ndt_omp_ros2
+ros/orange_nav_ws/src/localization/lidar_localization_ros2 <- lidar_localization_ros2
+ros/orange_nav_ws/src/navigation/tf_to_pose <- tf_to_pose
+ros/orange_nav_ws/src/navigation/vehicle_navigation <- vehicle_navigation
+ros/orange_nav_ws/src/hardware/ros2plc <- ros2plc
+ros/orange_nav_ws/src/mapping/parameter_server <- parameter_server
+ros/orange_nav_ws/src/mapping/pcd2pgm <- pcd2pgm
+archive/hardware_bind_lib <- hardware_bind_lib

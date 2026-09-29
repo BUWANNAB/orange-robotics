@@ -1,0 +1,22 @@
+{
+  "mode": "ros2",
+  "available_modes": [
+    {
+      "value": "ros1",
+      "label": "ROS1",
+      "description": "使用ROS1通信协议"
+    },
+    {
+      "value": "ros2",
+      "label": "ROS2",
+      "description": "使用ROS2通信协议"
+    },
+    {
+      "value": "ws",
+      "label": "WebSocket",
+      "description": "使用WebSocket通信"
+    }
+  ],
+  "auto_detect": true,
+  "last_updated": ""
+}

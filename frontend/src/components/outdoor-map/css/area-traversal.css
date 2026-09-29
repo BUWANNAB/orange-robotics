@@ -1,0 +1,519 @@
+ 
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            font-family: "Microsoft YaHei";
+            overflow: hidden;
+            /* 隐藏所有滚动条 */
+        }
+
+        .bottomBox {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+        }
+
+        /* #saveButton,
+        #dragButton,
+        #editButton {
+            padding: 8px 12px;
+            margin: 4px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            cursor: pointer;
+        } */
+
+        .leaflet-tooltip {
+            border: 1px solid black;
+            font-size: 8px;
+            color: red;
+            border-radius: 3px;
+            white-space: nowrap;
+            font-weight: bolder;
+        }
+
+        .leaflet-tooltip.station-label {
+            opacity: 1;
+            transition: opacity 0.2s ease;
+            pointer-events: auto;
+            /* 确保工具提示可以接收鼠标事件 */
+        }
+
+        .leaflet-tooltip.station-label:hover {
+            opacity: 0 !important;
+        }
+
+        .starDrag {
+            display: none;
+        }
+
+        .leaflet-tooltip-right {
+            margin-top: 1px;
+            margin-left: 5px
+        }
+
+        #mapDiv {
+            width: 100%;
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            /* 隐藏所有滚动条 */
+        }
+
+        input,
+        b,
+        p {
+            margin-left: 5px;
+            font-size: 14px;
+        }
+
+        select option {
+            text-align: left;
+        }
+
+        #mousePosition {
+            position: absolute;
+            right: 0;
+            top: 0;
+            z-index: 1000;
+        }
+
+        #coordinatesCarPos {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 20px;
+            z-index: 1000;
+        }
+
+        .route_choose {
+            display: none;
+        }
+
+        .editorLine {
+            display: none;
+        }
+
+        #buttonContainer {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            box-sizing: border-box;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        #buttonContainer button {
+            flex: none;
+            box-sizing: border-box;
+            margin: 0px;
+            font-size: 12px;
+            /* width: 151px; */
+            min-width: 80px;
+        }
+
+        .contentBox {
+            height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow-y: hidden;
+            /* 隐藏Y轴滚动条 */
+            /* 针对Webkit浏览器（Chrome, Safari等） */
+            scrollbar-width: none;
+            /* 针对Firefox */
+            -ms-overflow-style: none;
+            /* 针对IE和Edge */
+        }
+        
+        /* 针对Webkit浏览器（Chrome, Safari等）隐藏滚动�?*/
+        .contentBox::-webkit-scrollbar {
+            display: none;
+        }
+
+        .form-select {
+            text-align: center;
+            align-items: center;
+            min-width: 100px;
+            max-width: 200px;
+        }
+
+        #coordinatesCarPos {
+            display: none;
+        }
+
+        .icon-right {
+            position: absolute;
+            right: 0;
+            height: calc(100vh - 120px);
+            top: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            /* 保留滚动功能但隐藏滚动条 */
+            align-items: end;
+            z-index: 999;
+            -ms-overflow-style: none;
+            /* Internet Explorer 10+ */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+        
+        /* 针对Webkit浏览器（Chrome, Safari等）隐藏滚动�?*/
+        .icon-right::-webkit-scrollbar {
+            display: none;
+        }
+
+        .icon-right div {
+            margin-top: 8px;
+        }
+
+        /* 针对小屏幕设备的适配 */
+        @media (max-width: 768px) {
+
+            /* 可以根据需要调整这个�?*/
+            .icon-right div {
+                margin-top: 5px;
+            }
+            
+            /* 调整小屏幕下icon-right的高度，避免被底部workAction遮挡 */
+            .icon-right {
+                height: calc(100vh - 150px);
+            }
+            
+            #buttonContainer button {
+                flex: none;
+                box-sizing: border-box;
+                margin: 0px;
+                font-size: 12px;
+                width: 110px; 
+                min-width: 80px;
+            }
+        }
+
+        /* 针对极小屏幕设备的适配 */
+        @media (max-width: 480px) {
+
+            /* 可以根据需要调整这个�?*/
+            .icon-right div {
+                margin-top: 3px;
+            }
+            
+            /* 调整极小屏幕下icon-right的高度，避免被底部workAction遮挡 */
+            .icon-right {
+                height: calc(100vh - 180px);
+            }
+        }
+        .container-editLine,
+        .container-editPositon,
+        .container-savelocation,
+        .container-showhide,
+        .container-add,
+        .container-update,
+        .container-imag,
+        .container-callback,
+        .container-plan,
+        .container-clear,
+        .container-edit,
+        .container-delete,
+        .container-disedit,
+        .container-location {
+            display: flex;
+        }
+
+        /* select :nth-child(1) {
+            text-align: center;
+        } */
+
+        select option {
+            text-align: left;
+            /* 选项文本靠左 */
+        }
+
+        .text-editLine {
+            height: 30px;
+        }
+
+        /* 取消按钮的样�?*/
+        .cancelBtn {
+            display: block;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: #7e0909;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+
+        /* 图片样式 */
+        .icon-right img {
+            width: 30px;
+            /* 默认宽度 */
+            height: auto;
+            transition: opacity 0.5s ease;
+        }
+
+        /* 针对小屏幕设备的适配 */
+        /* 针对小屏幕设备的适配 */
+        @media (max-width: 768px) {
+
+            /* 可以根据需要调整这个�?*/
+            .icon-right img {
+                width: 30px;
+                /* 在小屏幕上增加图片宽�?*/
+            }
+
+            .icon-right {
+                font-size: 12px;
+                overflow-y: auto;
+                position: absolute;
+                right: 0;
+                height: 70vh;
+                top: 10px;
+                display: flex;
+                flex-direction: column;
+                align-items: end;
+                z-index: 999;
+            }
+
+            #buttonContainer button {
+                flex: none;
+                box-sizing: border-box;
+                margin: 0px;
+                font-size: 12px;
+                min-width: 80px;
+            }
+
+            .form-select {
+                text-align: center;
+                align-items: center;
+                min-width: 60px;
+                /* max-width: 61px; */
+                max-width: none;
+            }
+        }
+
+
+        /* 默认隐藏的文�?*/
+        .text-editLine,
+        .text-editPositon,
+        .text-savelocation,
+        .text-showhide,
+        .text-container,
+        .text-update,
+        .text-callback,
+        .text-clear,
+        .text-add,
+        .text-edit,
+        .text-delete,
+        .text-disedit,
+        .text-planRoute,
+        .text-location {
+            display: none;
+            /* 使用display:none;代替visibility:hidden;*/
+        }
+
+        /* 当鼠标悬停在.container上时，显示文�?*/
+        .container-imag:hover .text-container,
+        .container-plan:hover .text-planRoute,
+        .container-callback:hover .text-callback,
+        .container-update:hover .text-update,
+        .container-clear:hover .text-clear,
+        .container-edit:hover .text-edit,
+        .container-delete:hover .text-delete,
+        .container-disedit:hover .text-disedit,
+        .container-location:hover .text-location,
+        .container-savelocation:hover .text-savelocation,
+        .container-editPositon:hover .text-editPositon,
+        .container-add:hover .text-add,
+
+        .container-showhide:hover .text-showhide {
+            display: block;
+            /* 修改为display:block以显示文�?*/
+        }
+
+        .container-editLine:hover .text-editLine {
+            display: block;
+            /* 修改为display:block以显示文�?*/
+            box-sizing: border-box;
+        }
+
+        /* 新增：选中状态下边框变蓝 */
+        .selected-image-container {
+            border: 2px solid rgb(0, 26, 255);
+        }
+
+        .container-showhide:hover .text-showhide {
+            display: block;
+        }
+
+        .disPlaynoe,
+        .editorDisplay {
+            display: none;
+        }
+
+        .info-box {
+            position: absolute;
+            z-index: 999;
+            background: white;
+            padding: 12px;
+            border: 2px solid #ea580c;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            min-width: 220px;
+            /* 扩大最小宽�?*/
+            display: none;
+            padding: 16px;
+        }
+
+        .leaflet-marker-pane .last-marker {
+            z-index: -100 !important;
+        }
+
+        .info-box::after {
+            content: "";
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            margin-left: -10px;
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: #ea580c transparent transparent;
+        }
+
+
+        .info-box select {
+            margin: 8px 0;
+            padding: 6px;
+            width: 100%;
+        }
+
+        input,
+        b,
+        p {
+            width: 42px;
+            margin-left: 5px;
+            font-size: 14px;
+        }
+
+        .currentDiv {
+            display: flex;
+            align-items: center;
+            justify-content: space-evenly;
+        }
+
+        #saveStation {
+            display: block;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: #ea580c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .new-special-point-label {
+            /* display: none; */
+        }
+
+        .currentRouteStyle {
+            display: none;
+        }
+
+
+       /* 抽屉 */
+               /* 自定义抽屉样�?*/
+        .custom-drawer {
+          position: fixed;
+          top: 0;
+          right: -400px;
+          width: 400px;
+          height: 100%;
+          background-color: white;
+          box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+          transition: right 0.3s ease-in-out;
+          z-index: 1050;
+          overflow-y: auto;
+        }
+        
+        .custom-drawer.open {
+          right: 0;
+        }
+        
+        /* 页面内容容器样式 */
+        .page-content {
+          transition: margin-right 0.3s ease-in-out;
+        }
+        
+        .page-content.shifted {
+          margin-right: 400px;
+        }
+        
+        /* 抽屉内容样式 */
+        .drawer-content {
+          padding: 20px;
+        }
+        
+        .drawer-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-bottom: 15px;
+          border-bottom: 1px solid #dee2e6;
+        }
+        
+        .drawer-body {
+          margin-top: 20px;
+        }
+        
+        .btn-open-drawer {
+          position: fixed;
+          right: 20px;
+          bottom: 20px;
+          z-index: 100;
+        }
+
+        /* 站点编辑 */
+        .stationPage{
+            height: 80vh;
+        }
+
+        .list-container {
+        max-height: 400px;
+        overflow-y: auto;
+        }
+        
+        .list-group-item {
+        transition: all 0.3s ease;
+        }
+        
+        .list-group-item.deleting {
+        opacity: 0;
+        transform: translateX(50px);
+        }
+        
+        .filter-container {
+        margin-bottom: 1.5rem;
+        }
+
+        .drawer-header{
+            padding:20px
+        }
+        
+        /* 启动运行的样�?
+         */
+        .workAction{
+           background: rgba(255, 255, 255, 0);
+           position: relative;
+           bottom: 0px;
+           z-index: 10000;
+           width: 100vw;
+        }

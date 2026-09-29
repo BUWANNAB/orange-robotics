@@ -1,0 +1,34 @@
+/**:
+  ros__parameters:
+    # --- 前瞻与跟踪参数 (Regulated Pure Pursuit) ---
+    lookahead_dist: 1.2          # 基础前瞻距离 (m)
+    min_lookahead_dist: 0.6      # 最小前瞻距离 (m)
+    max_lookahead_dist: 2.0      # 最大前瞻距离 (m)
+    lookahead_time: 1.2          # 动态前瞻时间 (s), L = clamp(v * lookahead_time, min, max)
+    wheel_base: 0.8              # 轴距/轮距 (m)
+
+    # --- 速度限制 ---
+    max_velocity: 1.0            # 最大前进速度 (m/s)
+    min_velocity: 0.15           # 曲线巡航保底速度 (m/s)，起步参考速度，不覆盖曲率/进站限速
+    angular_velocity_limit: 0.6  # 最大角速度 (rad/s)
+    min_angular_velocity: 0.08   # 最小自转角速度 (rad/s)
+
+    # --- 平滑加减速控制 (加速度与 jerk 限制) ---
+    max_linear_jerk: 0.8        # m/s^3, normal tracking only
+    max_angular_jerk: 1.6       # rad/s^3
+    max_linear_accel: 0.6        # 最大线加速度 (m/s^2)，平滑起步不顿挫
+    max_linear_decel: 0.8        # 最大线减速度 (m/s^2)，平缓刹车不点头
+    max_angular_accel: 1.2       # 最大角加速度 (rad/s^2)，平滑转向不甩尾
+    max_lateral_accel: 0.5       # 最大横向向心加速度 (m/s^2)，遇弯自适应降速
+
+    # --- 容差与模式切换 ---
+    xy_goal_tolerance: 0.05      # 终点到达容差 (m)
+    xy_middle_tolerance: 0.25    # 中间航点过渡容差 (m)
+    yaw_goal_tolerance: 2.0      # 航向对齐容差 (度)
+    proportion: 1.2              # 转向增益系数
+    spin_angle_threshold: 60.0   # 原地自转角度阈值 (度)，小于此夹角全程弧线连续通过，绝不停车
+
+    # --- 定位偏移与授权 ---
+    pose_offset_x_: 0.0
+    pose_offset_y_: 0.0
+    authorized_hardware_id: 'c86dd31a0fc1d8187ebc942407b3dff9'

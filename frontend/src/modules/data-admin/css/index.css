@@ -1,0 +1,257 @@
+/* 数据管理页样式：与数据下载页保持同一套扁平风格 */
+
+body {
+  background: #f4f5f7;
+  padding: 12px;
+  font-family: "Microsoft YaHei", "Titillium Web", sans-serif;
+  color: #333;
+}
+
+.da-page {
+  max-width: 1400px;
+}
+
+/* 实体标签页 */
+.da-tabs {
+  border-bottom: 2px solid #dfe2e8;
+  margin-bottom: 10px;
+}
+
+.da-tabs .nav-link {
+  font-size: 13px;
+  color: #555;
+  border: none;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.da-tabs .nav-link:hover {
+  color: #3f51b5;
+  background: #f0f2fa;
+}
+
+.da-tabs .nav-link.active {
+  color: #3f51b5;
+  font-weight: 700;
+  background: #fff;
+  border-bottom: 2px solid #3f51b5;
+  margin-bottom: -2px;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #dfe2e8;
+  border-radius: 3px;
+  padding: 12px 14px;
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+.da-filter-col {
+  width: auto;
+  min-width: 150px;
+  flex: 0 0 auto;
+}
+
+.da-filter-kw {
+  width: 220px;
+  flex: 0 0 auto;
+}
+
+.da-inline-check {
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  margin: 0 6px 0 0;
+}
+
+/* 说明条 */
+.meta-hint {
+  font-size: 12px;
+  color: #7a7f87;
+  line-height: 1.6;
+  background: #f7f8fb;
+  border: 1px solid #e6e9f0;
+  border-radius: 3px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.meta-hint code {
+  color: #3f51b5;
+  background: #eef1fb;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+/* 表格 */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e6e9f0;
+  border-radius: 3px;
+}
+
+.da-table {
+  margin-bottom: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.da-table thead th {
+  background: #f3f5f9;
+  color: #555;
+  font-weight: 700;
+  font-size: 12px;
+  border-bottom: 1px solid #e0e4ec;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.da-table td {
+  vertical-align: middle;
+}
+
+/* 只读列的表头加个淡标记 */
+.da-table thead th.ro::after {
+  content: "只读";
+  font-size: 10px;
+  font-weight: 400;
+  color: #aab;
+  margin-left: 4px;
+}
+
+.da-col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.da-cell-empty {
+  color: #bbb;
+}
+
+/* 分页 */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.pager-info {
+  color: #666;
+  font-size: 13px;
+}
+
+.da-page-size {
+  width: auto;
+  margin-left: auto;
+}
+
+/* 明细区 */
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.detail-title {
+  font-size: 14px;
+  font-weight: 700;
+  border-left: 3px solid #3f51b5;
+  padding-left: 8px;
+}
+
+.detail-note {
+  font-size: 12px;
+  color: #8a8f98;
+}
+
+/* 表单 */
+.form-msg {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.form-msg.error {
+  color: #b3261e;
+}
+
+.form-row-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.req-mark {
+  color: #d93025;
+  margin-left: 2px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: #9aa0a8;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.ro-value {
+  font-size: 13px;
+  color: #666;
+  padding: 4px 0;
+  word-break: break-all;
+}
+
+/* 已删除行 */
+tr.row-deleted td {
+  background: #fff5f5;
+  color: #999;
+}
+
+/* 模拟数据 / 后端不可达 横幅 */
+.mock-banner {
+  font-size: 12.5px;
+  line-height: 1.7;
+  background: #fff8e1;
+  border: 1px solid #ffe0a3;
+  border-left: 4px solid #f0a500;
+  border-radius: 3px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  color: #7a5c00;
+}
+
+.mock-banner code {
+  background: #fff;
+  border: 1px solid #ffe0a3;
+  border-radius: 2px;
+  padding: 0 3px;
+  color: #a06000;
+}
+
+.mock-banner-hint {
+  background: #fff0f0;
+  border-color: #ffc9c9;
+  border-left-color: #d93025;
+  color: #a3261e;
+}
+
+.mock-banner-hint code {
+  border-color: #ffc9c9;
+  color: #a3261e;
+}

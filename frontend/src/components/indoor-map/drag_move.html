@@ -1,0 +1,3926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title></title>
+    <link rel="stylesheet" href="../../libs/css/leaflet.css" />
+    <script src="../../libs/jquery-3.1.0.min.js"></script>
+    <script src="../../libs/coco-message.js"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" href="../../libs/bootstrap/css/bootstrap.min.css" />
+    <script src="../../libs/bootstrap/js/popper.min.js"></script>
+    <script src="../../libs/bootstrap/js/bootstrap.min.js"></script>
+    <!-- bootstrap-switch-->
+    <link href="../../libs/bootstrap/css/bootstrap-switch.min.css" rel="stylesheet">
+    <script src="../../libs/bootstrap/js/bootstrap-switch.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="../../libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Bundle JS (includes Popper) -->
+    <script src="../../libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="./css/drag_move.css?v=map-resize-20260909">
+    <link rel="stylesheet" href="./css/segment_speed.css?v=20260923">
+    <link rel="stylesheet" href="./css/radar_drawer.css?v=20260924">
+</head>
+<body>
+    <div class="main-container">
+        <!-- 左侧地图 -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        <!-- 地图占比拖拽分隔条（桌面/横屏平板启用，竖屏隐藏） -->
+        <div class="resize-handle" id="resizeHandle" role="separator" aria-orientation="vertical"
+            aria-label="拖拽调整地图占比，双击恢复默认" title="拖拽调整地图占比 · 双击恢复默认"></div>
+        <!-- 右侧控制面板 -->
+        <div class="controls-container">
+            <button class="toggle-controls-btn collapsed" id="toggleControlsBtn" aria-controls="controlsPanel"
+                aria-expanded="false" onclick="toggleControls()">
+                <span class="toggle-icon">▼</span>
+                <span class="toggle-text">地图设置</span>
+            </button>
+            <div class="controls collapsed" id="controlsPanel">
+                <div class="control-group">
+                    <div class="map-selection">
+                        <button style="display: none;" onclick="loadDefaultMap()">设置当前地图为为默认地图</button>
+                        <label>原始地图:</label>
+                        <select id="mapSelect" class="map-select">
+                            <option value="">请选择地图</option>
+                        </select>
+                    </div>
+                    <!-- 子文件显示区域 -->
+                    <div id="subFilesContainer" class="sub-files-container">
+                        <div class="sub-files-header">
+                            <h4>修改版本</h4>
+                            <button style="display: none;" id="refreshSubFilesBtn" style="padding: 5px 10px; font-size: 0.9rem;">选择主地图</button>
+                        </div>
+                        <div id="subFilesList" class="sub-files-list"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 路线管理面板 -->
+            <div class="route-panel">
+                <h3>📍 路线管理</h3>
+                                <div class="route-section">
+                    <h4>路线预览</h4>
+                    <div   class="route-select-panel">
+                        <div class="select-wrapper">
+                            <button id="toggleCheckboxPanel" class="select-button">
+                                <span class="select-text">请选择路线</span>
+                                <span class="select-arrow">▼</span>
+                            </button>
+                            <div id="routeCheckboxContainer" class="select-dropdown collapsed">
+                                <div class="select-search">
+                                <input type="text" id="routeSearchInput" placeholder="搜索路线..."
+                                    class="form-control form-control-sm">
+                                </div>
+                                <div id="routeCheckboxList" class="select-options"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <h4></h4>
+                </div>
+                <div class="route-section route-operation-section" id="routeOperationSection">
+                    <h4>任务控制</h4>
+                    <div class="task-context-card" role="status" aria-live="polite">
+                        <div class="task-context-copy">
+                            <span class="task-context-label">当前路线</span>
+                            <strong id="taskSelectedRoute">未选择</strong>
+                        </div>
+                        <span id="taskStateBadge" class="task-state-badge" data-state="idle">等待选择</span>
+                    </div>
+
+                    <div class="route-select-container">
+                        <label class="control-field-label" for="routeSelect">执行路线</label>
+                        <div class="button-group route-select-group">
+                            <select class="route-select select-button" style="grid-template-columns:none;" id="routeSelect">
+                                <option value="">请选择路线</option>
+                            </select>
+                        </div>
+                        <p id="taskActionHint" class="task-action-hint">请选择路线，发布成功后才能执行任务。</p>
+                    </div>
+
+                    <div class="button-group task-buttons task-action-dock" aria-label="任务控制操作">
+                        <button id="publishTaskBtn" class="btn-primary-action" onclick="pubTask()" disabled>发布任务</button>
+                        <button id="startTaskBtn" class="btn-success" onclick="starTask()" disabled>执行任务</button>
+                        <button id="stopTaskBtn" class="btn-danger" onclick="stopTask()">停止任务</button>
+                        <button id="cancelTaskBtn" class="btn-danger-outline" onclick="cancelTask()">取消任务</button>
+                    </div>
+
+                    <details class="operation-details" id="routeEditDetails">
+                        <summary>
+                            <span>路线编辑</span>
+                            <small>新增、保存、修改与删除</small>
+                        </summary>
+                        <div class="button-group route-creation-group">
+                            <button id="createRoute" class="btn-primary-action" onclick="startRouteCreation()">新增路线</button>
+                            <button id="createClosedRoute" style="display: none;" onclick="startClosedRouteCreation()">辅助规划</button>
+                            <button id="finishRoute" class="btn-success" onclick="finishRouteCreation()">保存路线</button>
+                            <button class="btn-secondary" onclick="editRoute()">修改路线</button>
+                            <button class="btn-danger-outline" onclick="deleteRoute()">删除路线</button>
+                            <button class="btn-secondary" onclick="confirmClearCanvas()" title="仅清理当前页面绘制内容">清屏</button>
+                            <button class="btn-secondary" onclick="callback()">撤回</button>
+                        </div>
+                    </details>
+
+                    <details class="operation-details" id="stationManageDetails">
+                        <summary>
+                            <span>站点管理</span>
+                            <small>添加、显示和参数设置</small>
+                        </summary>
+                        <div class="button-group station-group">
+                            <button id="addStationBtn" class="btn-primary-action" onclick="showAddStationModal()">添加站点</button>
+                            <button id="openDrawerBtn" class="btn-secondary" onclick="openDrawer()">站点列表</button>
+                            <button id="toggleAllStationsBtn" class="btn-secondary" onclick="toggleAllStations()">隐藏站点</button>
+                            <button id="addPoint" class="btn-secondary" onclick="routeMsgSet()">全局设置</button>
+                            <button class="btn-secondary" onclick="startArrowDrawing()">机器定位</button>
+                        </div>
+                    </details>
+                </div>
+
+                <div style="display: none;" class="route-section">
+                    <select class="route-select" id="planModeSelect">
+                        <option value="">请选择规划模式</option>
+                        <option value="1">全路径规划</option>
+                        <option value="2">手动规划</option>
+                        <option value="3">只遍历边界</option>
+                        <option value="4">2+1模式</option>
+                    </select>
+                    <div class="button-group">
+                        <button onclick="publishPlanMode()">发布模式</button>
+                        <button onclick="startTraversal()">预览结果</button>
+                        <button onclick="saveRoute()">保存指令</button>
+                        <button style="display: none;" onclick="resetTask()">重置遍历</button>
+                    </div>
+                </div>
+                <!-- 路线多选展示面板 -->
+
+
+                <div style="display: none;" class="route-section">
+                    <h4>路线操作</h4>
+                    <div class="button-group">
+                        <button onclick="showRouteInfoModal()" style="background: #28a745;">测试弹框</button>
+                        <button onclick="refreshRoutes()">刷新列表</button>
+                    </div>
+                </div>
+
+                <div style="display: none;" class="route-section">
+                    <h4>路线设置</h4>
+                    <div class="button-group">
+                        <input type="text" class="route-input" placeholder="路线名称" id="routeName">
+                        <input type="text" class="route-input" placeholder="路线描述" id="routeDesc">
+                        <select class="route-select" id="routeType">
+                            <option value="clean">清扫路线</option>
+                            <option value="patrol">巡逻路线</option>
+                            <option value="charge">充电路线</option>
+                            <option value="custom">自定义路线</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="setRouteActive()">设为活跃</button>
+                        <button onclick="setRouteInactive()">设为非活跃</button>
+                        <button onclick="previewRoute()">预览路线</button>
+                        <button onclick="validateRoute()">验证路线</button>
+                    </div>
+                </div>
+
+                <div style="display: none;" class="route-section">
+                    <h4>路线状态</h4>
+                    <div class="button-group">
+                        <span><span class="status-indicator status-active"></span>活跃路线</span>
+                        <span><span class="status-indicator status-inactive"></span>非活跃路线</span>
+                        <span><span class="status-indicator status-pending"></span>待处理路线</span>
+                    </div>
+                    <div class="route-status-info">
+                        <div>路线点数: <span id="routePointCount">0</span></div>
+                        <div>路线长度: <span id="routeLength">0.00</span> 米</div>
+                    </div>
+                </div>
+            </div>
+            <!-- 任务管理面板 -->
+            <div style='display: none;'  class="task-panel">
+                <h3>📋 任务管理</h3>
+                <div>
+                    <div style="display: none; flex-direction: column;gap: 10px;" class="control-group">
+                        <button onclick="toggleOrigin()">显示/隐藏原点</button>
+                        <div style="display: flex;">
+                            <div style="display: flex; flex-direction: column;">
+                                <div style="display: none; align-items: center;"><input type="radio" id="option1"
+                                        name="arrowOption" value="1" checked><label for="option1">目标位置</label></div>
+                                <div style="display: none; align-items: center;"><input checked type="radio" id="option2"
+                                    name="arrowOption" value="2"><label for="option2">重新定位</label></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: none;" class="route-section">
+                    <h4>任务调度</h4>
+                    <div class="button-group">
+                        <button onclick="scheduleTask()">定时任务</button>
+                        <button onclick="repeatTask()">重复任务</button>
+                        <button onclick="priorityTask()">设置优先级</button>
+                        <button onclick="queueTask()">加入队列</button>
+                    </div>
+                </div>
+                <div style="display: none;" class="route-section">
+                    <h4>任务监控</h4>
+                    <div class="button-group">
+                        <button onclick="taskStatus()">任务状态</button>
+                        <button onclick="taskProgress()">任务进度</button>
+                        <button onclick="taskHistory()">历史记录</button>
+                        <button onclick="taskReport()">生成报告</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 机器人控制面板 -->
+            <div style="display: none;" class="robot-panel">
+                <h3>🤖 机器人控制</h3>
+
+                <div class="control-grid">
+                    <div class="control-item">
+                        <label>机器人状态</label>
+                        <select id="robotStatus">
+                            <option value="online">在线</option>
+                            <option value="offline">离线</option>
+                            <option value="busy">忙碌</option>
+                            <option value="idle">空闲</option>
+                            <option value="error">错误</option>
+                        </select>
+                        <button onclick="connectRobot()">连接机器人</button>
+                    </div>
+                    <div class="control-item">
+                        <label>电池管理</label>
+                        <button onclick="getBatteryLevel()">电池电量</button>
+                        <button onclick="startCharging()">开始充电</button>
+                        <button onclick="stopCharging()">停止充电</button>
+                        <button onclick="batteryInfo()">电池信息</button>
+                    </div>
+
+                    <div class="control-item">
+                        <label>系统控制</label>
+                        <button onclick="restartRobot()">重启机器人</button>
+                        <button onclick="shutdownRobot()">关闭机器人</button>
+                        <button onclick="updateFirmware()">更新固件</button>
+                        <button onclick="systemInfo()">系统信息</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 机器人位置信息弹窗 -->
+    <div id="robotPositionPopup" style="display: none;">
+        <div
+            style="background: white; border-radius: 8px; padding: 15px; width: 280px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+            <div style="margin-bottom: 12px;">
+                <div style="font-weight: bold; margin-bottom: 8px; color: #333;">机器人位置信息</div>
+                <div id="robotPositionInfo" style="font-size: 12px; color: #666; margin-bottom: 10px;"></div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #555;">操作类型:</label>
+                <select id="operationType"
+                    style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                    <option value="move">移动</option>
+                    <option value="clean">清扫</option>
+                    <option value="patrol">巡逻</option>
+                    <option value="charge">充电</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #555;">速度 (m/s):</label>
+                <input type="number" id="robotSpeed" min="0.1" max="2.0" step="0.1" value="0.5"
+                    style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #555;">优先级:</label>
+                <select id="priority"
+                    style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                    <option value="low">低</option>
+                    <option value="medium" selected>中</option>
+                    <option value="high">高</option>
+                    <option value="urgent">紧急</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #555;">备注:</label>
+                <textarea id="remarks" rows="2"
+                    style="width: 30px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; resize: none;"></textarea>
+            </div>
+
+            <div style="display: flex;  gap: 8px;">
+                <button id="cancelBtn"
+                    style="padding: 6px 12px; background: #e9ecef; color: #666; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">取消</button>
+                <button id="confirmBtn"
+                    style="padding: 6px 12px; background: #007cba; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 路线站点信息弹窗 -->
+    <!-- 路线站点信息弹窗 -->
+    <div id="stationPopup" style="display: none;">
+        <div style="background: white; border-radius: 8px;   ">
+            <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                <div style="font-size: 12px; color: #666; line-height: 1.4;">
+                    <div style="margin-bottom: 8px;"><strong>站点名称:</strong> <span id="stationNameDisplay">路线点</span></div>
+                    <div id="stationCoordContainer" style="display: flex; gap: 10px; align-items: center;">
+                        <label style="margin-bottom: 0;"><strong>坐标:</strong></label>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <span style="font-size: 11px;">X:</span>
+                            <input type="number" id="station-coord-x" step="0.001" style="width: 80px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                        </div>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <span style="font-size: 11px;">Y:</span>
+                            <input type="number" id="station-coord-y" step="0.001" style="width: 80px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div  style="margin-bottom: 15px;display: none;">
+                <label
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">动作类型:</label>
+                <select id="station-action"
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background-color: #f9f9f9;">
+                    <option value="1">清扫</option>
+                    <option value="2">充电</option>
+                    <option value="3">等待</option>
+                    <option value="4">避障</option>
+                </select>
+            </div>  
+            <div style="margin-bottom: 15px;">
+                <label
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">速度（单位：m/s）:</label>
+                <input type="number" id="station-speed" min="0.1" max="2.0" step="0.1" value="0.5"
+                    style=" padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label for="station-work-duration"
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">作业时长（单位：秒）:</label>
+                <input type="number" id="station-work-duration" min="0" step="1" value="0" inputmode="decimal"
+                    aria-label="作业时长，单位秒"
+                    style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            </div>
+            <div  style="margin-bottom: 15px; display: none;">
+                <label
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">避障等级:</label>
+                <select id="station-area"
+                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background-color: #f9f9f9;">
+                    <option value="1">等级1（最低）</option>
+                    <option value="2">等级2</option>
+                    <option value="3">等级3</option>
+                    <option value="4">等级4（最高）</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 15px; display: none;">
+                <label
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">变道模式:</label>
+                <select id="station-avoid"
+                    style="width: 100%; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background-color: #f9f9f9;">
+                        <option value="0" selected>禁止变道</option>
+                        <option value="1">左变道</option>
+                        <option value="2">右变道</option>
+                        <option value="3">左右均可变道</option>
+                        <option value="4">关闭变道和绕障</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 15px; display: none;">
+                <div style="margin-top: 8px;">
+                    <div style="margin-bottom: 5px;">转向模式:</div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="turnMode" id="turnModeSelf" value="1"
+                                style="margin-right: 5px;">
+                            <label class="form-check-label" for="turnModeSelf" style="font-size: 13px; margin: 0;">
+                                自转模式
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="turnMode" id="turnModeContinuous"
+                                value="0" checked style="margin-right: 5px;">
+                            <label class="form-check-label" for="turnModeContinuous"
+                                style="font-size: 13px; margin: 0;">
+                                连续模式
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <div style="margin-top: 8px;">
+                    <div style="margin-bottom: 5px;">是否停车:</div>
+                    <select id="isStopSelect" class="form-select" style="font-size: 13px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; width: auto;">
+                        <option value="0" selected>0 无动作</option>
+                        <option value="1">停车开门</option>
+                        <option value="2">停车关门</option>
+                        <option value="3">不停车开门</option>
+                        <option value="4">不停车关门</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label
+                    style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">航向（单位：°）:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div id="stationDirectionInputContainer" style="display: none;">
+                        <input type="number" id="station-direction" min="-180" max="180" value="0"
+                            style=" padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <input type="radio" id="manualDirection" name="directionMode" value="manualDirection"
+                                style="margin-right: 3px;">
+                            <label for="manualDirection" style="font-size: 12px; margin-right: 8px;">手动绘制</label>
+                            <button id="chooseHeader" type="button"
+                                style="padding: 5px 8px;  border: 1px solid #ddd; border-radius: 4px; font-size: 12px; cursor: pointer;">箭头绘制</button>
+                        </div>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <input type="radio" id="pointToNext" name="directionMode" value="pointToNext"
+                                style="margin-right: 3px;">
+                            <label for="pointToNext" style="font-size: 12px; margin-right: 8px;">指向下一点</label>
+                            <input type="radio" id="keepDirection" name="directionMode" value="keepDirection" checked
+                                style="margin-right: 3px;">
+                            <label for="keepDirection" style="font-size: 12px;">保持原方向</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div style="display: flex;  gap: 8px;">
+                <button id="station-confirm-btn"
+                    style="padding: 6px 12px; background: #007cba; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">保存</button>
+                <button id="station-delete-btn"
+                    style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">删除</button>
+                <button id="station-cancel-btn"
+                    style="padding: 6px 12px; background: #e9ecef; color: #666; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">取消</button>
+               
+                
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 新增弹出框 -->
+    <div id="settingsModal" class="modal-backdrop">
+        <div class="modal-content card-shadow">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">清扫参数设置</h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div style="box-sizing: border-box;" class="space-y-6">
+                <!-- 1. 模式选择 -->
+                <div style="width: 300px;">
+                    <label class="block text-gray-700 mb-2 font-medium">清扫模式</label>
+                    <select id="cleanMode"
+                        class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-primary focus:border-primary block p-3 appearance-none transition-all">
+                        <option value="0">选定区域覆盖</option>
+                        <option value="1">自动全地图覆盖</option>
+                    </select>
+                </div>
+                <div style="width: 300px;">
+                    <label class="block text-gray-700 mb-2 font-medium">规划方向</label>
+                    <select id="coverage_direction"
+                        class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-primary focus:border-primary block p-3 appearance-none transition-all">
+                        <option value="0">自上而下</option>
+                        <option value="1">自下而上</option>
+                        <option value="2">自左向右</option>
+                        <option value="3">自右向左</option>
+                    </select>
+                </div>
+                <!-- 2. 通用参数（所有模式共享） -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div style="width: 300px;">
+                        <label class="block text-gray-700 mb-2 font-medium">机器人半径 (米)</label>
+                        <input id="robot_radius" type="number" id="robot_radius" step="0.05" value="0.30" min="0.1"
+                            max="1.0"
+                            class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-primary focus:border-primary block p-3 transition-all">
+                    </div>
+                    <div style="width: 300px;">
+                        <label class="block text-gray-700 mb-2 font-medium">工具半径 (米)</label>
+                        <input id="tool_radius" type="number" step="0.05" value="0.30" min="0.1" max="1.0"
+                            class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-primary focus:border-primary block p-3 transition-all">
+                    </div>
+                </div>
+                <!-- 3. 覆盖模式专属参数（全地图/选定区域共享） -->
+                <div id="coverageParams" style="width: 300px;" class="space-y-4">
+                    <div class="space-y-2" id="insertionParams">
+                        <div class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="enableInsertion" class="accent-primary h-4 w-4">
+                            <label for="enableInsertion" class="text-gray-700">是否进行边界清扫</label>
+                        </div>
+                        <div class="pl-6">
+                            <label class="block text-gray-700 mb-1 text-sm">边界点间距</label>
+                            <input id="point_spacing" type="number" step="0.05" value="0.1" min="0.05" max="0.5"
+                                class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-2 transition-all">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button id="cancelSettings"
+                        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                        取消
+                    </button>
+                    <button id="saveSettings"
+                        class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors btn-hover">
+                        保存参数
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../../src/libs/axios.min.js"></script>
+    <script src="../../../src/libs/roslib.min.js"></script>
+    <script src="../../../src/rosManage/RosManager_traditional.js"></script>
+    <script src="../../../src/api/ApiManager-traditional.js"></script>
+    <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
+    <script src="../../../src/api/api-simple.js"></script>
+    <script src="./js/leaflet.min.js"></script>
+    <script src="../../../src/libs/js-yaml.min.js.js"></script>
+    <script>
+        let map;
+        let currentOverlay;
+        let robotMarker;
+        let pathPolyline;
+        let originMarker;
+        let xAxisLine;
+        let yAxisLine;
+        let xAxisArrow;
+        let yAxisArrow;
+        let xAxisLabel;
+        let yAxisLabel;
+        let mapData = {
+            width: 0,
+            height: 0,
+            imageUrl: null
+        };
+
+        // PGM数据和配置
+        let pgmData = null;
+        let config = null;
+
+        // 坐标转换相关变量
+        let scaleFactor = 1.0;
+        let canvasOffset = { x: 0, y: 0 };
+
+        // 路线创建相关变量已移至 route.js 文件
+        window.currentArrow = null;
+        // 初始化地图
+        function initMap() {
+            map = L.map('map', {
+                crs: L.CRS.Simple,
+                minZoom: -2,
+                maxZoom: 8,  // 增加最大缩放级别以允许更大放大倍数
+                center: [0, 0],
+                zoom: 0,
+                zoomControl: true,
+                attributionControl: false
+            });
+
+            // 添加地图点击事件
+            map.on('click', onMapClick);
+
+            // 添加地图缩放事件，在缩放时更新所有矩形框的大小
+            map.on('zoomend', function () {
+                // 如果存在路线矩形框，则在缩放结束时更新它们
+                if (routeRectangles && routeRectangles.length > 0) {
+                    updateAllRectangles();
+                }
+            });
+        }
+
+        /* ========= 地图占比拖拽调整（桌面 / 横屏平板启用） ========= */
+        (function () {
+            var handle = document.getElementById('resizeHandle');
+            if (!handle) return;
+            var controls = document.querySelector('.controls-container');
+            var rootContainer = document.querySelector('.main-container');
+            var STORAGE_KEY = 'drag_move_controls_width_pct';
+            var CFG = { minPct: 15, maxPct: 60, defaultPct: 20 };
+
+            // 启用条件：桌面宽度 > 900px，或横屏平板（≥768px 且横屏）——竖屏保持底部抽屉
+            function isDragEnabled() {
+                return window.matchMedia('(min-width: 901px), (min-width: 768px) and (orientation: landscape)').matches;
+            }
+
+            function clampPct(p) {
+                return Math.max(CFG.minPct, Math.min(CFG.maxPct, p));
+            }
+
+            function applyWidth(pct) {
+                pct = clampPct(pct);
+                controls.style.flex = '0 0 ' + pct + '%';
+                controls.style.width = pct + '%';
+                controls.dataset.pct = pct;
+                handle.setAttribute('aria-valuemin', String(CFG.minPct));
+                handle.setAttribute('aria-valuemax', String(CFG.maxPct));
+                handle.setAttribute('aria-valuenow', String(Math.round(pct)));
+            }
+
+            function saveWidth(pct) {
+                try { localStorage.setItem(STORAGE_KEY, String(pct)); } catch (e) {}
+            }
+
+            function restoreWidth() {
+                try {
+                    var v = parseFloat(localStorage.getItem(STORAGE_KEY));
+                    if (v && !isNaN(v)) applyWidth(v);
+                } catch (e) {}
+            }
+
+            function refreshMapSize() {
+                try {
+                    setTimeout(function () {
+                        if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+                            map.invalidateSize(false);
+                        }
+                    }, 60);
+                } catch (e) {}
+            }
+
+            // 初始化：按设备形态恢复记忆宽度
+            if (isDragEnabled()) {
+                handle.style.display = 'flex';
+                restoreWidth();
+            } else {
+                handle.style.display = 'none';
+            }
+
+            var dragging = false;
+            var mask = null;
+
+            function startDrag(e) {
+                if (!isDragEnabled()) return;
+                if (e.cancelable) e.preventDefault();
+                dragging = true;
+                handle.classList.add('active');
+                document.body.classList.add('resizing');
+                mask = document.createElement('div');
+                mask.className = 'resize-dragging-mask';
+                document.body.appendChild(mask);
+                document.addEventListener('mousemove', onDragMove);
+                document.addEventListener('mouseup', onDragEnd);
+                document.addEventListener('touchmove', onDragMove, { passive: false });
+                document.addEventListener('touchend', onDragEnd);
+            }
+
+            function onDragMove(e) {
+                if (!dragging) return;
+                var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                var rect = rootContainer.getBoundingClientRect();
+                if (rect.width <= 0) return;
+                // 分隔条右侧即控制面板，面板宽 = 容器右缘 - 指针位置
+                var pct = ((rect.right - clientX) / rect.width) * 100;
+                pct = clampPct(pct);
+                controls.style.flex = '0 0 ' + pct + '%';
+                controls.style.width = pct + '%';
+                controls.dataset.pct = pct;
+            }
+
+            function onDragEnd() {
+                if (!dragging) return;
+                dragging = false;
+                handle.classList.remove('active');
+                document.body.classList.remove('resizing');
+                if (mask) { mask.parentNode && mask.parentNode.removeChild(mask); mask = null; }
+                document.removeEventListener('mousemove', onDragMove);
+                document.removeEventListener('mouseup', onDragEnd);
+                document.removeEventListener('touchmove', onDragMove);
+                document.removeEventListener('touchend', onDragEnd);
+                var pct = parseFloat(controls.dataset.pct) || CFG.defaultPct;
+                saveWidth(pct);
+                refreshMapSize(); // 松开后刷新 Leaflet 尺寸
+            }
+
+            // 双击恢复默认占比
+            handle.addEventListener('dblclick', function (e) {
+                if (!isDragEnabled()) return;
+                e.preventDefault();
+                applyWidth(CFG.defaultPct);
+                saveWidth(CFG.defaultPct);
+                refreshMapSize();
+            });
+
+            handle.addEventListener('mousedown', startDrag);
+            handle.addEventListener('touchstart', startDrag, { passive: false });
+
+            // 窗口尺寸/方向变化时重新评估（竖屏切回底部抽屉，横屏恢复记忆宽度）
+            window.addEventListener('resize', function () {
+                if (isDragEnabled()) {
+                    handle.style.display = 'flex';
+                    if (!dragging) {
+                        try {
+                            var v = parseFloat(localStorage.getItem(STORAGE_KEY));
+                            applyWidth(v && !isNaN(v) ? v : CFG.defaultPct);
+                        } catch (err) {
+                            applyWidth(CFG.defaultPct);
+                        }
+                    }
+                } else {
+                    handle.style.display = 'none';
+                    controls.style.flex = '';
+                    controls.style.width = '';
+                }
+                refreshMapSize();
+            });
+        })();
+
+
+        // 网格更新函数（可选功能）
+        function updateGrid() {
+            // 这里可以添加网格显示逻辑，暂时留空
+            console.log('地图缩放级别:', map.getZoom());
+        }
+        async function publishPlanMode() {
+            // const planMode = Number(document.getElementById('planModeSelect').value);
+            // if (!planMode) {
+            //     cocoMessage.error('请选择发布模式');
+            //     return;
+            // }
+            const res = await axiosClient.get(`pcd/list`);
+            const response = await axiosClient.get(`/pgm/list`);
+            // // 发布计划模式
+            // const planModeMsg = new ROSLIB.Message({
+            //     data: parseFloat(planMode)
+            // });
+            // RosManager.publishModel.publish(planModeMsg);
+        }
+
+
+        function getUserInputRouteName() {
+            const userInput = prompt("请输入路线名：", "");
+            if (userInput === null) {
+                cocoMessage.success('用户取消了输入');
+                return;
+            }
+            if (userInput.trim() === "") {
+                cocoMessage.success("输入不能为空，请重新输入！");
+                getUserInputRouteName(); // 递归调用，直到输入有效内容
+                return;
+            }
+            // 保存用户输入的路线名称到localStorage
+            return userInput.trim();
+        }
+
+        async function saveRoute() {
+            const routeName = getUserInputRouteName();
+            if (!routeName) {
+                return; // 用户取消输入或输入为空
+            }
+            const inputrouteName = new ROSLIB.Message({
+                data: routeName
+            });
+
+            const mapName = localStorage.getItem('lastMapName');
+            const response = await axiosClient.post(`ros2/saveplan/${routeName}/${mapName}`);
+            
+
+            // RosManager.routeName.publish(inputrouteName);
+
+            // const mapCoverage = new ROSLIB.Message({
+            //      data: mapName
+            // });
+            // RosManager.mapCoverage.publish(mapCoverage);
+
+            // const saveBackRoute = new ROSLIB.Message({
+            //      data: parseFloat(1)
+            // });
+            // RosManager.pathSaveRoute.publish(saveBackRoute);
+        }
+        function resetTask() {
+            const resetTaskMsg = new ROSLIB.Message({
+                data: parseFloat(1)
+            });
+            RosManager.terminate.publish(resetTaskMsg);
+        }
+
+        // 改进注释处理和字段解析
+        function parsePGM(buffer) {
+            const view = new DataView(buffer);
+            let cursor = 0;
+
+            // 读取文件标识
+            const magic1 = view.getUint8(cursor++);
+            const magic2 = view.getUint8(cursor++);
+            const magic = String.fromCharCode(magic1) + String.fromCharCode(magic2);
+            const isAscii = magic === 'P2';
+
+            // 验证PGM格式
+            if (magic !== 'P2' && magic !== 'P5') {
+                throw new Error(`不支持的PGM格式: ${magic}，应为P2或P5`);
+            }
+
+            let width, height, maxValue, pixels;
+
+            // 跳过所有注释行直到找到宽度值
+            while (true) {
+                // 跳过空白字符
+                while (cursor < buffer.byteLength && isWhitespace(view.getUint8(cursor))) {
+                    cursor++;
+                }
+
+                // 检查是否是注释行
+                if (cursor < buffer.byteLength && view.getUint8(cursor) === 35) { // '#'的ASCII码
+                    // 跳过整行注释
+                    while (cursor < buffer.byteLength && view.getUint8(cursor++) !== 10); // 跳过到行尾
+                    continue;
+                }
+
+                // 读取宽度值
+                const widthToken = readToken(view, cursor);
+                if (!widthToken) throw new Error('未找到宽度值');
+                width = parseInt(widthToken, 10);
+                if (isNaN(width) || width <= 0) {
+                    throw new Error(`无效的宽度值: ${widthToken}`);
+                }
+                cursor += widthToken.length;
+
+                // 找到宽度值后退出循环
+                break;
+            }
+
+            // 跳过空白字符
+            while (cursor < buffer.byteLength && isWhitespace(view.getUint8(cursor))) {
+                cursor++;
+            }
+
+            // 读取高度值
+            const heightToken = readToken(view, cursor);
+            if (!heightToken) throw new Error('未找到高度值');
+            height = parseInt(heightToken, 10);
+            if (isNaN(height) || height <= 0) {
+                throw new Error(`无效的高度值: ${heightToken}`);
+            }
+            cursor += heightToken.length;
+
+            // 跳过空白字符
+            while (cursor < buffer.byteLength && isWhitespace(view.getUint8(cursor))) {
+                cursor++;
+            }
+
+            // 读取最大值
+            const maxValueToken = readToken(view, cursor);
+            if (!maxValueToken) throw new Error('未找到最大值');
+            maxValue = parseInt(maxValueToken, 10);
+            if (isNaN(maxValue) || maxValue <= 0) {
+                throw new Error(`无效的最大值: ${maxValueToken}`);
+            }
+            cursor += maxValueToken.length;
+
+            // 跳过空白字符，找到像素数据起始位置
+            while (cursor < buffer.byteLength && isWhitespace(view.getUint8(cursor))) {
+                cursor++;
+            }
+
+            try {
+                if (isAscii) {
+                    // 处理ASCII格式PGM
+                    const data = new TextDecoder().decode(buffer.slice(cursor));
+                    pixels = data.split(/\s+/).filter(t => t.trim() !== '').map(Number);
+                    if (pixels.length === 0) throw new Error('ASCII像素数据为空');
+
+                    // 验证像素数量
+                    const expectedLength = width * height;
+                    if (pixels.length < expectedLength) {
+                        pixels = pixels.concat(new Array(expectedLength - pixels.length).fill(0));
+                    } else if (pixels.length > expectedLength) {
+                        pixels = pixels.slice(0, expectedLength);
+                    }
+                } else {
+                    // 处理二进制格式PGM
+                    const pixelDataLength = width * height;
+                    if (cursor + pixelDataLength > buffer.byteLength) {
+                        throw new Error(`像素数据长度不足，需要${pixelDataLength}字节，实际只有${buffer.byteLength - cursor}字节`);
+                    }
+                    pixels = new Uint8Array(buffer.slice(cursor, cursor + pixelDataLength));
+                    if (pixels.byteLength === 0) throw new Error('二进制像素数据为空');
+                }
+            } catch (error) {
+                throw new Error(`PGM解析失败: ${error.message}`);
+            }
+
+            return { width, height, pixels, maxValue };
+        }
+
+        // 改进readToken函数，更精确地处理空白字符和注释
+        function readToken(view, start) {
+            let token = '';
+            let cursor = start;
+
+            // 跳过前导空白字符
+            while (cursor < view.byteLength && isWhitespace(view.getUint8(cursor))) {
+                cursor++;
+            }
+
+            // 读取非空白字符直到遇到空白字符或到达文件末尾
+            while (cursor < view.byteLength && !isWhitespace(view.getUint8(cursor))) {
+                token += String.fromCharCode(view.getUint8(cursor++));
+            }
+
+            return token;
+        }
+
+
+        // 辅助函数：判断是否为空白字符（空格、制表符、换行符等）
+        function isWhitespace(charCode) {
+            return charCode === 32 || charCode === 9 || charCode === 10 || charCode === 13;
+        }
+
+        // PGM转换为Canvas图像
+        function pgmToCanvas(pgmData) {
+            const canvas = document.createElement('canvas');
+            canvas.width = pgmData.width;
+            canvas.height = pgmData.height;
+            const ctx = canvas.getContext('2d');
+
+            const imageData = ctx.createImageData(pgmData.width, pgmData.height);
+
+            for (let i = 0; i < pgmData.pixels.length; i++) {
+                const value = pgmData.pixels[i];
+                const pixelIndex = i * 4;
+
+                // PGM值映射到颜色
+                // 0 = 黑色 (障碍物)
+                // 255 = 白色 (可通行区域)
+                // 128左右 = 灰色 (未知区域)
+
+                let r, g, b;
+                if (value < 50) {
+                    // 障碍物 - 黑色
+                    r = g = b = 0;
+                } else if (value > 200) {
+                    // 可通行区域 - 白色
+                    // r = g = b = 255;
+                    r = 255;
+                    g = 255;
+                    b = 255;
+                } else {
+                    // 未知区域 - 灰色
+                    r = g = b = 255;
+                }
+
+                imageData.data[pixelIndex] = r;     // Red
+                imageData.data[pixelIndex + 1] = g; // Green
+                imageData.data[pixelIndex + 2] = b; // Blue
+                imageData.data[pixelIndex + 3] = 255; // Alpha
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+            return canvas.toDataURL();
+        }
+
+        // 加载地图文件
+        async function loadMapFiles(pgmFile, yamlFile) {
+            try {
+                // 读取PGM文件
+                const pgmResponse = await fetch(pgmFile);
+                const pgmArrayBuffer = await pgmResponse.arrayBuffer();
+                const parsedPgmData = parsePGM(pgmArrayBuffer);
+
+                // 读取YAML文件
+                const yamlResponse = await fetch(yamlFile);
+                const yamlText = await yamlResponse.text();
+                const parsedConfig = jsyaml.load(yamlText);
+
+                return {
+                    pgmData: parsedPgmData,
+                    config: parsedConfig
+                };
+            } catch (error) {
+                console.error('加载地图文件失败:', error);
+                throw error;
+            }
+        }
+
+        async function loadDefaultMap() {
+            // 获取主地图选择框
+            const mapSelect = document.getElementById('mapSelect');
+            const mainSelectedMap = mapSelect.value;
+
+            // 获取子地图选择框（动态创建的）
+            const subMapSelect = document.querySelector('#subFilesList select');
+            const subSelectedMap = subMapSelect ? subMapSelect.value : null;
+            const subSelectedText = subMapSelect ? subMapSelect.options[subMapSelect.selectedIndex].text : null;
+
+            if (subMapSelect && subSelectedMap && subSelectedText) {
+                // 如果子地图被选中，设置子地图为默认地图
+                localStorage.setItem("lastSubMapName", subSelectedText);
+                localStorage.setItem("lastSubMapPath", subSelectedMap);
+                localStorage.setItem("lastMainMapName", mainSelectedMap); // 同时保存主地图
+                // 重新加载子地图
+                await loadSelectedMap(subSelectedText);
+
+                // cocoMessage.success(`子地图 "${subSelectedText}" 已设置为默认地图`, 2000);
+                console.log('设置默认子地图:', subSelectedText, '路径:', subSelectedMap);
+            } else if (mainSelectedMap) {
+                // 如果只有主地图被选中，设置主地图为默认地图
+                localStorage.setItem("lastMapName", mainSelectedMap);
+                localStorage.removeItem("lastSubMapName"); // 清除子地图设置
+                localStorage.removeItem("lastSubMapPath");
+                // 重新获取当前地图对应的路线数据（先更新routeData）
+                await getAllRoute();
+                // 更新路线复选框列表
+                if (typeof updateRouteCheckboxList === 'function') {
+                    updateRouteCheckboxList();
+                }
+            } else {
+                cocoMessage.warning('请先选择一个地图', 2000);
+            }
+        }
+
+        // 显示地图
+        function displayMap(imageUrl, width, height) {
+            // 清除现有图层
+            if (currentOverlay) {
+                map.removeLayer(currentOverlay);
+            }
+
+            // 设置地图边界（使用数学坐标系：原点在左下角，Y向上为正）
+            const bounds = [[0, 0], [height, width]];
+
+            // 添加地图图层
+            currentOverlay = L.imageOverlay(imageUrl, bounds).addTo(map);
+
+            // 等待图像加载完成后再调整视图
+            setTimeout(() => {
+                // 调整视图以充满整个容器
+                map.fitBounds(bounds, {
+                    paddingTopLeft: [0, 0],
+                    paddingBottomRight: [0, 0],
+                    padding: [0, 0],
+                    animate: false // 禁用动画以获得即时效果
+                });
+
+                // 设置最大边界以限制平移范围
+                map.setMaxBounds(L.latLngBounds(bounds).pad(0.1)); // 稍微扩展边界以允许轻微平移
+                
+                // 确保地图充满容器
+                map.invalidateSize(false); // 更新地图容器大小而不重置视图
+            }, 100); // 稍微延迟以确保图像加载完成
+
+            // 保存地图数据
+            mapData = { width, height, imageUrl };
+
+            // 显示PGM原点
+            setTimeout(() => {
+                showOriginPoint();
+            }, 200);
+        }
+
+        // 像素坐标到世界坐标转换（数学坐标系）
+        function pixelToWorld(px, py) {
+            if (!pgmData || !config) return { x: 0, y: 0 };
+
+            const [ox, oy] = config.origin || [0, 0];
+            const res = config.resolution || 0.05;
+            const mapW = pgmData.width;
+            const mapH = pgmData.height;
+            const canvasW = mapData.width;
+            const canvasH = mapData.height;
+
+            if (res <= 0 || mapW <= 0 || mapH <= 0) return { x: 0, y: 0 };
+
+            const scaleX = canvasW / mapW;
+            const scaleY = canvasH / mapH;
+
+            // 考虑缩放因子和偏移量
+            const adjustedPx = (px - canvasOffset.x) / scaleFactor;
+            const adjustedPy = (py - canvasOffset.y) / scaleFactor;
+
+            // 转换为地图坐标（使用数学坐标系：Y向上为正）
+            const mapX = adjustedPx / scaleX;
+            const mapY = adjustedPy / scaleY;
+
+            // 转换为世界坐标（数学坐标系）
+            const worldX = mapX * res + ox;
+            const worldY = mapY * res + oy;
+
+            return { x: worldX, y: worldY };
+        }
+
+        // 世界坐标到像素坐标转换（数学坐标系）
+        function worldToPixel(wx, wy) {
+            if (!pgmData || !config) return { x: 0, y: 0 };
+
+            const [ox, oy] = config.origin || [0, 0];
+            const res = config.resolution || 0.05;
+            const mapW = pgmData.width;
+            const mapH = pgmData.height;
+            const canvasW = mapData.width;
+            const canvasH = mapData.height;
+
+            if (res <= 0 || mapW <= 0 || mapH <= 0) return { x: 0, y: 0 };
+
+            const scaleX = canvasW / mapW;
+            const scaleY = canvasH / mapH;
+
+            // 世界坐标转换为地图坐标（使用数学坐标系）
+            const mapX = (wx - ox) / res;
+            const mapY = (wy - oy) / res;
+
+            // 地图坐标转换为像素坐标（数学坐标系）
+            const px = mapX * scaleX;
+            const py = mapY * scaleY;
+
+            // 考虑缩放因子和偏移量
+            const adjustedPx = px * scaleFactor + canvasOffset.x;
+            const adjustedPy = py * scaleFactor + canvasOffset.y;
+
+            return { x: adjustedPx, y: adjustedPy };
+        }
+
+        // 像素坐标到世界坐标转换（数学坐标系）
+        function pixelToWorldMath(px, py) {
+            if (!pgmData || !config) return { x: 0, y: 0 };
+
+            const [ox, oy] = config.origin || [0, 0];
+            const res = config.resolution || 0.05;
+            const mapW = pgmData.width;
+            const mapH = pgmData.height;
+            const canvasW = mapData.width;
+            const canvasH = mapData.height;
+
+            if (res <= 0 || mapW <= 0 || mapH <= 0) return { x: 0, y: 0 };
+
+            const scaleX = canvasW / mapW;
+            const scaleY = canvasH / mapH;
+
+            // 考虑缩放因子和偏移量
+            const adjustedPx = (px - canvasOffset.x) / scaleFactor;
+            const adjustedPy = (py - canvasOffset.y) / scaleFactor;
+
+            // 转换为地图坐标（使用数学坐标系：Y向上为正）
+            const mapX = adjustedPx / scaleX;
+            const mapY = adjustedPy / scaleY;
+
+            // 转换为世界坐标（数学坐标系）
+            const worldX = mapX * res + ox;
+            const worldY = mapY * res + oy;
+
+            return { x: worldX, y: worldY };
+        }
+
+        // 世界坐标到像素坐标转换（数学坐标系）
+        function worldToPixelMath(wx, wy) {
+            if (!pgmData || !config) return { x: 0, y: 0 };
+
+            const [ox, oy] = config.origin || [0, 0];
+            const res = config.resolution || 0.05;
+            const mapW = pgmData.width;
+            const mapH = pgmData.height;
+            const canvasW = mapData.width;
+            const canvasH = mapData.height;
+
+            if (res <= 0 || mapW <= 0 || mapH <= 0) return { x: 0, y: 0 };
+
+            const scaleX = canvasW / mapW;
+            const scaleY = canvasH / mapH;
+
+            // 世界坐标转换为地图坐标（使用数学坐标系）
+            const mapX = (wx - ox) / res;
+            const mapY = (wy - oy) / res;
+
+            // 地图坐标转换为像素坐标（数学坐标系）
+            const px = mapX * scaleX;
+            const py = mapY * scaleY;
+
+            // 考虑缩放因子和偏移量
+            const adjustedPx = px * scaleFactor + canvasOffset.x;
+            const adjustedPy = py * scaleFactor + canvasOffset.y;
+
+            return { x: adjustedPx, y: adjustedPy };
+        }
+
+        // 绘制坐标轴（使用数学坐标系）
+        function drawCoordinateAxes() {
+            if (!pgmData || !config || !mapData.imageUrl) {
+                console.log('无法绘制坐标轴：地图数据未加载');
+                return;
+            }
+
+            // 移除现有的坐标轴
+            if (xAxisLine) {
+                map.removeLayer(xAxisLine);
+                xAxisLine = null;
+            }
+            if (yAxisLine) {
+                map.removeLayer(yAxisLine);
+                yAxisLine = null;
+            }
+            if (xAxisArrow) {
+                map.removeLayer(xAxisArrow);
+                xAxisArrow = null;
+            }
+            if (yAxisArrow) {
+                map.removeLayer(yAxisArrow);
+                yAxisArrow = null;
+            }
+            if (xAxisLabel) {
+                map.removeLayer(xAxisLabel);
+                xAxisLabel = null;
+            }
+            if (yAxisLabel) {
+                map.removeLayer(yAxisLabel);
+                yAxisLabel = null;
+            }
+
+            // 使用世界坐标(0,0)作为原点
+            const originX = 0;
+            const originY = 0;
+
+            // 将世界坐标转换为像素坐标（使用数学坐标系）
+            const originPixel = worldToPixel(originX, originY);
+
+            // 坐标轴长度（像素）
+            const axisLength = Math.min(mapData.width, mapData.height) * 0.3;
+
+            // X轴终点（向右为正方向）
+            const xAxisEnd = worldToPixel(originX + axisLength * (config.resolution || 0.05), originY);
+
+            // Y轴终点（向上为正方向）
+            const yAxisEnd = worldToPixel(originX, originY + axisLength * (config.resolution || 0.05));
+
+            // 绘制X轴（红色）
+            xAxisLine = L.polyline([
+                [originPixel.y, originPixel.x],
+                [xAxisEnd.y, xAxisEnd.x]
+            ], {
+                color: '#ff0000',
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+
+            // 绘制Y轴（绿色）
+            yAxisLine = L.polyline([
+                [originPixel.y, originPixel.x],
+                [yAxisEnd.y, yAxisEnd.x]
+            ], {
+                color: '#00ff00',
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+
+            // // X轴箭头
+            // const xArrowIcon = L.divIcon({
+            //     className: 'x-axis-arrow',
+            //     html: '<div style="color: #ff0000; font-size: 20px; font-weight: bold;">→</div>',
+            //     iconSize: [20, 20],
+            //     iconAnchor: [10, 10]
+            // });
+            // xAxisArrow = L.marker([xAxisEnd.y, xAxisEnd.x], { icon: xArrowIcon }).addTo(map);
+
+            // // Y轴箭头
+            // const yArrowIcon = L.divIcon({
+            //     className: 'y-axis-arrow',
+            //     html: '<div style="color: #00ff00; font-size: 20px; font-weight: bold;">↑</div>',
+            //     iconSize: [16, 16],
+            //     iconAnchor: [8, 8]
+            // });
+            // yAxisArrow = L.marker([yAxisEnd.y, yAxisEnd.x], { icon: yArrowIcon }).addTo(map);
+
+            // X轴标签
+            const xLabelIcon = L.divIcon({
+                className: 'x-axis-label',
+                html: '<div style="color: #ff0000; font-size: 16px; font-weight: bold;  padding: 2px 6px; border-radius: 3px;">X</div>',
+                iconSize: [20, 15],
+                iconAnchor: [10, 7.5]
+            });
+            xAxisLabel = L.marker([xAxisEnd.y + 15, xAxisEnd.x], { icon: xLabelIcon }).addTo(map);
+
+            // Y轴标签
+            const yLabelIcon = L.divIcon({
+                className: 'y-axis-label',
+                html: '<div style="color: #00ff00; font-size: 16px; font-weight: bold;  padding: 2px 6px; border-radius: 3px;">Y</div>',
+                iconSize: [30, 20],
+                iconAnchor: [15, 10]
+            });
+            yAxisLabel = L.marker([yAxisEnd.y, yAxisEnd.x + 15], { icon: yLabelIcon }).addTo(map);
+
+        }
+
+        // 显示PGM原点坐标
+        function showOriginPoint() {
+            if (!pgmData || !config || !mapData.imageUrl) {
+                console.log('无法显示原点：地图数据未加载');
+                return;
+            }
+
+            // 移除现有的原点标记
+            if (originMarker) {
+                map.removeLayer(originMarker);
+                originMarker = null;
+            }
+
+            // 使用世界坐标(0,0)作为原点
+            const originX = 0;
+            const originY = 0;
+
+            // 将世界坐标转换为像素坐标（使用数学坐标系）
+            const pixelCoords = worldToPixel(originX, originY);
+
+            // 创建原点标记
+            const originIcon = L.divIcon({
+                className: 'origin-marker',
+                html: '<div style="background: #ff0000; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.8);"></div>',
+                iconSize: [22, 22],
+                iconAnchor: [11, 11]
+            });
+
+            // 添加原点标记到地图（使用数学坐标系）
+            originMarker = L.marker([pixelCoords.y, pixelCoords.x], { icon: originIcon }).addTo(map);
+            originMarker.bindPopup(`坐标: (${originX.toFixed(3)}, ${originY.toFixed(3)})`);
+
+            // 绘制坐标轴
+            drawCoordinateAxes();
+        }
+
+        // 切换原点显示/隐藏
+        function toggleOrigin() {
+            if (!pgmData || !config || !mapData.imageUrl) {
+                console.warn('地图未加载，无法切换原点显示');
+                return;
+            }
+
+            if (originMarker) {
+                // 隐藏原点
+                map.removeLayer(originMarker);
+                originMarker = null;
+
+                // 隐藏坐标轴
+                if (xAxisLine) {
+                    map.removeLayer(xAxisLine);
+                    xAxisLine = null;
+                }
+                if (yAxisLine) {
+                    map.removeLayer(yAxisLine);
+                    yAxisLine = null;
+                }
+                if (xAxisArrow) {
+                    map.removeLayer(xAxisArrow);
+                    xAxisArrow = null;
+                }
+                if (yAxisArrow) {
+                    map.removeLayer(yAxisArrow);
+                    yAxisArrow = null;
+                }
+                if (xAxisLabel) {
+                    map.removeLayer(xAxisLabel);
+                    xAxisLabel = null;
+                }
+                if (yAxisLabel) {
+                    map.removeLayer(yAxisLabel);
+                    yAxisLabel = null;
+                }
+
+                console.log('隐藏世界坐标原点和坐标轴');
+            } else {
+                // 显示原点
+                showOriginPoint();
+            }
+        }
+
+        // 地图点击事件
+        function onMapClick(e) {
+            if (!mapData.imageUrl) {
+                console.warn('地图未加载，忽略点击');
+                return;
+            }
+
+            const latlng = e.latlng;
+            const px = latlng.lng;
+            const py = latlng.lat;
+
+
+
+            // 转换为世界坐标（使用数学坐标系）
+            const worldCoords = pixelToWorldMath(px, py);
+        }
+
+        // 加载选中的地图
+        async function loadSelectedMap(mapName) {
+            // 如果传入了mapName参数，使用它；否则从主选择框获取
+            const selectedMap = mapName || document.getElementById('mapSelect').value;
+            const isMainMap = !mapName; // 如果没有传入mapName，说明是从主选择框加载的主地图
+
+            if (!selectedMap) {
+                console.warn('没有选择地图');
+                return;
+            }
+
+            // 保存当前选择的地图名称到localStorage
+            localStorage.setItem("lastMapName", selectedMap);
+            // 只有从主选择框加载的地图才保存为lastMainMapName
+            if (isMainMap) {
+                localStorage.setItem("lastMainMapName", selectedMap);
+            }
+            // 清除localStorage中与之前地图相关的路线点数据
+            clearAllRoutePointsFromLocalStorage();
+
+            try {
+                // 使用与handle_map.html相同的接口获取PGM和YAML文件
+                const responsepgm = await fetch(`/pgm/file/pgm/${selectedMap}`);
+                const responseyaml = await fetch(`/pgm/file/yaml/${selectedMap}`);
+
+                // 检查PGM文件响应
+                if (!responsepgm.ok) {
+                    throw new Error(`PGM地图加载失败: ${responsepgm.status} ${responsepgm.statusText}`);
+                }
+
+                // 检查YAML文件响应
+                if (!responseyaml.ok) {
+                    throw new Error(`YAML配置加载失败: ${responseyaml.status} ${responseyaml.statusText}`);
+                }
+
+                // 读取PGM文件
+                const pgmArrayBuffer = await responsepgm.arrayBuffer();
+                const parsedPgmData = parsePGM(pgmArrayBuffer);
+
+                // 读取YAML文件
+                const yamlContent = await responseyaml.text();
+                const parsedConfig = jsyaml.load(yamlContent);
+
+                pgmData = parsedPgmData;
+                config = parsedConfig;
+
+                const imageUrl = pgmToCanvas(pgmData);
+                displayMap(imageUrl, pgmData.width, pgmData.height);
+                // 显示PGM原点
+                setTimeout(() => {
+                    showOriginPoint();
+                }, 100);
+
+                // 清除现有路线
+                if (typeof clearRoute === 'function') {
+                    clearRoute();
+                }
+                // 重新获取当前地图对应的路线数据
+                await getAllRoute();
+                
+                // 更新路线复选框列表（在routeData更新后）
+                if (typeof updateRouteCheckboxList === 'function') {
+                    updateRouteCheckboxList();
+                }
+
+                // 初始化路线多选面板
+                if (typeof initRoutePanelAfterMapLoad === 'function') {
+                    await initRoutePanelAfterMapLoad();
+                }
+
+                // 显示路线点的ID信息
+                if (typeof logRoutePointIds === 'function') {
+                    logRoutePointIds();
+                }
+            } catch (error) {
+                console.error('加载地图失败:', error);
+                cocoMessage.error('地图加载失败，请检查地图文件是否存在', 3000);
+            }
+        }
+
+        // 清除localStorage中所有地图的路线点数据
+        function clearAllRoutePointsFromLocalStorage() {
+            try {
+                // 遍历localStorage中所有键
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+
+                    // 检查键名是否以'routePoints_'开头
+                    if (key && key.startsWith('routePoints_')) {
+                        // 删除该键值对
+                        localStorage.removeItem(key);
+
+                    }
+                }
+            } catch (error) {
+                console.error('清除localStorage中所有路线点数据失败:', error);
+            }
+        }
+        // 添加机器人标记
+
+
+
+
+        // 清除当前路线并重置相关选择器
+        function clearAll() {
+            // 隐藏所有站点
+             if (typeof toggleAllStations === 'function') {
+                 // 为了确保站点被隐藏，我们检查按钮文本来决定是否需要调用
+                 const toggleBtn = document.getElementById('toggleAllStationsBtn');
+                 // 根据当前按钮文本判断站点是否可见，如果是"隐藏站点"或"显示/隐藏站点"，则表示站点当前是可见的
+                 if (toggleBtn && (toggleBtn.textContent === '隐藏站点' || toggleBtn.textContent === '显示站点')) {
+                     toggleAllStations(); // 这会将站点隐藏，并将按钮文本改为"显示站点"
+                 }
+                 // 如果按钮文本是"显示站点"，则站点已经是隐藏状态，无需操作
+             }
+            
+            // 清除当前路线（调用专门的路线清除函数）
+            if (typeof clearRoute === 'function') {
+                clearRoute();
+            }
+            
+            // 重置路线选择器
+            const routeSelect = document.getElementById('routeSelect');
+            if (routeSelect) {
+                routeSelect.value = ''; // 重置为默认选项
+            }
+            
+            // 清除箭头绘制器中的所有箭头
+            if (window.arrowDrawer && typeof window.arrowDrawer.clearAllArrows === 'function') {
+                window.arrowDrawer.clearAllArrows();
+            }
+            
+            // 重置箭头绘制器状态
+            if (window.arrowDrawer) {
+                window.arrowDrawer.startPoint = null;
+                window.arrowDrawer.isActive = false;
+                if (window.arrowDrawer.previewLine) {
+                    map.removeLayer(window.arrowDrawer.previewLine);
+                    window.arrowDrawer.previewLine = null;
+                }
+            }
+            
+            // 重置路线模式状态
+            if (typeof window.isRouteMode !== 'undefined') {
+                window.isRouteMode = false;
+                // 同时重置drag_move.js中的isRouteMode变量
+                if (typeof isRouteMode !== 'undefined') {
+                    isRouteMode = false;
+                }
+                // 移除路线创建模式的地图点击事件监听器
+                if (typeof map !== 'undefined') {
+                    map.off('click', onRouteMapClick);
+                }
+            }
+            
+            // 重置路线编辑模式状态
+            if (typeof window.isRouteEditMode !== 'undefined') {
+                window.isRouteEditMode = false;
+                // 同时重置drag_move.js中的isRouteEditMode变量
+                if (typeof isRouteEditMode !== 'undefined') {
+                    isRouteEditMode = false;
+                }
+            }
+            
+            // 重置路线创建模式状态
+            if (typeof window.isRouteCreationMode !== 'undefined') {
+                window.isRouteCreationMode = false;
+                // 同时重置drag_move.js中的isRouteCreationMode变量
+                if (typeof isRouteCreationMode !== 'undefined') {
+                    isRouteCreationMode = false;
+                }
+            }
+            
+            // 重置闭合路线模式
+            if (typeof isClosedRouteMode !== 'undefined') {
+                isClosedRouteMode = false;
+            }
+            
+            // 重置相关按钮状态（根据需要）
+            const createRouteBtn = document.getElementById('createRoute');
+            const finishRouteBtn = document.getElementById('finishRoute');
+            if (createRouteBtn) {
+                createRouteBtn.style.display = ''; // 显示创建路线按钮
+            }
+            if (finishRouteBtn) {
+                finishRouteBtn.style.display = ''; // 重置完成路线按钮
+            }
+            
+            // 清除路线信息显示
+            const routePointCountElement = document.getElementById('routePointCount');
+            const routeLengthElement = document.getElementById('routeLength');
+            if (routePointCountElement) {
+                routePointCountElement.textContent = '0';
+            }
+            if (routeLengthElement) {
+                routeLengthElement.textContent = '0.0000000';
+            }
+            
+            console.log('已清除当前路线并重置选择器，关闭了所有路线编辑和创建模式');
+        }
+        document.getElementById('mapSelect').addEventListener('change', function () {
+            const selectedMap = this.value;
+            if (selectedMap) {
+               if(document.getElementById("subFilesContainer")){
+                    refreshSubFiles()
+                }
+               loadDefaultMap()
+            }
+        });
+        // 初始化地图选择下拉框
+        async function initMapSelector() {
+            const mapSelect = document.getElementById('mapSelect');
+            try {
+                // 从后端获取导航地图PCD名称（跨设备同步）
+                let navMapPcdName = null;
+                try {
+                    const navMapResponse = await axiosClient.get('ros2/get_nav_map');
+                    if (navMapResponse.data.code === 0 && navMapResponse.data.data) {
+                        navMapPcdName = navMapResponse.data.data;
+                    }
+                } catch (e) {
+                    console.warn('获取导航地图失败，使用本地存储或上次选择:', e);
+                }
+
+                // 使用与handle_map.html相同的API接口
+                const response = await fetch('/pgm/list');
+                if (!response.ok) throw new Error('网络响应异常');
+
+                const data = await response.json();
+                if (data.code !== 0) throw new Error(data.message || '获取地图列表失败');
+
+                // 清空现有选项（保留第一个"请选择地图"选项）
+                while (mapSelect.options.length > 1) {
+                    mapSelect.remove(1);
+                }
+
+                // 获取上次选择的地图名称
+                const lastMapName = localStorage.getItem('lastMapName');
+
+                const maps = Array.isArray(data.data) ? data.data : [];
+                const hasMatchingNavMap = Boolean(navMapPcdName)
+                    && maps.some(item => item.path === navMapPcdName);
+
+                // 只有同名2D地图确实存在时才锁定导航地图；历史无效设置不能清空主界面。
+                maps.forEach(item => {
+                    if (hasMatchingNavMap && item.path !== navMapPcdName) {
+                        return;
+                    }
+                    const option = document.createElement('option');
+                    option.value = item.path;
+                    option.textContent = item.name;
+
+                    // 添加子文件数量提示
+                    if (item.children && item.children.length > 0) {
+                        option.textContent += ` (${item.children.length}个子地图)`;
+                        option.dataset.children = JSON.stringify(item.children);
+                    }
+
+                    mapSelect.appendChild(option);
+                });
+
+                if (navMapPcdName && !hasMatchingNavMap) {
+                    console.warn(`导航PCD ${navMapPcdName} 没有同名2D地图，已显示全部可用地图`);
+                    cocoMessage.warning('导航PCD缺少同名2D地图，已恢复显示现有地图', 3000);
+                }
+
+                // 检查是否有可用的地图
+                if (mapSelect.options.length <= 1) {
+                    // 没有地图，加载失败或没有匹配的地图
+                    cocoMessage.warning('未找到地图，请先去创建地图', 3000);
+                    console.log('已加载', mapSelect.options.length - 1, '个地图');
+                    return;
+                }
+
+                // 优先根据后端存储的导航地图PCD名称自动选中，其次使用上次选择的地图
+                if (hasMatchingNavMap) {
+                    mapSelect.value = navMapPcdName;
+                    // 加载选中的地图
+                    if (document.getElementById("subFilesContainer")) {
+                        refreshSubFiles();
+                    }
+                    loadDefaultMap();
+                } else if (lastMapName && maps.some(item => item.path === lastMapName)) {
+                    // 否则使用上次选择的地图
+                    mapSelect.value = lastMapName;
+                    loadDefaultMap();
+                } else {
+                    // 既没有导航地图也没有上次选择，自动选中第一个
+                    mapSelect.selectedIndex = 1;
+                    loadDefaultMap();
+                }
+
+                console.log('已加载', mapSelect.options.length - 1, '个地图');
+
+            } catch (error) {
+                console.error('初始化地图选择器失败:', error);
+                cocoMessage.error('加载地图失败，请检查服务', 3000);
+
+                // 使用本地回退机制（与handle_map.html一致）
+                const localMaps = [
+                    { name: '555', path: '555' },
+                    { name: 'A2', path: 'A2' },
+                    { name: 'clean1', path: 'clean1' },
+                    { name: 'clean2', path: 'clean2' },
+                    { name: 'clean3', path: 'clean3' },
+                    { name: 'clean4', path: 'clean4', children: ['333', '444'] }
+                ];
+
+                // 清空现有选项（保留第一个"请选择地图"选项）
+                while (mapSelect.options.length > 1) {
+                    mapSelect.remove(1);
+                }
+
+                // 即使 /pgm/list 失败，也尝试获取导航地图PCD名称
+                let navMapPcdName = null;
+                try {
+                    const navMapResponse = await axiosClient.get('ros2/get_nav_map');
+                    if (navMapResponse.data.code === 0 && navMapResponse.data.data) {
+                        navMapPcdName = navMapResponse.data.data;
+                    }
+                } catch (e) {
+                    console.warn('获取导航地图失败:', e);
+                }
+
+                localMaps.forEach(map => {
+                    const option = document.createElement('option');
+                    option.value = map.path;
+                    option.textContent = map.name + " (静态)";
+
+                    // 如果有子文件，添加提示
+                    if (map.children && map.children.length > 0) {
+                        option.textContent += ` (${map.children.length}个子地图)`;
+                        option.dataset.children = JSON.stringify(map.children);
+                    }
+
+                    mapSelect.appendChild(option);
+                });
+
+                // 根据导航地图关联的PCD名称自动选中，否则选中第一个
+                if (navMapPcdName && localMaps.some(map => map.path === navMapPcdName)) {
+                    mapSelect.value = navMapPcdName;
+                    loadDefaultMap();
+                } else {
+                    mapSelect.selectedIndex = 1;
+                    loadDefaultMap();
+                }
+            }
+        }
+
+        // 路线相关函数已移至 route.js 文件
+
+        // 显示子文件（与handle_map.html保持一致）
+        function displaySubFiles(selectedPath) {
+            const subFilesContainer = document.getElementById('subFilesContainer');
+            const subFilesList = document.getElementById('subFilesList');
+
+            // 使用与handle_map.html相同的API获取子文件数据
+            fetch('/pgm/list')
+                .then(response => {
+                    if (!response.ok) throw new Error('网络响应异常');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.code !== 0) throw new Error(data.message || '获取地图列表失败');
+
+                    // 查找选中的目录
+                    const selectedItem = data.data.find(item => item.path === selectedPath);
+                    displaySubFilesFromData(selectedItem, subFilesContainer, subFilesList);
+                })
+                .catch(error => {
+                    console.error('获取子文件失败:', error);
+                    // 使用本地模拟数据
+                    console.log('使用本地模拟数据显示子文件');
+                    const localData = {
+                        clean4: { path: 'clean4', name: 'clean4', children: [{ name: '333', path: '333' }, { name: '444', path: '444' }] }
+                    };
+                    const selectedItem = localData[selectedPath];
+                    displaySubFilesFromData(selectedItem, subFilesContainer, subFilesList);
+                });
+        }
+
+        // 从数据对象显示子文件的辅助函数（与handle_map.html保持一致）
+        function displaySubFilesFromData(selectedItem, subFilesContainer, subFilesList) {
+            if (selectedItem && selectedItem.children && selectedItem.children.length > 0) {
+                // 清空子文件列表
+                subFilesList.innerHTML = '';
+
+                // 创建选择框
+                const selectElement = document.createElement('select');
+                selectElement.className = 'form-select form-select-sm';
+                selectElement.style.marginBottom = '10px';
+                selectElement.id = 'subMapSelect';
+
+                // 添加默认选项
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = '请选择子地图';
+                selectElement.appendChild(defaultOption);
+
+                // 添加子文件选项
+                selectedItem.children.forEach(child => {
+                    const option = document.createElement('option');
+                    option.value = child.path;
+                    option.textContent = child.name;
+                    selectElement.appendChild(option);
+                });
+
+                // 添加变更事件监听器
+                selectElement.addEventListener('change', async function () {
+         
+                    
+                    if (this.value) {
+                        // 保存子地图设置到localStorage，确保下次进入界面自动加载
+                        const mainMapSelect = document.getElementById('mapSelect');
+                        const mainSelectedMap = mainMapSelect.value;
+                        const subSelectedMap = this.value;
+                        const subSelectedText = this.options[this.selectedIndex].text;
+                        
+                        // 保存子地图信息到localStorage
+                        localStorage.setItem('lastSubMapName', subSelectedText);
+                        localStorage.setItem('lastSubMapPath', subSelectedMap);
+                        localStorage.setItem('lastMainMapName', mainSelectedMap);
+                        // 清除主地图设置，确保子地图优先
+                        localStorage.removeItem('lastMapName');
+                        
+                        await loadSelectedMap(subSelectedText);
+                        // 当子地图改变时，重新获取该地图对应的路线数据
+                        await getAllRoute();
+                        
+                        if (typeof cocoMessage !== 'undefined') {
+                            cocoMessage.success(`已选择子地图: ${subSelectedText}`, 1500);
+                        }
+                    }
+                });
+
+                subFilesList.appendChild(selectElement);
+                subFilesContainer.style.display = 'block';
+            } else {
+                // 隐藏子文件容器
+                subFilesContainer.style.display = 'none';
+            }
+        }
+
+        // 刷新子文件（重新加载父地图）
+        function refreshSubFiles() {
+            const mapSelect = document.getElementById('mapSelect');
+            const selectedMap = mapSelect.value;
+
+            if (selectedMap) {
+
+                // 重新加载当前选中的父地图
+                loadSelectedMap(selectedMap);
+                // 重新显示子文件列表
+                displaySubFiles(selectedMap);
+                if (typeof cocoMessage !== 'undefined') {
+                    cocoMessage.success('父地图已重新加载', 1500);
+                }
+            } else {
+                if (typeof cocoMessage !== 'undefined') {
+                    cocoMessage.warning('请先选择一个地图', 2000);
+                }
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', async function () {
+            initMap();
+            await initMapSelector();  // 等待地图选择器初始化完成
+
+            // 添加地图选择变化事件监听
+            document.getElementById('mapSelect').addEventListener('change', async function () {
+                await loadSelectedMap();
+                // PGM和PCD同名，直接用mapName作为PCD名称更新导航路径
+                const pgmtopcd = await axiosClient.post(`ros2/update_map_path/${this.value}`)
+               // 当地图选择变化时，显示对应的子文件
+                displaySubFiles(this.value);
+            });
+
+            // 添加刷新子文件按钮事件监听
+            document.getElementById('refreshSubFilesBtn').addEventListener('click', refreshSubFiles);
+
+            // 检查是否有保存的默认地图设置
+            const lastSubMapName = localStorage.getItem('lastSubMapName');
+            const lastSubMapPath = localStorage.getItem('lastSubMapPath');
+            const lastMainMapName = localStorage.getItem('lastMainMapName');
+            const lastLoadedMap = localStorage.getItem('lastMapName');
+
+            if (lastMainMapName) {
+                // 如果有保存的主地图，先选择主地图
+                const mapSelect = document.getElementById('mapSelect');
+                mapSelect.value = lastMainMapName;
+
+                // 显示子文件列表
+                displaySubFiles(lastMainMapName);
+
+                // 检查最后加载的是子地图还是主地图
+                const isSubMap = lastSubMapName && lastLoadedMap && lastLoadedMap !== lastMainMapName;
+                
+                if (isSubMap) {
+                    // 最后加载的是子地图，等待子文件列表加载完成后，选择并加载子地图
+                    setTimeout(async () => {
+                        const subMapSelect = document.querySelector('#subFilesList select');
+                        if (subMapSelect) {
+                            // 查找匹配的子地图选项
+                            for (let i = 0; i < subMapSelect.options.length; i++) {
+                                if (subMapSelect.options[i].text === lastSubMapName ||
+                                    subMapSelect.options[i].value === lastSubMapPath) {
+                                    subMapSelect.selectedIndex = i;
+                                    // 加载默认子地图
+                                    await loadSelectedMap(lastSubMapName);
+                                    cocoMessage.success(`默认子地图 "${lastSubMapName}" 已自动加载`, 2000);
+                                    break;
+                                }
+                            }
+                        }
+                    }, 500); // 等待500ms让子文件列表加载完成
+                } else {
+                    // 最后加载的是主地图，直接加载主地图
+                    await loadSelectedMap(lastMainMapName);
+                }
+            }
+
+            // 获取路线数据
+            await getAllRoute();
+
+            // 机器人位置由 currentPose.js 统一渲染，避免两个定时器争用 robotMarker。
+        });
+
+        // 监听机器人位置变化
+        function startRobotPoseListener() {
+            // 每100毫秒检查一次localStorage中的机器人位置
+            setInterval(function () {
+                try {
+                    const poseData = localStorage.getItem('currentRobotPose');
+                    if (poseData) {
+                        const pose = JSON.parse(poseData);
+
+                        // 检查数据是否是最新的（最近1秒内）
+                        const now = Date.now();
+                        if (now - pose.timestamp < 1000) {
+                            renderRobotPose(pose.localX, pose.localY, pose.heading);
+                        }
+                    }
+                } catch (error) {
+                    console.error('读取机器人位置数据失败:', error);
+                }
+            }, 300);
+        }
+
+        // 渲染机器人位置到地图
+        function renderRobotPose(x, y, heading = null) {
+            if (!map || x === null || y === null) {
+                return;
+            }
+
+            try {
+                // 移除现有的机器人标记（如果存在）
+                if (robotMarker) {
+                    map.removeLayer(robotMarker);
+                }
+
+                // 创建机器人图标（包含朝向指示器）
+                const robotIconHtml = heading !== null ?
+                    `<div style="position: relative; width: 16px; height: 16px;">
+                        <div style="background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); position: absolute; top: 2px; left: 2px;"></div>
+                        <div style="position: absolute; top: 0; left: 9px; width: 2px; height: 8px; background: red; transform-origin: bottom center; transform: rotate(${heading}deg);">
+                            <div style="position: absolute; top: -8px; left: -5px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 8px solid red;"></div>
+                        </div>
+                    </div>` :
+                    '<div style="background: #ff4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>';
+
+                const robotIcon = L.divIcon({
+                    className: 'robot-marker',
+                    html: robotIconHtml,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                }, { zIndexOffset: -1000 });
+
+                // 将世界坐标转换为像素坐标（使用数学坐标系）
+                const pixelCoords = worldToPixel(x, y);
+
+                // 获取HTML盒子内容
+                const popupElement = document.getElementById('robotPositionPopup');
+                const positionInfoElement = document.getElementById('robotPositionInfo');
+
+                // 更新位置信息
+                if (positionInfoElement) {
+                    let positionText = `坐标: (${x.toFixed(3)}, ${y.toFixed(3)})<br>像素坐标: (${pixelCoords.x.toFixed(2)}, ${pixelCoords.y.toFixed(2)})`;
+                    if (heading !== null) {
+                        positionText += `<br>朝向: ${heading.toFixed(1)}°`;
+                    }
+                    positionInfoElement.innerHTML = positionText;
+                }
+
+                // 克隆HTML盒子内容作为弹出框内容
+                const popupContent = popupElement ? popupElement.innerHTML : '';
+
+                // 在地图上添加机器人位置标记
+                robotMarker = L.marker([pixelCoords.y, pixelCoords.x], { icon: robotIcon }).addTo(map);
+                robotMarker.bindPopup(popupContent);
+
+                // 为弹出框中的按钮添加事件处理
+                robotMarker.on('popupopen', function () {
+                    // 获取弹出框中的元素
+                    const confirmBtn = document.querySelector('.leaflet-popup-content #confirmBtn');
+                    const cancelBtn = document.querySelector('.leaflet-popup-content #cancelBtn');
+                    const actionSelect = document.querySelector('.leaflet-popup-content #operationType');
+                    const speedInput = document.querySelector('.leaflet-popup-content #robotSpeed');
+                    const prioritySelect = document.querySelector('.leaflet-popup-content #priority');
+                    const noteInput = document.querySelector('.leaflet-popup-content #remarks');
+
+                    // 确认按钮点击事件
+                    if (confirmBtn) {
+                        confirmBtn.onclick = function () {
+                            // 获取用户输入的值
+                            const action = actionSelect ? actionSelect.value : '';
+                            const speed = speedInput ? speedInput.value : '';
+                            const priority = prioritySelect ? prioritySelect.value : '';
+                            const note = noteInput ? noteInput.value : '';
+
+                            // 创建要发送的数据对象
+                            const robotCommand = {
+                                x: x,
+                                y: y,
+                                heading: heading,
+                                action: action,
+                                speed: parseFloat(speed),
+                                priority: priority,
+                                note: note,
+                                timestamp: Date.now()
+                            };
+
+                            // 将命令保存到localStorage，供其他组件使用
+                            localStorage.setItem('robotCommand', JSON.stringify(robotCommand));
+
+                            // 显示成功消息
+                            if (typeof cocoMessage !== 'undefined') {
+                                cocoMessage.success('机器人命令已发送', 2000);
+                            } else {
+                                console.log('机器人命令已发送:', robotCommand);
+                            }
+
+                            // 关闭弹出框
+                            robotMarker.closePopup();
+                        };
+                    }
+
+                    // 取消按钮点击事件
+                    if (cancelBtn) {
+                        cancelBtn.onclick = function () {
+                            // 关闭弹出框
+                            robotMarker.closePopup();
+                        };
+                    }
+                });
+            } catch (error) {
+                console.error('渲染机器人位置失败:', error);
+            }
+        }
+        function initLoadMap() {
+            const mapSelect = document.getElementById('mapSelect');
+            const lastMapName = localStorage.getItem('lastMapName');
+            if (lastMapName) {
+                mapSelect.value = lastMapName;
+                // 如果有上次选择的地图，自动加载它
+                loadSelectedMap();
+            }
+        }
+
+        function switchToAutoMode() {
+            const newMode = {
+                "manual": 0,//手动模式
+                "auto": 1,//自动模式
+            }
+            const response = axiosClient.post(`ros2/mode/${newMode.auto}`);
+        }
+        switchToAutoMode()
+
+
+
+        // 启动箭头绘制功能
+        function startArrowDrawing() {
+            // 在启动箭头绘制之前隐藏站点
+            if (typeof toggleAllStations === 'function') {
+                const toggleBtn = document.getElementById('toggleAllStationsBtn');
+                if (toggleBtn && (toggleBtn.textContent === '隐藏站点' || toggleBtn.textContent === '显示/隐藏站点')) {
+                    toggleAllStations(); // 隐藏站点，按钮文本变为"显示站点"
+                }
+            }
+            
+            // 在启动箭头绘制之前，关闭所有路线相关模式
+            // 重置路线模式状态
+            if (typeof window.isRouteMode !== 'undefined') {
+                window.isRouteMode = false;
+                // 同时重置drag_move.js中的isRouteMode变量
+                if (typeof isRouteMode !== 'undefined') {
+                    isRouteMode = false;
+                }
+                // 移除路线创建模式的地图点击事件监听器
+                if (typeof map !== 'undefined') {
+                    map.off('click', onRouteMapClick);
+                }
+            }
+            
+            // 重置路线编辑模式状态
+            if (typeof window.isRouteEditMode !== 'undefined') {
+                window.isRouteEditMode = false;
+                // 同时重置drag_move.js中的isRouteEditMode变量
+                if (typeof isRouteEditMode !== 'undefined') {
+                    isRouteEditMode = false;
+                }
+            }
+            
+            // 重置路线创建模式状态
+            if (typeof window.isRouteCreationMode !== 'undefined') {
+                window.isRouteCreationMode = false;
+                // 同时重置drag_move.js中的isRouteCreationMode变量
+                if (typeof isRouteCreationMode !== 'undefined') {
+                    isRouteCreationMode = false;
+                }
+            }
+            
+            // 重置闭合路线模式
+            if (typeof isClosedRouteMode !== 'undefined') {
+                isClosedRouteMode = false;
+            }
+            
+            window.currentArrow = "reposition"
+            if (typeof ArrowDrawer === 'undefined') {
+                console.error('ArrowDrawer类未加载');
+                return;
+            }
+
+            // 创建箭头绘制器实例 
+            if (!window.arrowDrawer) {
+                window.arrowDrawer = new ArrowDrawer(map);
+            }
+            // 开始绘制
+            window.arrowDrawer.startDrawing();
+        }
+
+        // 抽屉相关功能
+        // 获取DOM元素
+        let drawer = null;
+        let pageContent = null;
+        let openDrawerBtn = null;
+        let closeDrawerBtn = null;
+        let drawerOverlay = null;
+
+        // 初始化抽屉元素
+        function initDrawerElements() {
+            drawer = document.getElementById('customDrawer');
+            pageContent = document.getElementById('pageContent');
+            openDrawerBtn = document.getElementById('openDrawerBtn');
+            closeDrawerBtn = document.getElementById('closeDrawerBtn');
+            drawerOverlay = document.getElementById('drawer-overlay');
+
+            // 绑定按钮事件
+            if (openDrawerBtn) {
+                openDrawerBtn.addEventListener('click', openDrawer);
+            }
+            if (closeDrawerBtn) {
+                closeDrawerBtn.addEventListener('click', closeDrawer);
+            }
+            if (drawerOverlay) {
+                drawerOverlay.addEventListener('click', closeDrawer);
+            }
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', () => {
+                if (!drawer || !pageContent) return;
+
+                if (window.innerWidth <= 992 && drawer.classList.contains('open')) {
+                    pageContent.classList.remove('shifted');
+                } else if (window.innerWidth > 992 && drawer.classList.contains('open')) {
+                    pageContent.classList.add('shifted');
+                }
+            });
+        }
+
+        // 打开抽屉函数 
+        async function openDrawer() {
+            // 确保元素已初始化
+            if (!drawer || !pageContent || !drawerOverlay) {
+                initDrawerElements();
+                if (!drawer || !pageContent || !drawerOverlay) {
+                    console.error('抽屉元素未找到');
+                    return;
+                }
+            }
+
+            await deleImportData();
+            drawer.classList.add('open');
+            drawerOverlay.classList.add('show');
+            if (window.innerWidth > 992) {
+                pageContent.classList.add('shifted');
+            }
+        }
+
+        // 关闭抽屉函数
+        function closeDrawer() {
+            // 确保元素已初始化
+            if (!drawer || !pageContent || !drawerOverlay) {
+                console.error('抽屉元素未找到');
+                return;
+            }
+
+            drawer.classList.remove('open');
+            drawerOverlay.classList.remove('show');
+            pageContent.classList.remove('shifted');
+        }
+
+        // 站点管理相关功能
+        let currentBootPoint = null;
+        let deleteClickListener = null;
+
+        async function deleImportData() {
+            try {
+                // 先从数据库获取默认开机点
+                try {
+                    const paramResponse = await axiosClient.get("param/queryalldata");
+                    const paramList = paramResponse.data.data;
+                    // 找到id=1的记录，获取boot_point
+                    const param = paramList.find(p => p.id === 1);
+                    if (param && param.boot_point) {
+                        currentBootPoint = parseInt(param.boot_point);
+                        console.log('从数据库加载的默认开机点:', currentBootPoint);
+                    }
+                } catch (error) {
+                    console.error('获取默认开机点失败:', error);
+                }
+
+                let allImportPoints = await axiosClient.get("station/querynew/2");
+                const itemList = document.getElementById('itemList');
+                const filterInput = document.getElementById('filterInput');
+                const resetFilterBtn = document.getElementById('resetFilterBtn');
+
+                let originalItems = allImportPoints.data.data[0] || [];
+                let filteredItems = [...originalItems];
+
+                // 移除旧的监听器（如果存在）
+                if (deleteClickListener) {
+                    itemList.removeEventListener('click', deleteClickListener);
+                }
+
+                // 初始化渲染
+                renderItems(originalItems);
+
+                // 添加新的监听器并保存引用
+                deleteClickListener = async function (e) {
+                    if (e.target.classList.contains('delete-btn')) {
+                        const listItem = e.target.closest('.list-group-item');
+                        const itemId = parseInt(listItem.dataset.id);
+
+                        if (confirm('确定要删除这个站点吗？')) {
+                            await axiosClient
+                                .delete("station/delete/" + itemId)
+                                .then(async (res) => {
+                                    let flag = res.data.code;
+                                    if (!flag) {
+                                        cocoMessage.success("删除成功");
+                                        await deleteCurrentRoute();
+
+                                        // 在获取数据成功后，调用renderStations函数重新渲染站点标记
+                                        await renderAllStation();
+
+                                    } else {
+                                        cocoMessage.error("删除失败");
+                                    }
+                                })
+                                .finally(() => {
+                                    const routeSpeedElement = document.getElementById("routeSpeed");
+                                    if (routeSpeedElement) {
+                                        routeSpeedElement.textContent = "";
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.log("catch", error);
+                                });
+
+                            // 记录当前滚动位置
+                            const scrollTop = itemList.parentElement.scrollTop;
+
+                            // 添加删除动画
+                            listItem.classList.add('deleting');
+
+                            // 动画结束后删除元素
+                            setTimeout(() => {
+                                // 从原始数据中删除
+                                originalItems = originalItems.filter(item => item.id !== itemId);
+
+                                // 重新应用筛选
+                                applyFilter();
+
+                                // 恢复滚动位置（考虑到列表高度变化）
+                                itemList.parentElement.scrollTop = adjustScrollPosition(scrollTop, listItem.offsetHeight);
+                            }, 300);
+                        }
+                    } else if (e.target.classList.contains('set-startup-btn')) {
+                        // 处理设置为开机点按钮点击事件
+                        const listItem = e.target.closest('.list-group-item');
+                        const itemId = parseInt(listItem.dataset.id);
+                        const stationName = listItem.textContent.trim().split('\n')[0]; // 获取站点名称
+
+                        // 从原始数据中找到对应的站点信息
+                        const stationData = originalItems.find(item => item.id === itemId);
+
+                        // 显示确认对话框
+                        if (confirm(`确定要将站点 "${stationName}" 设置为开机点吗？`)) {
+                            try {
+                                // 打印站点的所有属性信息
+                                if (stationData && typeof rosManager !== 'undefined' && rosManager.initialPosePub) {
+                                    const poseWithCovariance = new ROSLIB.Message({
+                                        header: {
+                                            stamp: {
+                                                secs: Math.floor(Date.now() / 1000),
+                                                nsecs: (Date.now() % 1000) * 1000000
+                                            },
+                                            frame_id: "map"  // 坐标系，通常是 "map" 或 "odom"
+                                        },
+                                        pose: {
+                                            pose: {
+                                                position: {
+                                                    x: parseFloat(stationData.positionX),
+                                                    y: parseFloat(stationData.positionY),
+                                                    z: 0.0
+                                                },
+                                                orientation: {
+                                                    x: parseFloat(stationData.orientationX) || 0.0,
+                                                    y: parseFloat(stationData.orientationY) || 0.0,
+                                                    z: parseFloat(stationData.orientationZ) || 0.0,
+                                                    w: parseFloat(stationData.orientationW) || 1.0
+                                                }
+                                            },
+                                            covariance: [
+                                                0, 0.0, 0.0, 0.0, 0.0, 0.0,  // x
+                                                0.0, 0, 0.0, 0.0, 0.0, 0.0,  // y
+                                                0.0, 0.0, 0, 0.0, 0.0, 0.0,  // z
+                                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // roll
+                                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // pitch
+                                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0  // yaw
+                                            ]
+                                        }
+                                    });
+                                    RosManager.initialPosePub.publish(poseWithCovariance);
+                                }
+                                const rosPoseData = {
+                                            pose: {
+                                                pose: {
+                                                    position: {
+                                                            x: parseFloat(stationData.positionX),
+                                                            y: parseFloat(stationData.positionY),
+                                                            z: 0.0
+                                                    },
+                                                    orientation: {
+                                                    x: parseFloat(stationData.orientationX) || 0.0,
+                                                    y: parseFloat(stationData.orientationY) || 0.0,
+                                                    z: parseFloat(stationData.orientationZ) || 0.0,
+                                                    w: parseFloat(stationData.orientationW) || 1.0
+                                                    }
+                                                }
+                                            }
+                                        };
+                                // 显示成功消息
+                                try {
+                                    const response = await axiosClient.post(`ros2/initial_pose`, rosPoseData);
+                                    if(response.code === 200){
+                                        cocoMessage.success('初始位姿设置成功');
+                                    }
+                                    console.log('ROS位姿数据格式:', JSON.stringify(rosPoseData, null, 2));
+                                } catch (error) {
+                                    console.error('POST请求失败:', error);
+                                }
+                                cocoMessage.success(`站点1 "${stationName}" 已设置为开机点`);
+                            } catch (error) {
+                                console.error('设置开机点失败:', error);
+                                cocoMessage.error('设置开机点失败');
+                            }
+                        }
+                    } else if (e.target.classList.contains('set-default-startup-btn')) {
+                        // 处理设置为默认开机点按钮点击事件
+                        const listItem = e.target.closest('.list-group-item');
+                        const itemId = parseInt(listItem.dataset.id);
+                        const stationName = listItem.textContent.trim().split('\n')[0]; // 获取站点名称
+
+                        // 显示确认对话框
+                        if (confirm(`确定要将站点 "${stationName}" 设置为默认开机点吗？`)) {
+                            try {
+                                // 更新currentBootPoint变量
+                                currentBootPoint = itemId;
+
+                                // 重新渲染列表以更新按钮状态
+                                renderItems(filteredItems.length > 0 ? filteredItems : originalItems);
+                                updateRobotData(currentBootPoint);
+
+                                // 显示成功消息
+                                cocoMessage.success(`站点 "${stationName}" 已设置为默认开机点`);
+
+                            } catch (error) {
+                                console.error('设置默认开机点失败:', error);
+                                cocoMessage.error('设置默认开机点失败');
+                            }
+                        }
+                    }
+                };
+
+                itemList.addEventListener('click', deleteClickListener);
+
+                // 筛选功能（仅文本筛选）
+                filterInput.addEventListener('input', applyFilter);
+                resetFilterBtn.addEventListener('click', resetFilter);
+
+                // 应用筛选（仅文本匹配）
+                function applyFilter() {
+                    const searchTerm = filterInput.value.toLowerCase().trim();
+                    filteredItems = originalItems.filter(item =>
+                        item.stationName.toLowerCase().includes(searchTerm)
+                    );
+                    renderItems(filteredItems);
+                }
+
+                // 重置筛选
+                function resetFilter() {
+                    filterInput.value = '';
+                    applyFilter();
+                }
+
+                // 创建列表项元素
+                function createListItem(item) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.dataset.id = item.id;
+
+                    // 判断是否为当前开机点
+                    const isBootPoint = item.id == currentBootPoint;
+
+                    li.innerHTML = `
+                      ${item.stationName}
+                      
+                      <div class="btn-group" role="group">
+                        <button class="btn btn-sm ${isBootPoint ? 'btn-success' : 'btn-outline-success'} set-default-startup-btn" title="设置当前点为默认开机点">
+                          <i class="bi bi-star${isBootPoint ? '-fill' : ''}"></i> ${isBootPoint ? '默认开机点' : '设为默认开机点'}
+                        </button>
+                        <button class="btn btn-sm btn-primary set-startup-btn" title="设置为开机点">
+                          <i class="bi bi-play-fill"></i> 在此位置开机
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-btn">
+                          <i class="bi bi-trash"></i> 删除
+                        </button>
+                      </div>
+                    `;
+                    return li;
+                }
+
+                // 渲染列表
+                function renderItems(items) {
+                    itemList.innerHTML = '';
+                    items.forEach(item => {
+                        const li = createListItem(item);
+                        itemList.appendChild(li);
+                    });
+                }
+
+                // 调整滚动位置
+                function adjustScrollPosition(originalScrollTop, deletedItemHeight) {
+                    return Math.max(0, originalScrollTop - deletedItemHeight);
+                }
+            } catch (error) {
+                console.error('加载站点数据失败:', error);
+                cocoMessage.error('加载站点数据失败');
+            }
+        }
+
+        // 更新机器人数据
+        async function updateRobotData(boot_point) {
+            if (typeof axiosClient === 'undefined') {
+                console.error('axiosClient未定义');
+                return;
+            }
+
+            const paramRequest = {
+                id: 1,
+                boot_point: boot_point || "0",
+            };
+            try {
+                const res = await axiosClient.post("param/update", paramRequest);
+                let flag = res.data.code;
+                if (!flag) {
+                    if (typeof rosManager !== 'undefined') {
+                        RosManager.updateTopicPub.publish(rosManager.CAR_RUN_MSG);
+                    }
+                } else {
+                    cocoMessage.error("更新失败");
+                }
+            } catch (error) {
+                console.error("Error updating data:", error);
+            }
+        }
+
+        // 删除当前路线
+        async function deleteCurrentRoute() {
+            // 这里可以添加删除当前路线的逻辑
+            console.log('删除当前路线');
+        }
+
+
+
+        // 获取所有当前点
+        async function getAllCurrentPoint() {
+            // 从服务器获取最新的站点数据
+            try {
+                const response = await axiosClient.get("station/querynew/2");
+                // 更新全局的站点数据，allImportPoints应该直接存储站点数组
+                allImportPoints = { data: { data: [response.data.data[0]] } };
+                console.log('已获取最新的站点数据', allImportPoints);
+                return Promise.resolve();
+            } catch (error) {
+                console.error('获取站点数据失败:', error);
+                return Promise.reject(error);
+            }
+        }
+
+        // 渲染站点
+        async function renderStations() {
+            // 重新渲染站点
+            await renderAllStation();
+        }
+
+        // 填充路线选择
+        async function populateRouteSelect() {
+            // 这里可以添加填充路线选择的逻辑
+            console.log('填充路线选择');
+        }
+
+        // 在地图加载完成后初始化路线多选面板
+        async function initRoutePanelAfterMapLoad() {
+            if (typeof window.initRoutePanelAfterMapLoad === 'function') {
+                await window.initRoutePanelAfterMapLoad();
+            }
+        }
+    </script>
+
+    <script>
+        function initLoadMap() {
+            const mapSelect = document.getElementById('mapSelect');
+            const lastMapName = localStorage.getItem('lastMapName');
+            if (lastMapName) {
+                mapSelect.value = lastMapName;
+                // 如果有上次选择的地图，自动加载它
+                loadSelectedMap();
+            }
+        }
+        async function getAllRoute() {
+            // 获取当前地图名称
+            const mapSelect = document.getElementById('mapSelect');
+            const currentMapName = localStorage.getItem('lastMapName');
+
+            if (!currentMapName) {
+                console.log('请先选择地图');
+                return;
+            }
+            // 使用地图名称获取当前地图对应的路线
+            const response = await axiosClient.get(`route/map-coverage/${currentMapName}`);
+            
+            // 更新全局routeData变量
+            routeData = response.data.data || [];
+            console.log('更新全局routeData:', routeData);
+            
+            // 获取路线选择框
+            const routeSelect = document.getElementById('routeSelect');
+
+            // 清空现有选项
+            routeSelect.innerHTML = '<option value="" selected>请选择路线</option>';
+
+            // 获取路线数据
+            const routes = routeData;
+
+            if (routes && routes.length > 0) {
+                // 添加路线选项到选择框
+                routes.forEach(route => {
+                    const option = document.createElement('option');
+                    option.value = route.routeGroup[0].id;
+                    option.textContent = route.routeName;
+                    routeSelect.appendChild(option);
+                });
+            } else {
+                routeSelect.innerHTML += '<option value="" disabled>没有路线数据</option>';
+            }
+        }
+
+
+          
+        // // 启动箭头绘制功能
+        // function startArrowDrawing() {
+        //     if (typeof ArrowDrawer === 'undefined') {
+        //         console.error('ArrowDrawer类未加载');
+        //         return;
+        //     }
+
+        //     // 创建箭头绘制器实例 
+        //     if (!window.arrowDrawer) {
+        //         window.arrowDrawer = new ArrowDrawer(map);
+        //     }
+        //     // 开始绘制
+        //     window.arrowDrawer.startDrawing();
+        // }
+        let currentPointId = null
+        async function renderAllStation() {
+            const mapSelect = document.getElementById('mapSelect');
+            const currentMapName = mapSelect ? mapSelect.value : null;
+
+            let url = "station/querynew/2";
+            if (currentMapName) {
+                url += "?mapName=" + encodeURIComponent(currentMapName);
+            }
+
+            let allImportPoints = await axiosClient.get(url);
+            let originalItems = (allImportPoints.data.data && allImportPoints.data.data[0]) ? allImportPoints.data.data[0] : [];
+
+            // 查看第一个站点的完整结构
+            if (originalItems && originalItems.length > 0) {
+            }
+
+            // 清除现有的站点标记
+            if (window.stationMarkers) {
+                window.stationMarkers.forEach(marker => {
+                    map.removeLayer(marker);
+                });
+            }
+            window.stationMarkers = [];
+
+            // 遍历所有站点并渲染到地图上
+            originalItems.forEach((station, index) => {
+                // 获取站点的世界坐标
+
+                const worldX = parseFloat(station.positionX);
+                const worldY = parseFloat(station.positionY);
+                if (isNaN(worldX) || isNaN(worldY)) {
+                    console.warn(`站点 ${station.stationName || index} 的坐标无效:`, station);
+                    return;
+                }
+                
+                // 将世界坐标转换为像素坐标
+                const pixelCoords = worldToPixelMath(worldX, worldY);
+
+                // 创建站点图标
+                const stationIcon = L.divIcon({
+                    className: 'station-marker',
+                    html: `<div style="background: #36e201; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;" title="${station.stationName || '站点 ' + (index + 1)}"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                // 创建站点标记
+                const marker = L.marker([pixelCoords.y, pixelCoords.x], { icon: stationIcon }, { zIndexOffset: 1000 }).addTo(map);
+
+                // 添加弹出框显示站点信息
+                const popupContent = `
+                      <div style="min-width: 200px;">
+                          <p style="margin: 5px 0; font-size: 12px;"><strong>站点:</strong> ${station.stationName || '无'}</p>
+                          <div style="margin: 5px 0; font-size: 12px;">
+                              <strong>站点坐标:</strong>
+                              <div style="margin-top: 5px; display: flex; gap: 10px;">
+                                  <div>
+                                      <label for="stationX-${index}" style="font-size: 11px;">X:</label>
+                                      <input type="number" id="stationX-${index}" value="${worldX.toFixed(3)}" step="0.001" style="width: 70px; padding: 3px; font-size: 11px;">
+                                  </div>
+                                  <div>
+                                      <label for="stationY-${index}" style="font-size: 11px;">Y:</label>
+                                      <input type="number" id="stationY-${index}" value="${worldY.toFixed(3)}" step="0.001" style="width: 70px; padding: 3px; font-size: 11px;">
+                                  </div>
+                              </div>
+                          </div>
+                          <!-- 移动量和距离显示 -->
+                          <div id="movementInfo-${index}" style="margin: 10px 0; padding: 8px; background-color: #f0f8ff; border-radius: 4px; font-size: 11px; display: none;">
+                              <p style="margin: 2px 0;"><strong>移动偏移量:</strong></p>
+                              <div style="display: flex; gap: 10px; margin-left: 10px;">
+                                  <p style="margin: 2px 0;">ΔX: <span id="deltaX-${index}">0.000</span></p>
+                                  <p style="margin: 2px 0;">ΔY: <span id="deltaY-${index}">0.000</span></p>
+                              </div>
+                              <p style="margin: 2px 0; margin-top: 5px;"><strong>移动距离:</strong> <span id="moveDistance-${index}">0.000</span></p>
+                          </div>
+                          <div style="margin-top: 10px; display: flex; gap: 5px;">
+                              <button id="modifyStationBtn-${index}" style="padding: 5px 10px; background-color: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">修改</button>
+                              <button id="saveStationBtn-${index}" style="padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; display: none;">保存</button>
+                              <button id="cancelStationBtn-${index}" style="padding: 5px 10px; background-color: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; display: none;">取消</button>
+                         
+                                <button id="addRoutePointBtn-${index}" style="padding: 5px 10px; background-color: #FF9800; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;  display: block;">添加为路线点</button>
+                             </div>
+                          </div>
+                  `;
+                marker.bindPopup(popupContent, {
+                    offset: L.point(0, -10) // 调整弹框偏移量，x=10向右偏移，y=-10向上偏移
+                });
+                
+                // 保存原始坐标用于取消操作，将坐标存储在marker对象上
+                marker.originalCoords = { x: pixelCoords.x, y: pixelCoords.y };
+                marker.originalWorldCoords = { x: worldX, y: worldY };
+                let isDraggingEnabled = false;
+
+                // 更新弹出框中的坐标值和移动信息
+                function updatePopupCoords() {
+                    // 获取当前标记位置
+                    const latLng = marker.getLatLng();
+                    const newPixelCoords = { x: latLng.lng, y: latLng.lat };
+                    
+                    // 转换为世界坐标
+                    const newWorldCoords = pixelToWorldMath(newPixelCoords.x, newPixelCoords.y);
+                    
+                    // 计算移动偏移量
+                    const deltaX = newWorldCoords.x - marker.originalWorldCoords.x;
+                    const deltaY = newWorldCoords.y - marker.originalWorldCoords.y;
+                    
+                    // 计算移动距离（欧几里得距离）
+                    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                    
+                    // 确保弹出框保持打开状态
+                    if (marker._popup && !marker._popup.isOpen()) {
+                        marker.openPopup();
+                    }
+                    
+                    // 更新输入框值
+                    const xInput = document.getElementById(`stationX-${index}`);
+                    const yInput = document.getElementById(`stationY-${index}`);
+                    
+                    if (xInput && yInput) {
+                        xInput.value = newWorldCoords.x.toFixed(3);
+                        yInput.value = newWorldCoords.y.toFixed(3);
+                    }
+                    
+                    // 更新移动信息
+                    const movementInfo = document.getElementById(`movementInfo-${index}`);
+                    const deltaXEl = document.getElementById(`deltaX-${index}`);
+                    const deltaYEl = document.getElementById(`deltaY-${index}`);
+                    const distanceEl = document.getElementById(`moveDistance-${index}`);
+                    
+                    if (movementInfo && deltaXEl && deltaYEl && distanceEl) {
+                        deltaXEl.textContent = deltaX.toFixed(3);
+                        deltaYEl.textContent = deltaY.toFixed(3);
+                        distanceEl.textContent = distance.toFixed(3);
+                    }
+                }
+
+                // 为弹出框中的按钮添加点击事件
+                marker.on('popupopen',async function () {
+                    const modifyBtn = document.getElementById(`modifyStationBtn-${index}`);
+                    const saveBtn = document.getElementById(`saveStationBtn-${index}`);
+                    const cancelBtn = document.getElementById(`cancelStationBtn-${index}`);
+                    const addRoutePointBtn = document.getElementById(`addRoutePointBtn-${index}`);
+                    const xInput = document.getElementById(`stationX-${index}`);
+                    const yInput = document.getElementById(`stationY-${index}`);
+                    
+                    // 动态更新输入框的值为最新数据
+                    if (xInput && yInput) {
+                        // 使用marker上存储的最新原始世界坐标
+                        xInput.value = marker.originalWorldCoords.x.toFixed(3);
+                        yInput.value = marker.originalWorldCoords.y.toFixed(3);
+                    }
+
+                    // 根据当前编辑模式设置按钮和移动信息区域状态
+                    if (isDraggingEnabled) {
+                        // 已经处于编辑模式，显示保存和取消按钮
+                        if (modifyBtn) modifyBtn.style.display = 'none';
+                        if (saveBtn) saveBtn.style.display = 'inline-block';
+                        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+                        
+                        // 显示移动信息区域
+                        const movementInfo = document.getElementById(`movementInfo-${index}`);
+                        if (movementInfo) {
+                            movementInfo.style.display = 'block';
+                        }
+                        
+                        // 实时更新移动信息数值
+                        // 获取当前标记位置
+                        const latLng = marker.getLatLng();
+                        const newPixelCoords = { x: latLng.lng, y: latLng.lat };
+                        
+                        // 转换为世界坐标
+                        const newWorldCoords = pixelToWorldMath(newPixelCoords.x, newPixelCoords.y);
+                        
+                        // 计算移动偏移量
+                        const deltaX = newWorldCoords.x - marker.originalWorldCoords.x;
+                        const deltaY = newWorldCoords.y - marker.originalWorldCoords.y;
+                        
+                        // 计算移动距离（欧几里得距离）
+                        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                        
+                        // 更新移动信息数值
+                        const deltaXEl = document.getElementById(`deltaX-${index}`);
+                        const deltaYEl = document.getElementById(`deltaY-${index}`);
+                        const distanceEl = document.getElementById(`moveDistance-${index}`);
+                        
+                        if (deltaXEl && deltaYEl && distanceEl) {
+                            deltaXEl.textContent = deltaX.toFixed(3);
+                            deltaYEl.textContent = deltaY.toFixed(3);
+                            distanceEl.textContent = distance.toFixed(3);
+                        }
+                    } else {
+                        // 非编辑模式，显示修改按钮
+                        if (modifyBtn) modifyBtn.style.display = 'inline-block';
+                        if (saveBtn) saveBtn.style.display = 'none';
+                        if (cancelBtn) cancelBtn.style.display = 'none';
+                        
+                        // 隐藏移动信息区域
+                        const movementInfo = document.getElementById(`movementInfo-${index}`);
+                        if (movementInfo) {
+                            movementInfo.style.display = 'none';
+                        }
+                    }
+
+                    // 修改按钮点击事件
+                    if (modifyBtn) {
+                        modifyBtn.addEventListener('click', function () {
+                            isDraggingEnabled = true;
+                            marker.dragging.enable();
+                            modifyBtn.style.display = 'none';
+                            saveBtn.style.display = 'inline-block';
+                            cancelBtn.style.display = 'inline-block';
+                            
+                            // 显示移动信息区域
+                            const movementInfo = document.getElementById(`movementInfo-${index}`);
+                            if (movementInfo) {
+                                movementInfo.style.display = 'block';
+                            }
+                            cocoMessage.info('站点已可拖动，拖动后实时更新坐标', 2000);
+                        });
+                    }
+
+                    // 保存按钮点击事件
+                    if (saveBtn) {
+                        saveBtn.addEventListener('click', async function () {
+                            isDraggingEnabled = false;
+                            marker.dragging.disable();
+                            modifyBtn.style.display = 'inline-block';
+                            saveBtn.style.display = 'none';
+                            cancelBtn.style.display = 'none';
+                            
+                            // 隐藏移动信息区域
+                            const movementInfo = document.getElementById(`movementInfo-${index}`);
+                            if (movementInfo) {
+                                movementInfo.style.display = 'none';
+                            }
+                            
+                            // 移除原始位置标记和虚线连接
+                            if (marker.originalPositionMarker) {
+                                map.removeLayer(marker.originalPositionMarker);
+                                marker.originalPositionMarker = null;
+                            }
+                            if (marker.dragConnectionLine) {
+                                map.removeLayer(marker.dragConnectionLine);
+                                marker.dragConnectionLine = null;
+                            }
+                            
+                            // 获取当前坐标
+                            const latLng = marker.getLatLng();
+                            const newPixelCoords = { x: latLng.lng, y: latLng.lat };
+                            const newWorldCoords = pixelToWorldMath(newPixelCoords.x, newPixelCoords.y);
+                            station.positionX = newWorldCoords.x;
+                            station.positionY = newWorldCoords.y;
+                            const response =  await axiosClient.post(`/station/update`,station);
+                            if(response.data){
+                                // 无论服务器返回什么格式，都更新marker的原始坐标
+                                // 使用本地计算的坐标作为备选
+                                let updatedWorldX = newWorldCoords.x;
+                                let updatedWorldY = newWorldCoords.y;
+                                
+                                // 如果服务器返回了完整的station对象，则使用服务器返回的数据
+                                if (typeof response.data === 'object' && response.data.data) {
+                                    const updatedStation = response.data.data;
+                                    if (updatedStation.positionX && updatedStation.positionY) {
+                                        updatedWorldX = parseFloat(updatedStation.positionX);
+                                        updatedWorldY = parseFloat(updatedStation.positionY);
+                                    }
+                                }
+                                
+                                // 更新marker对象上的原始坐标为新的位置，下次拖动时使用新位置作为原始位置
+                                marker.originalCoords = newPixelCoords;
+                                marker.originalWorldCoords = { x: updatedWorldX, y: updatedWorldY };
+                                
+                                // 更新输入框的值为最新坐标
+                                const xInput = document.getElementById(`stationX-${index}`);
+                                const yInput = document.getElementById(`stationY-${index}`);
+                                if (xInput && yInput) {
+                                    xInput.value = updatedWorldX.toFixed(3);
+                                    yInput.value = updatedWorldY.toFixed(3);
+                                }
+                                
+                                // 更新station对象，确保下次修改时使用最新数据
+                                station.positionX = updatedWorldX;
+                                station.positionY = updatedWorldY;
+                                
+                                cocoMessage.success("修改成功")
+                            }else{
+                                cocoMessage.error("修改失败: " + (response.data?.message || "未知错误"))
+                            }
+                            marker.closePopup();
+                        });
+                    }
+
+                    // 取消按钮点击事件
+                    if (cancelBtn) {
+                        cancelBtn.addEventListener('click', function () {
+                            isDraggingEnabled = false;
+                            marker.dragging.disable();
+                            modifyBtn.style.display = 'inline-block';
+                            saveBtn.style.display = 'none';
+                            cancelBtn.style.display = 'none';
+                            
+                            // 隐藏移动信息区域
+                            const movementInfo = document.getElementById(`movementInfo-${index}`);
+                            if (movementInfo) {
+                                movementInfo.style.display = 'none';
+                            }
+                            
+                            // 恢复原始坐标
+                            marker.setLatLng([marker.originalCoords.y, marker.originalCoords.x]);
+                            if (xInput && yInput) {
+                                xInput.value = marker.originalWorldCoords.x.toFixed(3);
+                                yInput.value = marker.originalWorldCoords.y.toFixed(3);
+                            }
+                            
+                            // 重置移动信息
+                            const deltaXEl = document.getElementById(`deltaX-${index}`);
+                            const deltaYEl = document.getElementById(`deltaY-${index}`);
+                            const distanceEl = document.getElementById(`moveDistance-${index}`);
+                            if (deltaXEl && deltaYEl && distanceEl) {
+                                deltaXEl.textContent = '0.000';
+                                deltaYEl.textContent = '0.000';
+                                distanceEl.textContent = '0.000';
+                            }
+                            
+                            // 移除原始位置标记和虚线连接
+                            if (marker.originalPositionMarker) {
+                                map.removeLayer(marker.originalPositionMarker);
+                                marker.originalPositionMarker = null;
+                            }
+                            if (marker.dragConnectionLine) {
+                                map.removeLayer(marker.dragConnectionLine);
+                                marker.dragConnectionLine = null;
+                            }
+                            
+                            cocoMessage.info('已取消修改', 2000);
+                            
+                            // 关闭弹出框
+                            marker.closePopup();
+                        });
+                    }
+
+                    // 添加为路线点按钮点击事件
+                    if (addRoutePointBtn) {
+                        addRoutePointBtn.addEventListener('click', function () {
+                            // 关闭弹出框
+                            marker.closePopup();
+
+                            // 如果当前不在路线编辑模式，则启动路线创建模式
+                            if (!window.isRouteEditMode && !window.isRouteMode) {
+                                startRouteCreation();
+                            }
+
+                            // 将站点坐标转换为像素坐标并添加为路线点
+                            // 注意：Leaflet使用[纬度, 经度]格式，即[y, x]
+                            addRoutePoint(pixelCoords.x, pixelCoords.y);
+
+                            // 显示成功消息
+                            cocoMessage.success(`已将站点 "${station.stationName || '未命名站点'}" 添加为路线点`, 2000);
+                        });
+                    }
+
+                    // 输入框值改变事件
+                    if (xInput && yInput) {
+                        xInput.addEventListener('change', function () {
+                            const newX = parseFloat(this.value);
+                            const newY = parseFloat(yInput.value);
+                            if (!isNaN(newX) && !isNaN(newY)) {
+                                // 世界坐标转像素坐标
+                                const newPixelCoords = worldToPixelMath(newX, newY);
+                                marker.setLatLng([newPixelCoords.y, newPixelCoords.x]);
+                            }
+                        });
+
+                        yInput.addEventListener('change', function () {
+                            const newX = parseFloat(xInput.value);
+                            const newY = parseFloat(this.value);
+                            if (!isNaN(newX) && !isNaN(newY)) {
+                                // 世界坐标转像素坐标
+                                const newPixelCoords = worldToPixelMath(newX, newY);
+                                marker.setLatLng([newPixelCoords.y, newPixelCoords.x]);
+                            }
+                        });
+                    }
+                });
+
+                // 拖动事件处理
+                marker.on('dragstart', function() {
+                    // 开始拖动时确保弹出框保持打开
+                    if (marker._popup) {
+                        marker.openPopup();
+                    }
+                    
+                    // 先移除已存在的原始位置标记和虚线连接（如果有）
+                    if (marker.originalPositionMarker) {
+                        map.removeLayer(marker.originalPositionMarker);
+                        marker.originalPositionMarker = null;
+                    }
+                    if (marker.dragConnectionLine) {
+                        map.removeLayer(marker.dragConnectionLine);
+                        marker.dragConnectionLine = null;
+                    }
+                    
+                    // 在原始位置创建虚线标记
+                    const originalPixelCoords = marker.originalCoords;
+                    const originalLatLng = L.latLng(originalPixelCoords.y, originalPixelCoords.x);
+                    
+                    // 创建原始位置的虚线标记
+                    const originalMarkerIcon = L.divIcon({
+                        className: 'original-position-marker',
+                        html: `<div style="background: transparent; width: 16px; height: 16px; border: 2px dashed #f44336; border-radius: 50%; box-shadow: 0 0 4px rgba(255,0,0,0.5); display: flex; align-items: center; justify-content: center;"></div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+                    
+                    marker.originalPositionMarker = L.marker(originalLatLng, { 
+                        icon: originalMarkerIcon,
+                        zIndexOffset: -1500
+                    }).addTo(map);
+                    
+                    // 创建连接原始位置和当前位置的虚线
+                    const currentLatLng = marker.getLatLng();
+                    marker.dragConnectionLine = L.polyline(
+                        [originalLatLng, currentLatLng],
+                        {
+                            color: '#f44336',
+                            weight: 2,
+                            opacity: 0.7,
+                            dashArray: '5, 10',
+                            zIndexOffset: 400
+                        }
+                    ).addTo(map);
+                });
+                
+                marker.on('drag', function() {
+                    // 拖动过程中实时更新坐标
+                    updatePopupCoords();
+                    
+                    // 更新虚线连接
+                    if (marker.dragConnectionLine) {
+                        const originalLatLng = marker.originalPositionMarker.getLatLng();
+                        const currentLatLng = marker.getLatLng();
+                        marker.dragConnectionLine.setLatLngs([originalLatLng, currentLatLng]);
+                    }
+                });
+                
+                marker.on('dragend', function() {
+                    // 拖动结束后再次更新坐标，确保准确
+                    updatePopupCoords();
+                });
+
+                // 将标记添加到全局数组中
+                window.stationMarkers.push(marker);
+            });
+
+            console.log(`成功渲染了 ${window.stationMarkers.length} 个站点到地图上`);
+
+            //   // 如果有站点标记，调整地图视图以显示所有站点
+            //   if (window.stationMarkers.length > 0) {
+            //       const group = new L.featureGroup(window.stationMarkers);
+            //       map.fitBounds(group.getBounds().pad(0.1));
+            //   }
+        }
+        
+        // 显示/隐藏所有站点
+         function toggleAllStations() {
+             // 检查是否有站点标记
+             if (!window.stationMarkers || window.stationMarkers.length === 0) {
+                 cocoMessage.info('当前没有站点可以显示/隐藏');
+                 return;
+             }
+
+             // 获取按钮元素以更改文本
+             const toggleBtn = document.getElementById('toggleAllStationsBtn');
+             
+             // 检查当前状态（通过按钮文本判断）
+             if (toggleBtn.textContent === '隐藏站点' || toggleBtn.textContent === '显示/隐藏站点') {
+                 // 当前是显示状态，需要隐藏所有站点
+                 window.stationMarkers.forEach(marker => {
+                     if (map.hasLayer(marker)) {
+                         map.removeLayer(marker);
+                     }
+                 });
+                 toggleBtn.textContent = '显示站点';
+                 cocoMessage.info(`已隐藏 ${window.stationMarkers.length} 个站点`);
+             } else {
+                 // 当前是隐藏状态，需要显示所有站点
+                 window.stationMarkers.forEach(marker => {
+                     if (!map.hasLayer(marker)) {
+                         map.addLayer(marker);
+                     }
+                 });
+                 toggleBtn.textContent = '隐藏站点';
+                 cocoMessage.info(`已显示 ${window.stationMarkers.length} 个站点`);
+             }
+         }
+        
+        // 在地图加载完成后渲染所有站点
+        async function renderStationsAfterMapLoad() {
+            // 等待地图数据加载完成
+            if (!pgmData || !config || !mapData.imageUrl) {
+                setTimeout(renderStationsAfterMapLoad, 500);
+                return;
+            }
+            // 地图数据加载完成后，渲染站点
+            await renderAllStation();
+        }
+        // 启动站点渲染
+        renderStationsAfterMapLoad();
+        // 显示添加站点模态框
+        async function showAddStationModal() {
+            const modal = document.getElementById('addStationModal');
+            modal.classList.remove('hidden');
+            // 清空输入框
+            document.getElementById('stationNameInput').value = '';
+            document.getElementById('stationXInput').value = '';
+            document.getElementById('stationYInput').value = '';
+            let stationName = document.getElementById('stationNameInput').value.trim();
+            const currentRobotPoseStr = localStorage.getItem('positionData');
+            if (currentRobotPoseStr) {
+                try {
+                    const currentRobotPose = JSON.parse(currentRobotPoseStr);
+                    if (currentRobotPose && currentRobotPose.localX !== null && currentRobotPose.localY !== null) {
+                        document.getElementById('stationXInput').value = currentRobotPose.localX.toFixed(3);
+                        document.getElementById('stationYInput').value = currentRobotPose.localY.toFixed(3);
+                    }
+                } catch (error) {
+                    console.error('解析机器人位置数据失败:', error);
+                }
+            }
+
+            // 绑定取消按钮事件
+            const cancelBtn = document.getElementById('addStationCancel');
+            cancelBtn.onclick = function () {
+                modal.classList.add('hidden');
+            };
+            // 绑定确认按钮事件
+            const confirmBtn = document.getElementById('addStationConfirm');
+            confirmBtn.onclick = async function () {
+                const stationName = document.getElementById('stationNameInput').value.trim();
+                const stationX = parseFloat(document.getElementById('stationXInput').value);
+                const stationY = parseFloat(document.getElementById('stationYInput').value);
+
+                // 先验证输入
+                if (!stationName) {
+                    cocoMessage.error('请输入站点名称', 2000);
+                    return;
+                }
+                if (isNaN(stationX) || isNaN(stationY)) {
+                    cocoMessage.error('请输入有效的坐标值', 2000);
+                    return;
+                }
+
+                const mapSelect = document.getElementById('mapSelect');
+                const currentMapName = mapSelect ? mapSelect.value : null;
+
+                // 从 positionData 中获取位置和方向数据
+                const positionDataStr = localStorage.getItem("positionData");
+                let positionData = {};
+                if (positionDataStr) {
+                    try {
+                        positionData = JSON.parse(positionDataStr);
+                    } catch (e) {
+                        console.error('解析 positionData 失败:', e);
+                    }
+                }
+
+                let allparams = {
+                    latitude: positionData.latitudeCurrent || localStorage.getItem("latitudeCurrent") || 0,
+                    longitude: positionData.longitudeCurrent || localStorage.getItem("longitudeCurrent") || 0,
+                    positionX: document.getElementById('stationXInput').value,
+                    positionY: document.getElementById('stationYInput').value,
+                    positionZ: 0,
+                    orientationX: positionData.orientationX  || 0,
+                    orientationY: positionData.orientationY  || 0,
+                    orientationZ: positionData.orientationZ  || 0,
+                    orientationW: positionData.orientationW  || 0,
+                    stationName: document.getElementById('stationNameInput').value,
+                    stationCode: 2,
+                    mapName: currentMapName
+                };
+                const response = await axiosClient.post('station/add', allparams);
+                
+                if (response.data.data) {
+                    cocoMessage.success('站点添加成功', 2000);
+                    // 关闭模态框
+                    modal.classList.add('hidden');
+                    // 重新渲染所有站点，确保新增站点具有完整功能（修改、拖动等）
+                    await renderAllStation();
+                } else {
+                    // 站点添加失败
+                    cocoMessage.error('站点添加失败', 2000);
+                }
+            };
+        }
+
+        // 添加站点到地图
+        function addStationToMap(stationName, worldX, worldY) {
+            // 将世界坐标转换为像素坐标
+            const pixelCoords = worldToPixelMath(worldX, worldY);
+
+            // 创建站点图标
+            const stationIcon = L.divIcon({
+                className: 'station-marker',
+                html: `<div style="background: #36e201; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;" title="${stationName}"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            // 创建站点标记
+            const marker = L.marker([pixelCoords.y, pixelCoords.x], { icon: stationIcon }).addTo(map);
+
+            // 添加弹出框显示站点信息
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    
+                   ${stationName} <span style="margin: 5px 0; font-size: 12px;"><strong>站点坐标:</strong> (${worldX.toFixed(3)}, ${worldY.toFixed(3)})</span>
+                    <button id="addRoutePointBtn-${Date.now()}" style="margin-top: 10px; padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">添加为路线点</button>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+
+            // 为弹出框中的按钮添加点击事件
+            marker.on('popupopen', function () {
+                const addRoutePointBtn = document.getElementById(`addRoutePointBtn-${Date.now()}`);
+                if (addRoutePointBtn) {
+                    addRoutePointBtn.addEventListener('click', function () {
+                        // 关闭弹出框
+                        marker.closePopup();
+
+                        // 如果当前不在路线编辑模式，则启动路线创建模式
+                        if (!window.isRouteEditMode && !window.isRouteMode) {
+                            startRouteCreation();
+                        }
+
+                        // 将站点坐标转换为像素坐标并添加为路线点
+                        addRoutePoint(pixelCoords.x, pixelCoords.y);
+                        
+                        // 显示成功消息
+                        cocoMessage.success(`已将站点 "${stationName}" 添加为路线点`, 2000);
+                    });
+                }
+            });
+
+            // 将标记添加到全局数组中
+            if (!window.stationMarkers) {
+                window.stationMarkers = [];
+            }
+            window.stationMarkers.push(marker);
+
+            console.log(`成功添加站点 "${stationName}" 到地图上，坐标: (${worldX}, ${worldY})`);
+        }
+
+        // 路线信息设置函数 - 显示全局设置模态框
+        function routeMsgSet() {
+            // 检查是否有选择的路线，并显示或隐藏对应设置内容
+            const routeSelect = document.getElementById('routeSelect');
+            const globalSettingsContainer = document.getElementById('global-settings-container');
+            const currentRouteSettingsContainer = document.getElementById('current-route-settings-container');
+            const modalTitle = document.getElementById('globalSettingsModalLabel');
+
+            if (routeSelect && routeSelect.value) {
+                // 有选择的路线，显示当前路线设置，隐藏全局设置
+                currentRouteSettingsContainer.style.display = 'block';
+                globalSettingsContainer.style.display = 'none';
+                modalTitle.textContent = '当前路线设置';
+
+                // 获取当前路线信息
+                const selectedRouteId = routeSelect.value;
+
+                // 显示当前路线名称（使用select的选中选项的文本，切割掉冒号及冒号之前的内容）
+                const selectedOption = routeSelect.options[routeSelect.selectedIndex];
+                let routeName = selectedOption ? selectedOption.text : selectedRouteId;
+                // 切割掉冒号及冒号之前的内容
+                if (routeName.includes(':')) {
+                    routeName = routeName.split(':')[1].trim();
+                }
+                document.getElementById('currentRouteName').value = routeName;
+
+                // 显示当前路线速度（使用routeSpeed元素的textContent值）
+                const routeSpeedElement = document.getElementById('routeSpeed');
+
+                const speedValue = routeSpeedElement ? parseFloat(routeSpeedElement.textContent) : '';
+                document.getElementById('currentRouteSpeed').value = speedValue || '0.2'; // 如果没有速度值则使用默认值
+                
+                // 显示当前路线变道模式（使用station-avoid元素的值）
+                const stationAvoidElement = document.getElementById('station-avoid');
+                const avoidValue = stationAvoidElement ? stationAvoidElement.value : '0';
+                document.getElementById('currentRouteAvoid').value = avoidValue;
+                
+            } else {
+                // 没有选择的路线，显示全局设置，隐藏当前路线设置
+                currentRouteSettingsContainer.style.display = 'none';
+                globalSettingsContainer.style.display = 'block';
+                modalTitle.textContent = '全局设置';
+            }
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('globalSettingsModal'));
+            modal.show();
+        }
+
+        const controlTypes = {
+            START: 0,
+            STOP: 1,
+            CANCEL: 2
+        };
+        const operationNames = {
+            0: "启动",
+            1: "停止",
+            2: "取消"
+        };
+
+        const taskActionLocks = new Set();
+        const taskButtonLabels = {
+            publishTaskBtn: '发布任务',
+            startTaskBtn: '执行任务',
+            stopTaskBtn: '停止任务',
+            cancelTaskBtn: '取消任务'
+        };
+        let taskRoutePublished = false;
+
+        function getTaskRouteSelection() {
+            const routeSelect = document.getElementById('routeSelect');
+            const selectedOption = routeSelect && routeSelect.selectedIndex >= 0
+                ? routeSelect.options[routeSelect.selectedIndex]
+                : null;
+            return {
+                id: routeSelect ? routeSelect.value : '',
+                name: routeSelect && routeSelect.value && selectedOption
+                    ? selectedOption.textContent.trim()
+                    : ''
+            };
+        }
+
+        function setTaskUiState(message, state, hint) {
+            const badge = document.getElementById('taskStateBadge');
+            const hintElement = document.getElementById('taskActionHint');
+            if (badge) {
+                badge.textContent = message;
+                badge.dataset.state = state;
+            }
+            if (hintElement && hint) {
+                hintElement.textContent = hint;
+            }
+        }
+
+        function syncTaskControls() {
+            const selection = getTaskRouteSelection();
+            const selectedRoute = document.getElementById('taskSelectedRoute');
+            const routeSelect = document.getElementById('routeSelect');
+            const publishButton = document.getElementById('publishTaskBtn');
+            const startButton = document.getElementById('startTaskBtn');
+            const stopButton = document.getElementById('stopTaskBtn');
+            const cancelButton = document.getElementById('cancelTaskBtn');
+            const workflowBusy = ['publishTaskBtn', 'startTaskBtn', 'cancelTaskBtn']
+                .some(id => taskActionLocks.has(id));
+
+            if (selectedRoute) {
+                selectedRoute.textContent = selection.name || '未选择';
+                selectedRoute.title = selection.name || '';
+            }
+            if (routeSelect) {
+                routeSelect.disabled = workflowBusy;
+            }
+            if (publishButton) {
+                publishButton.disabled = !selection.id || workflowBusy;
+            }
+            if (startButton) {
+                startButton.disabled = !selection.id || !taskRoutePublished || workflowBusy;
+            }
+            if (stopButton) {
+                stopButton.disabled = taskActionLocks.has('stopTaskBtn');
+            }
+            if (cancelButton) {
+                cancelButton.disabled = taskActionLocks.has('cancelTaskBtn');
+            }
+        }
+
+        function resetTaskSelectionState() {
+            const selection = getTaskRouteSelection();
+            taskRoutePublished = false;
+            if (selection.id) {
+                setTaskUiState('等待发布', 'selected', '已选择路线，请先发布路线。');
+            } else {
+                setTaskUiState('等待选择', 'idle', '请选择路线，发布成功后才能执行任务。');
+            }
+            syncTaskControls();
+        }
+
+        function confirmClearCanvas() {
+            if (!confirm('清屏只会清理当前页面的路线绘制、站点显示和选择状态，不会删除已保存路线。确认继续吗？')) {
+                return;
+            }
+            clearAll();
+            resetTaskSelectionState();
+            cocoMessage.info('当前页面绘制内容已清理');
+        }
+
+        function beginTaskAction(buttonId, pendingLabel) {
+            taskActionLocks.add(buttonId);
+            const button = document.getElementById(buttonId);
+            const operationSection = document.getElementById('routeOperationSection');
+            if (button) {
+                button.textContent = pendingLabel;
+                button.setAttribute('aria-busy', 'true');
+            }
+            if (operationSection) {
+                operationSection.setAttribute('aria-busy', 'true');
+            }
+            syncTaskControls();
+        }
+
+        function endTaskAction(buttonId) {
+            taskActionLocks.delete(buttonId);
+            const button = document.getElementById(buttonId);
+            const operationSection = document.getElementById('routeOperationSection');
+            if (button) {
+                button.textContent = taskButtonLabels[buttonId];
+                button.removeAttribute('aria-busy');
+            }
+            if (operationSection && taskActionLocks.size === 0) {
+                operationSection.removeAttribute('aria-busy');
+            }
+            syncTaskControls();
+        }
+
+        function getTaskErrorMessage(error, fallback) {
+            return error?.response?.data?.message || error?.message || fallback;
+        }
+
+        async function runTaskAction(buttonId, pendingLabel, fallbackError, action) {
+            if (taskActionLocks.has(buttonId)) {
+                return null;
+            }
+            beginTaskAction(buttonId, pendingLabel);
+            try {
+                return await action();
+            } catch (error) {
+                const message = getTaskErrorMessage(error, fallbackError);
+                console.error(`${fallbackError}:`, error);
+                setTaskUiState('操作失败', 'error', message);
+                cocoMessage.error(message);
+                return null;
+            } finally {
+                endTaskAction(buttonId);
+            }
+        }
+
+        function assertSuccessfulResponse(response, operationName) {
+            if (!response || Number(response.data?.code) !== 0) {
+                throw new Error(response?.data?.message || `${operationName}失败，请稍后重试`);
+            }
+            return response;
+        }
+
+        async function vehicleControl(controlType) {
+            const response = await axiosClient.post(`ros2/vehicle/${controlType}`);
+            return assertSuccessfulResponse(response, operationNames[controlType] || '操作');
+        }
+
+        async function pubTask() {
+            const selection = getTaskRouteSelection();
+            const id = Number.parseInt(selection.id, 10);
+            if (!selection.id || Number.isNaN(id)) {
+                setTaskUiState('等待选择', 'idle', '请先选择需要发布的路线。');
+                cocoMessage.error('请先选择需要发布的路线');
+                syncTaskControls();
+                return null;
+            }
+
+            return runTaskAction('publishTaskBtn', '发布中…', '路线发布失败', async () => {
+                setTaskUiState('正在发布', 'busy', `正在发布路线“${selection.name}”，请勿重复点击。`);
+                const response = await axiosClient.post(`ros2/publishpathpoint/${id}`);
+                assertSuccessfulResponse(response, '路线发布');
+                taskRoutePublished = true;
+                setTaskUiState('已发布', 'ready', '路线发布成功，现在可以执行任务。');
+                cocoMessage.success('路线发布成功');
+                return response;
+            });
+        }
+
+        // 启动
+        async function starTask() {
+            const selection = getTaskRouteSelection();
+            if (!selection.id) {
+                cocoMessage.error('请先选择路线');
+                resetTaskSelectionState();
+                return null;
+            }
+            if (!taskRoutePublished) {
+                setTaskUiState('等待发布', 'selected', '请先发布当前路线，再执行任务。');
+                cocoMessage.error('请先发布当前路线');
+                syncTaskControls();
+                return null;
+            }
+            if (!confirm(`确认执行路线“${selection.name}”吗？`)) {
+                return null;
+            }
+
+            return runTaskAction('startTaskBtn', '启动中…', '任务启动失败', async () => {
+                setTaskUiState('正在启动', 'busy', '正在发送启动命令，请勿重复点击。');
+                const response = await vehicleControl(controlTypes.START);
+                setTaskUiState('命令已发送', 'sent', '启动命令已发送，实际运行状态以机器人反馈为准。');
+                cocoMessage.success('启动命令已发送');
+                return response;
+            });
+        }
+
+        // 暂停
+        async function stopTask() {
+            return runTaskAction('stopTaskBtn', '停止中…', '任务停止失败', async () => {
+                setTaskUiState('正在停止', 'busy', '正在发送停止命令。');
+                const response = await vehicleControl(controlTypes.STOP);
+                taskRoutePublished = false;
+                setTaskUiState('路线已取消并锁定', 'stopped', 'ROS 取消回执已收到；底盘停稳须核对速度反馈，再次执行需重新发布路线并解除软件锁定。');
+                cocoMessage.success('ROS 取消回执已收到');
+                return response;
+            });
+        }
+
+        //取消
+        async function cancelTask() {
+            const selection = getTaskRouteSelection();
+            const routeName = selection.name ? `路线“${selection.name}”` : '当前任务';
+            if (!confirm(`确认取消${routeName}吗？`)) {
+                return null;
+            }
+
+            return runTaskAction('cancelTaskBtn', '取消中…', '任务取消失败', async () => {
+                setTaskUiState('正在取消', 'busy', '正在发送取消命令。');
+                const response = await vehicleControl(controlTypes.CANCEL);
+                taskRoutePublished = false;
+                setTaskUiState('任务已取消并锁定', 'stopped', 'ROS 取消回执已收到；底盘停稳须核对速度反馈，再次执行需重新发布路线并解除软件锁定。');
+                cocoMessage.success('ROS 取消回执已收到');
+                return response;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function initTaskControls() {
+            const routeSelect = document.getElementById('routeSelect');
+            if (!routeSelect) {
+                return;
+            }
+            routeSelect.addEventListener('change', resetTaskSelectionState);
+            const routeOptionsObserver = new MutationObserver(resetTaskSelectionState);
+            routeOptionsObserver.observe(routeSelect, { childList: true });
+            resetTaskSelectionState();
+        });
+    </script>
+    <script>
+        // 添加全局设置方向选项的事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            // 全局设置方向选项事件处理
+            const globalDirectionRadios = document.querySelectorAll('input[name="directionOption"]');
+            const directionInputContainer = document.getElementById('directionInputContainer');
+            
+            globalDirectionRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'useAngle') {
+                        directionInputContainer.style.display = 'block';
+                    } else {
+                        directionInputContainer.style.display = 'none';
+                    }
+                });
+            });
+            
+            // 当前路线设置方向选项事件处理
+            const currentDirectionRadios = document.querySelectorAll('input[name="currentDirectionOption"]');
+            const currentDirectionInputContainer = document.getElementById('currentDirectionInputContainer');
+            
+            currentDirectionRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'useAngle') {
+                        currentDirectionInputContainer.style.display = 'block';
+                    } else {
+                        currentDirectionInputContainer.style.display = 'none';
+                    }
+                });
+            });
+            
+            // 初始检查，确保正确显示/隐藏输入框
+            const checkedGlobalRadio = document.querySelector('input[name="directionOption"]:checked');
+            if (checkedGlobalRadio && checkedGlobalRadio.value === 'useAngle') {
+                directionInputContainer.style.display = 'block';
+            }
+            
+            const checkedCurrentRadio = document.querySelector('input[name="currentDirectionOption"]:checked');
+            if (checkedCurrentRadio && checkedCurrentRadio.value === 'useAngle') {
+                currentDirectionInputContainer.style.display = 'block';
+            }
+        });
+    </script>
+    <script type="module">
+        import webSocketUtil from "../../tools/webSocketUtil.js";
+        // 初始化同源WebSocket连接；location.host 会保留手机访问时使用的端口。
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/pose`;
+        console.log('构建的WebSocket地址:', wsUrl);
+        let websocket = webSocketUtil.getInstance(wsUrl);
+        // 监听WebSocket消息
+        websocket.subscribe('message', function(data) {
+            // 可以在这里添加消息处理逻辑
+        });
+        // 监听WebSocket连接成功
+        websocket.subscribe('open', function() {
+          
+        });
+        // 监听WebSocket错误
+        websocket.subscribe('error', function(error) {
+            console.error("WebSocket错误:", error);
+        });
+        // 页面卸载时不需要关闭连接，其他页面可能还在使用
+        window.addEventListener('beforeunload', function() {
+            if (websocket) {
+                websocket.close();
+               
+            }
+        });
+        // 页面可见性变化时处理连接
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && websocket) {
+                console.log("页面隐藏，保持WebSocket连接");
+            } else if (!document.hidden && websocket) {
+                console.log("页面显示，WebSocket连接正常");
+            }
+        });
+    </script>
+    <script src="./js/drag_move.js"></script>
+    <script src="./js/publishWork.js"></script>
+    <script src="./js/currentPose.js"></script>
+    <script src="./js/drawArrow.js"></script>
+    <script src="./js/home_robot_data.js"></script>
+    <!-- routeInfoModal -->
+    <div id="routeInfoModal" class="route-info-modal hidden">
+        <div class="route-info-content">
+            <div class="route-info-field">
+                <label for="routeNameInput" class="route-info-label">路线名称</label>
+                <input type="text" id="routeNameInput" class="route-info-input" placeholder="请输入路线名称" />
+            </div>
+            <div style="display: none;" class="route-info-field">
+                <label for="routeSpeedInput" class="route-info-label">速度 (m/s)</label>
+                <input type="number" id="routeSpeedInput" class="route-info-input" placeholder="请输入速度" value="0.2"
+                    step="0.1" min="0.1" />
+            </div>
+            <div class="route-info-buttons">
+                <button id="routeInfoConfirm" class="route-info-btn route-info-btn-confirm">
+                    确认
+                </button>
+                <button id="routeInfoDelete" class="route-info-btn route-info-btn-delete">
+                    删除
+                </button>
+                <button id="routeInfoCancel" class="route-info-btn route-info-btn-cancel">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- addStationModal -->
+    <div id="addStationModal" class="route-info-modal hidden">
+        <div class="route-info-content">
+            <div class="route-info-field">
+                <label for="stationNameInput" class="route-info-label">站点名称</label>
+                <input type="text" id="stationNameInput" class="route-info-input" placeholder="请输入站点名称" />
+            </div>
+            <div class="route-info-field">
+                <label for="stationXInput" class="route-info-label">X坐标</label>
+                <input type="number" id="stationXInput" class="route-info-input" placeholder="请输入X坐标" step="0.01" />
+            </div>
+            <div class="route-info-field">
+                <label for="stationYInput" class="route-info-label">Y坐标</label>
+                <input type="number" id="stationYInput" class="route-info-input" placeholder="请输入Y坐标" step="0.01" />
+            </div>
+            <div class="route-info-buttons">
+                <button id="addStationCancel" class="route-info-btn route-info-btn-cancel">
+                    取消
+                </button>
+                <button id="addStationConfirm" class="route-info-btn route-info-btn-confirm">
+                    确认
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抽屉组件 -->
+    <div id="pageContent">
+        <!-- 自定义抽屉 -->
+        <div id="customDrawer" class="custom-drawer">
+            <div class="drawer-header">
+                <h3>站点编辑</h3>
+                <button id="closeDrawerBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="drawer-content">
+                <div class="filter-container">
+                    <div class="input-group">
+                        <input type="text" id="filterInput" class="form-control" placeholder="搜索站点名称...">
+                        <button class="btn btn-outline-secondary" id="resetFilterBtn">重置筛选</button>
+                    </div>
+                </div>
+                <div class="list-container">
+                    <ul class="list-group" id="itemList">
+                        <!-- 列表项将通过JavaScript动态添加 -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <!-- 抽屉遮罩层 -->
+        <div id="drawer-overlay" class="drawer-overlay"></div>
+    </div>
+    <!-- 全局设置模态框 -->
+    <div class="modal fade" id="globalSettingsModal" tabindex="-1" aria-labelledby="globalSettingsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="globalSettingsModalLabel">全局设置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- 全局设置内容 -->
+                    <div id="global-settings-container">
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="globalRouteSpeed" class="form-label">路线默认速度 (m/s)</label>
+                            <input type="number" id="globalRouteSpeed" style="max-width: 100px; margin-left: 10px;"
+                                class="form-control" step="0.1" min="-1" max="1" value="0.2">
+                        </div>
+                        <div class="mb-3">
+                            <label for="globalDefaultDirection" class="form-label">站点默认方向:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption" id="useNextPoint"
+                                    value="useNextPoint" checked>
+                                <label class="form-check-label" for="useNextPoint">
+                                    指向下一点
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption" id="keepDirection"
+                                    value="keepDirection">
+                                <label class="form-check-label" for="keepDirection">
+                                    保持当前方向
+                                </label>
+                            </div>
+                            <div style="display: flex; align-items: normal;" class="form-check">
+                                <input class="form-check-input" type="radio" name="directionOption" id="useAngle"
+                                    value="useAngle">
+                                <label for="useAngle">
+                                    使用输入角度:
+                                </label>
+                                <div style="min-width: 50px;  border-radius: 3px;   margin-left: 20px; display: none;"
+                                    id="directionInputContainer">
+                                    <input type="number" style="min-width: 50px; border: 1px solid #ced4da;"
+                                        id="globalDefaultDirection" placeholder="输入角度值" min="-180" max="180">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: none;   align-items: end;">
+                            <label for="globalNavigationMode" class="form-label">导航模式:</label>
+                            <select id="globalNavigationMode" style="margin-left: 20px;" class="form-select">
+                                <option value="1">室内</option>
+                                <option value="2">室外</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" style="display: flex;  align-items: end;">
+                            <label for="globalLanechange" class="form-label">变道绕障:</label>
+                            <select id="globalLanechange" class="form-select" style="width: 160px;  margin-left: 20px;">
+                            <option value="0">禁止变道</option>
+                            <option value="1">左变道</option>
+                            <option value="2">右变道</option>
+                            <option value="3">左右均可变道</option>
+                            <option value="4">关闭变道和绕障</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" style="display: flex;">
+                            <label class="form-label">转弯模式:</label>
+                            <div style="display: flex; align-items: center;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="turnMode" id="turnModeSelf"
+                                        value="1">
+                                    <label class="form-check-label" for="turnModeSelf">
+                                        自转模式
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="turnMode" id="turnModeContinuous"
+                                        value="0">
+                                    <label class="form-check-label" for="turnModeContinuous">
+                                        连续模式
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 当前路线设置内容 -->
+                    <div id="current-route-settings-container">
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="currentRouteName" class="form-label">当前路线名称</label>
+                            <input type="text" id="currentRouteName" class="form-control"
+                                style="max-width: 200px; margin-left: 10px;">
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateRouteName">
+                                <label class="form-check-label" for="updateRouteName">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: flex; align-items: baseline;">
+                            <label for="currentRouteSpeed" class="form-label">当前路线速度 (m/s)</label>
+                            <input type="number" id="currentRouteSpeed" class="form-control"
+                                style="max-width: 100px; margin-left: 10px;" class="form-control" step="0.1" min="-1"
+                                max="1">
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateSpeed">
+                                <label class="form-check-label" for="updateSpeed">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="currentRouteDirection" class="form-label">站点默认方向:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentUseNextPoint" value="useNextPoint">
+                                <label class="form-check-label" for="currentUseNextPoint">
+                                    指向下一点
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentKeepDirection" value="keepDirection">
+                                <label class="form-check-label" for="currentKeepDirection">
+                                    保持原方向
+                                </label>
+                            </div>
+                            <div style="display: flex; align-items: normal;" class="form-check">
+                                <input class="form-check-input" type="radio" name="currentDirectionOption"
+                                    id="currentUseAngle" value="useAngle" checked>
+                                <label for="currentUseAngle">
+                                    使用输入角度:
+                                </label>
+                                <div style="min-width: 50px;  border-radius: 3px;   margin-left: 20px; display: none;"
+                                    id="currentDirectionInputContainer">
+                                    <input type="number" style="min-width: 50px; border: 1px solid #ced4da;"
+                                        id="currentRouteDirection" placeholder="输入角度值" min="-180" max="180" value="0">
+                                </div>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateDirection">
+                                <label class="form-check-label" for="updateDirection">更新</label>
+                            </div>
+                        </div>
+                        
+                        <!-- 添加变道模式设置 -->
+                        <div class="mb-3" style="margin-bottom: 15px; ">
+                            <label for="currentRouteAvoid" class="form-label" style="display: block; font-size: 13px; margin-bottom: 6px; color: #333; font-weight: 500;">变道模式:</label>
+                            <select id="currentRouteAvoid"
+                                style="width: 100%;  border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background-color: #f9f9f9;">
+                                    <option value="0">禁止变道</option>
+                                    <option value="1">左变道</option>
+                                    <option value="2">右变道</option>
+                                    <option value="3">左右均可变道</option>
+                                    <option value="4">关闭变道和绕障</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px; margin-top: 5px;">
+                                <input class="form-check-input" type="checkbox" id="updateRouteAvoid">
+                                <label class="form-check-label" for="updateRouteAvoid">更新</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" style="display: none;   align-items: end;">
+                            <label for="currentRouteNavigationMode" class="form-label">导航模式:</label>
+                            <select id="currentRouteNavigationMode" style="margin-left: 20px;" class="form-select">
+                                <option value="1">室内</option>
+                                <option value="2">室外</option>
+                            </select>
+                            <div class="form-check" style="margin-left: 10px;">
+                                <input class="form-check-input" type="checkbox" id="updateNavigationMode">
+                                <label class="form-check-label" for="updateNavigationMode">更新</label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3" style="display: flex; align-items: center;">
+                            <label class="form-label">转弯模式:</label>
+                            <div style="display: flex; align-items: center;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="currentTurnMode" id="currentTurnModeSelf" value="1" checked>
+                                    <label class="form-check-label" for="currentTurnModeSelf">
+                                        自转模式
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="currentTurnMode" id="currentTurnModeContinuous" value="0">
+                                    <label class="form-check-label" for="currentTurnModeContinuous">
+                                        连续模式
+                                    </label>
+                                </div>
+                                <div class="form-check" style="margin-left: 10px;">
+                                    <input class="form-check-input" type="checkbox" id="updateTurnMode">
+                                    <label class="form-check-label" for="updateTurnMode">更新</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" id="saveGlobalSettings">保存设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 单台 Livox Mid-360 或 Mid-360S 配置抽屉 -->
+    <script src="./js/radar_drawer.js?v=20260924"></script>
+</body>
+
+</html>

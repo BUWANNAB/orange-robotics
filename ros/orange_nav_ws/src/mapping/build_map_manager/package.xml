@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>build_map_manager</name>
+  <version>0.0.1</version>
+  <description>Build map manager node for Livox and LIO-SAM.</description>
+  <maintainer email="maiminhthuy974@gmail.com">lyrobot</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>lio_sam</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,89 @@
+@media screen  and (max-width:900px){
+	.pose-show li {
+		display: flex;
+		height: 50px;
+		line-height: 50px;
+		padding-top: 0;
+		padding-bottom: 0;
+		/* border: 1px solid red; */
+	}
+	.pose-show li .pose-tag {
+		display: inline-block;
+		width: 135px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.pose-show .opt-div {
+		display: flex;
+		flex-wrap: nowrap;
+		/* border: 1px solid blue; */
+		/* float: right;
+		margin-right: 40px; */
+	}
+}
+@media screen  and (min-width:900px)  {
+	.pose-show li {
+		display: flex;
+		height: 50px;
+
+		line-height: 50px;
+		padding-top: 0;
+		padding-bottom: 0;
+		/* border: 1px solid red; */
+	}
+	.pose-show li .pose-tag {
+		display: inline-block;
+		width: 223px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	
+	.pose-show .opt-div {
+		display: flex;
+		flex-wrap: nowrap;
+		/* border: 1px solid blue; */
+		/* float: right;
+		margin-right: 40px; */
+		margin-left: 200px;
+	}
+
+}
+/* ul */
+.pose-show {
+	/* height: 600px; */
+	/* border: 1px solid red; */
+	overflow: auto;
+	overflow-x: hidden;
+}
+.pose-show li {
+	display: flex;
+	height: 50px;
+	line-height: 50px;
+	padding-top: 0;
+	padding-bottom: 0;
+	/* border: 1px solid red; */
+}
+
+
+
+.pose-show li .pose-tag:nth-child(1) {
+	width: 160px;
+}
+
+
+.pose-show .opt-div button {
+	margin-right: 10px;
+	width: 80px;
+}
+
+.pose-show {
+	max-height: 350px;
+    overflow-y: scroll;
+}
+
+.currentpose-tag {
+	width: 100px !important;
+}

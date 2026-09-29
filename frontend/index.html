@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>操作系统</title>
+	<link rel="icon" href="/src/assets/logo/favicon.svg" type="image/svg+xml" />
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1, viewport-fit=cover" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=orange-theme-20260921" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
+	<script type="text/javascript" src="/src/libs/jquery-3.1.0.min.js"></script>
+	<script type="text/javascript" src="/src/libs/vue.min.js"></script>
+	<script type="text/javascript" src="/src/libs/bootstrap/js/popper.min.js"></script>
+	<script type="text/javascript" src="/src/libs/bootstrap/js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="/src/utils/llh2xyz.js"></script>
+	<link rel="stylesheet" type="text/css" href="/src/libs/bootstrap/css/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/flicker.css" />
+	<link href="/src/libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+	<!-- bootstrap-switch-->
+	<link rel="stylesheet" type="text/css" href="/src/libs/bootstrap/css/bootstrap-switch.min.css" />
+	<script type="text/javascript" src="/src/libs/bootstrap/js/bootstrap-switch.min.js"></script>
+	<link rel="stylesheet" href="/src/components/indoor-map/css/radar_drawer.css?v=20260929">
+	<style>
+		body,
+		html {
+			overflow-y: hidden;
+		}
+
+		.toggle-switch {
+			display: flex;
+			align-items: baseline;
+		}
+
+		ol,
+		ul {
+			padding-left: 0px;
+		}
+
+		#Recording {
+			cursor: pointer;
+		}
+
+		/* 报警侧边栏小气泡样式 */
+		.alarm-badge {
+			position: absolute;
+			right: 10px;
+			top: 50%;
+			transform: translateY(-50%);
+			background: #ff4757;
+			color: white;
+			border-radius: 10px;
+			padding: 2px 6px;
+			font-size: 11px;
+			font-weight: bold;
+			min-width: 18px;
+			text-align: center;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+			animation: pulse 2s infinite;
+		}
+
+		.alarm-badge-total {
+			background: #ff4757;
+			border-radius: 8px;
+			padding: 0 4px;
+			margin-right: 2px;
+		}
+
+		.alarm-badge-error {
+			background: #ff3838;
+			border-radius: 8px;
+			padding: 0 4px;
+			margin-right: 2px;
+		}
+
+		.alarm-badge-warning {
+			background: #ffa502;
+			border-radius: 8px;
+			padding: 0 4px;
+		}
+
+		@keyframes pulse {
+			0% {
+				transform: translateY(-50%) scale(1);
+			}
+
+			50% {
+				transform: translateY(-50%) scale(1.1);
+			}
+
+			100% {
+				transform: translateY(-50%) scale(1);
+			}
+		}
+
+		/* 让导航项相对定位，便于小气泡定位 */
+		.nav-tab {
+			position: relative;
+		}
+
+		.li-a {
+			position: relative;
+			display: block;
+			padding-right: 35px;
+		}
+
+
+
+	</style>
+</head>
+
+<body>
+	<div class="page" id="app">
+		<div id="mainNavigation" class="nav-left" :class="{'nav-open': navLeftFlag}" ref="navLeft" @click="onNavLeftClick">
+			<div class="LogoName">
+				<span class="logo" style="font-size: 26px; display:flex; align-items:center; justify-content:center; background:none; width:32px; height:32px; flex:0 0 32px;">🍊</span>
+				<span class="brand-name"><!-- 待填写品牌名 --></span>
+			</div>
+			<div class="navDiv">
+				<!-- <div class="navName">导航</div> -->
+				<div class="nav-list">
+					<ul>
+						<li v-for="item in sidebarItems" :key="item.id"
+							:class="['nav-tab', 'nav-ul', {'displaynone': !item.visible, 'a_active': activeItem === item.id}]"
+							v-show="item.visible" @click="navigateToItem(item)">
+							<a :href="item.url" class="li-a" :class="{'active': activeItem === item.id}"
+								target="iframe">
+								<i :class="item.icon"></i>
+								{{ item.title }}
+							</a>
+						</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+		<button v-if="navLeftFlag" type="button" class="mobile-nav-backdrop" aria-label="关闭导航菜单"
+			@click="closeNav"></button>
+		<div class="nav-right" ref="navRight">
+			<div id="navigationResizeHandle" class="navigation-resize-handle" role="separator"
+				aria-orientation="vertical" aria-valuemin="180" aria-valuemax="360" aria-valuenow="240"
+				aria-label="拖拽调整导航栏与地图比例，双击恢复默认" title="拖拽调整导航栏与地图比例 · 双击恢复默认"></div>
+			<div class="nav-top">
+				<button type="button" class="btn btn-light btn-sm hiddenBtn" aria-controls="mainNavigation"
+					:aria-expanded="navLeftFlag ? 'true' : 'false'" aria-label="打开或关闭导航菜单"
+					style="margin-left: 12px; border: 1px solid #e2e8f0; background: #f8fafc;" @click="isShowLeft">
+					<i class="bx bx-menu" style="font-size: 24px; color: #334155;"></i>
+				</button>
+				<nav class="nav-basic">
+					<div v-for="item in headerItems.basic" :key="item.id"
+						:class="[item.class, {'displaynone': !item.visible}]" v-show="item.visible">
+						<template v-if="item.id === 'recording_status'">
+							<div class="point point-flicker"></div>
+							<span style="margin-left: 22px;">录制中</span>
+						</template>
+						<template v-if="item.id === 'recording_label'">
+							<span style="width: 100px; display:block; text-align:center;">录制地图</span>
+						</template>
+						<template v-if="item.id === 'map_loader'" id="map_lodar"
+							style="display: flex; align-items: center; margin-right: 20px;">
+							地图加载
+							<div class="spinner-border" role="status" style="margin-right: 10px; margin-left: 10px;">
+								<span class="sr-only">Loading...</span>
+							</div>
+						</template>
+						<template v-if="item.id === 'reliability'">
+							<span>可信度: </span>
+							<span id="rel_show" style="margin-left: 7px">0%</span>
+						</template>
+						<template v-if="item.id === 'current_position'">
+							<span class="base_span" style="margin-left: 20px;">当前坐标:</span>
+							<span class="base_span span_pose"></span>
+						</template>
+						<template v-if="item.id === 'nearest_station'">
+							<span class="base_span" style="margin-left: 10px;">最近站点:</span>
+							<span class="base_span span_name"> </span>
+						</template>
+						<template v-if="item.id === 'nearest_distance'">
+							<span class="base_span">最近距离:</span>
+							<span class="base_span span_dist"> </span>
+						</template>
+					</div>
+				</nav>
+				<nav class="nav-new">
+					<div class="top-div">
+						<div v-for="item in headerItems.new" :key="item.id"
+							:class="[item.class, {'displaynone': !item.visible}]" v-show="item.visible"
+							:style="item.style || ''">
+							<template v-if="item.id === 'coordinates_display'">
+								<div class="top-info-card">
+									<div>
+										<span id="topLat" style="font-weight: 600; color: #1e293b;">纬度: --</span><br/>
+										<span id="topLon" style="font-weight: 600; color: #1e293b;">经度: --</span>
+									</div>
+								</div>
+							</template>
+							<template v-if="item.id === 'positionxy_display'">
+								<div class="top-info-card">
+									<div>
+										<span id="localX" style="font-weight: 600; color: #1e293b;">坐标X: --</span><br/>
+										<span id="localY" style="font-weight: 600; color: #1e293b;">坐标Y: --</span>
+									</div>
+								</div>
+							</template>
+							<template v-if="item.id === 'position_status'">
+								<div class="status-indicator-wrap" title="定位状态">
+									<span id="stant" style="color: #64748b;">定位:</span>
+									<span id="positonStatus" class="status-dot status-red" style="display: none;" title="卫星"></span>
+									<span style="color: #64748b; margin-left: 4px;">激光</span>
+									<span id="laserStatus" class="status-dot status-red" title="激光定位状态"></span>
+								</div>
+							</template>
+							<template v-if="item.id === 'heading_status'">
+								<div class="status-indicator-wrap" title="航向状态">
+									<span id="head" style="color: #64748b;">航向:</span>
+									<span id="headeRow" class="status-dot status-red" title="航向信息状态"></span>
+									<span id="Heading"></span>
+								</div>
+							</template>
+							<template v-if="item.id === 'record_control'">
+								<div class="record-btn-group">
+									<div id="setting" class="setting-btn-icon" title="设置录制间隔">
+										<i class="bx bx-slider-alt" style="font-size: 18px;"></i>
+									</div>
+									<div id="Record" class="record-action-btn">
+										<i id="RecRouteIcon" class="bx bx-play-circle" style="font-size: 16px;"></i>
+										<span id="Recording">轨迹录制</span>
+										<span id="RecRoute" style="display: none;"></span>
+									</div>
+								</div>
+							</template>
+							<template v-if="item.id === 'wifi_status'">
+								<div class="wifi-status-card" title="网络信号">
+									<i id="wifiIcon" class="bx bx-wifi" style="font-size: 18px; color: #10b981;"></i>
+									<span id="wifiStatus">信号正常</span>
+									<span id="wifiImg" style="display: none;"></span>
+								</div>
+							</template>
+							<template v-if="item.id === 'shutdown_button'">
+								<div>
+									<button type="button" class="btn btn-outline-danger btn-sm" id="closeRobot" data-bs-toggle="modal"
+										data-bs-target="#shutdownModal" style="display: none; border-radius: 6px; padding: 4px 10px;">
+										<i class="bx bx-power-off" style="font-size: 16px; vertical-align: middle;"></i> 关机
+									</button>
+								</div>
+							</template>
+
+							<template v-if="item.id === 'track_control'">
+								<div class="toggle-switch">
+									<!-- 隐藏的输入框，用于存储实际值（0=关闭，1=开启） -->
+									<input type="hidden" id="closetrack" value="1">
+									<!-- 开关按钮（视觉上的开关） -->
+									<label class="switch">
+										<input type="checkbox" id="closetrackSwitch">
+										<span class="slider round"></span>
+									</label>
+									<!-- 状态文字提示 -->
+									<span id="switchStatus" class="ms-2" style="font-size: 13px; font-weight: 500; color: #10b981;">远程控制</span>
+								</div>
+							</template>
+						</div>
+					</div>
+				</nav>
+				<!-- 退出登录按钮 -->
+				<div class="top-action-btn" style="position: absolute; right: 50px; top: 12px; cursor: pointer;" id="logoutBtn" title="退出登录">
+					<i class="bx bx-log-out" style="font-size: 20px; color: #64748b;"></i>
+				</div>
+				<!-- 隐藏的管理入口 -->
+				<div class="top-action-btn" style="position: absolute; right: 10px; top: 12px; opacity: 0.3; cursor: pointer;" id="adminAccess"
+					title="管理员入口">
+					<i class="bx bx-cog" style="font-size: 20px; color: #64748b;"></i>
+				</div>
+			</div>
+			<div class="content-page" ref="cPage">
+				<iframe name="iframe" width="100%" height="100%" frameborder="0"
+					src="/src/components/indoor-map/drag_move.html?map-resize-20260909"></iframe>
+			</div>
+		</div>
+	</div>
+	<!-- Modal -->
+	<div class="modal fade" id="passwordModal" data-backdrop="static" data-keyboard="false" tabindex="-1"
+		aria-labelledby="passwordModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						<span style="display: none ;" aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="input-group mb-3">
+						<div class="input-group-prepend">
+							<span class="input-group-text" id="inputGroup-sizing-default"
+								style="font-size: 16px;">验证密码</span>
+						</div>
+						<input type="text" id="passwordModalInputTag" style="display: none;">
+						<input type="password" id="passwordModalInput" class="form-control" style="font-size: 16px;"
+							aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default">
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" id="canTarget" data-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-primary" id="passwordModalBtn">确认</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- 模态框 -->
+	<div class="modal fade" id="shutdownModal" tabindex="-1" aria-labelledby="shutdownModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="shutdownModalLabel">确认关机</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					确定要关闭系统吗？
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-danger" id="confirmShutdown">关机</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- 录制名称输入模态框 -->
+	<div class="modal fade" id="recordNameModal" tabindex="-1" aria-labelledby="recordNameModalLabel"
+		aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="recordNameModalLabel">请输入录制间隔</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<input type="number" id="recordNameInput" class="form-control" placeholder="默认0.5,单位（米）" required>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" id="cancelRecordName"
+						data-bs-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-primary" id="confirmRecordName">确认</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<!-- 保存录制数据模态框（简化版） -->
+	<div class="modal fade" id="saveRecordingModal" tabindex="-1" aria-labelledby="saveRecordingModalLabel"
+		aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="saveRecordingModalLabel">保存录制路线</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-3">
+						<label for="routeNameInput" class="form-label">路线名称</label>
+						<input type="text" class="form-control" id="routeNameInput" placeholder="请输入路线名称" required>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+					<button type="button" class="btn btn-primary" id="confirmSaveRecording">确认保存</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script type="module">
+		import webSocketUtil from "/src/tools/webSocketUtil.js";
+	</script>
+	<script type="text/javascript">
+		/* 测试阶段：静态预览和 8088 测试服务默认免登录；?skipLogin=0 可恢复登录流程。 */
+		(function () {
+			const TEMP_SKIP_LOGIN_KEY = 'robot.tempSkipLogin';
+			const params = new URLSearchParams(window.location.search);
+			const isStaticPreview = window.location.port === '8080';
+			const isTestService = window.location.port === '8088';
+			window.isStaticPreview = isStaticPreview;
+			if (params.get('skipLogin') === '0') {
+				localStorage.removeItem(TEMP_SKIP_LOGIN_KEY);
+			} else if (params.get('skipLogin') === '1' || isStaticPreview || isTestService) {
+				localStorage.setItem(TEMP_SKIP_LOGIN_KEY, 'true');
+				localStorage.setItem('username', 'admin');
+			}
+			window.isTemporaryLoginBypassEnabled = function () {
+				return localStorage.getItem(TEMP_SKIP_LOGIN_KEY) === 'true';
+			};
+			if (window.isTemporaryLoginBypassEnabled()) {
+				console.warn('[临时测试模式] 已跳过登录流程，仅用于家里测试，退出登录后自动恢复。');
+			}
+		})();
+	</script>
+	<script type="text/javascript">
+		window.addEventListener('message', function (event) {
+			if (event.data.type === 'TOKEN_MISSING' && event.data.data
+				&& !(window.isTemporaryLoginBypassEnabled && window.isTemporaryLoginBypassEnabled())) {
+				window.location.href = event.data.data;
+			}
+		})
+	</script>
+	<script type="text/javascript">
+		$(function () {
+			$('.nav-tab').click(function () {
+				$(this).siblings().each(function () {
+					$(this).removeClass('a_active');
+				})
+				//当前选中
+				$(this).addClass('a_active')
+				$(this).find('.li-a').addClass('active')
+			})
+		})
+		const vue = new Vue({
+			el: '#app',
+			data: {
+				navLeftFlag: window.innerWidth > 900, // 手机/平板端默认收起侧边栏
+				sidebarItems: [],
+				activeItem: 'leftmap_simple',
+				headerItems: {
+					basic: [],
+					new: []
+				},
+				userRole: 'user' // 默认用户角色为user
+			},
+			methods: {
+				isShowLeft() {
+					const isMobile = window.innerWidth <= 900;
+					if (this.navLeftFlag) {
+						if (!isMobile) {
+							this.$refs.navRight.style.paddingLeft = '0px'
+							this.$refs.cPage.style.left = '0px';
+						}
+						this.navLeftFlag = false;
+					} else {
+						if (!isMobile) {
+							const savedWidth = typeof window.getNavigationWidth === 'function'
+								? window.getNavigationWidth()
+								: Number(localStorage.getItem('layout_nav_width_px')) || 240;
+							this.$refs.navRight.style.paddingLeft = `${savedWidth}px`;
+							this.$refs.cPage.style.left = `${savedWidth}px`;
+						}
+						this.navLeftFlag = true;
+					}
+				},
+				closeNav() {
+					if (window.innerWidth <= 900) {
+						this.navLeftFlag = false;
+					}
+				},
+				// 手机端：点击抽屉遮罩区域关闭菜单
+				onNavLeftClick(e) {
+					if (window.innerWidth <= 900 && this.navLeftFlag) {
+						// 点击的是菜单项链接时，允许跳转并关闭菜单
+						if (e.target.closest('a')) {
+							this.navLeftFlag = false;
+							return;
+						}
+						// 点击遮罩（菜单以外的区域）关闭
+						const rect = this.$refs.navLeft.getBoundingClientRect();
+						if (e.clientX > rect.right) {
+							this.navLeftFlag = false;
+						}
+					}
+				},
+				setupAdminAccess() {
+					// 密码验证函数
+					function verifyPassword(callback) {
+						const password = prompt('请输入访问密码：');
+						if (password === 'lyjqr') { // 默认密码，可以根据需要修改
+							callback();
+						} else if (password !== null) {
+							alert('密码错误，访问被拒绝！');
+						}
+					}
+
+					// 连续点击三次打开可见性管理器
+					let clickCount = 0;
+					let clickTimer = null;
+					document.getElementById("adminAccess").addEventListener('click', (e) => {
+						clickCount++;
+
+						// 清除之前的定时器
+						if (clickTimer) {
+							clearTimeout(clickTimer);
+						}
+
+						// 设置新的定时器，1秒后重置点击计数
+						clickTimer = setTimeout(() => {
+							clickCount = 0;
+						}, 1000);
+
+						// 如果连续点击三次，验证密码后打开可见性管理器
+						if (clickCount === 3) {
+							verifyPassword(() => {
+								window.open('/src/components/system-setting/visibility_manager.html', '_blank', 'width=1200,height=800');
+							});
+							clickCount = 0;
+						}
+					});
+
+					// 键盘快捷键：Ctrl+Shift+A
+					document.addEventListener('keydown', (e) => {
+						if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+							e.preventDefault();
+							verifyPassword(() => {
+								window.open('/src/components/system-setting/visibility_manager.html', '_blank', 'width=1200,height=800');
+							});
+						}
+					});
+				},
+				setupLogout() {
+					// 添加退出登录按钮点击事件
+					document.getElementById('logoutBtn').addEventListener('click', () => {
+						// 显示确认对话框
+						if (confirm('确定要退出登录吗？')) {
+							// 清除localStorage中的token和tokenCreateTime
+							localStorage.removeItem('token');
+							localStorage.removeItem('tokenCreateTime');
+							localStorage.removeItem('robot.tempSkipLogin');
+							// 静态预览始终回到免登录主界面，正式服务仍回到登录页。
+							window.location.href = window.isStaticPreview ? '/?skipLogin=1' : '/login.html';
+						}
+					});
+				},
+				async getUserInfo() {
+					try {
+						if (window.isTemporaryLoginBypassEnabled && window.isTemporaryLoginBypassEnabled()) {
+							// 临时家里测试模式开放完整前端菜单，但不修改正式认证逻辑。
+							this.userRole = 'admin';
+							return;
+						}
+						// 获取token
+						const token = localStorage.getItem('token');
+
+
+						if (!token) {
+							this.userRole = 'user';
+							return;
+						}
+
+						// 通过API获取用户信息
+						// 由于没有实际的获取用户信息API，我们先使用一个假设的逻辑：
+						// 如果用户名是admin，则用户角色为admin，否则为user
+						// 实际项目中应该替换为真实的API调用
+						try {
+							// 获取本地保存的用户名，按登录账号决定前端显示的角色
+							const username = localStorage.getItem('username');
+							if (username === 'admin') {
+								this.userRole = 'admin';
+							} else {
+								this.userRole = 'user';
+							}
+						} catch (apiError) {
+							console.warn('获取用户信息API调用失败，使用默认逻辑:', apiError);
+							this.userRole = 'user';
+						}
+
+
+					} catch (error) {
+						console.error('获取用户信息失败:', error);
+						this.userRole = 'user';
+					}
+				},
+				async loadSidebarConfig() {
+			try {
+				const response = await fetch('./src/config/sidebar.json');
+				const config = await response.json();
+
+				// 根据用户角色过滤侧边栏项目
+				let filteredItems = config.sidebar;
+
+				// 如果用户角色不是admin，则隐藏路径规划功能和机器参数功能
+				if (this.userRole !== 'admin') {
+					filteredItems = filteredItems.map(item => {
+						// 如果是路径规划项或机器参数项，则设置visible为false
+						if (item.id === 'leftmap' || item.id === 'robot_data') {
+							return { ...item, visible: false };
+						}
+						return item;
+					});
+				}
+
+				this.sidebarItems = filteredItems
+					.filter(item => item.visible)
+					.sort((a, b) => a.order - b.order);
+				return Promise.resolve(); // 明确返回Promise
+			} catch (error) {
+				console.error('加载侧边栏配置文件失败:', error);
+				// 如果配置文件加载失败，使用默认配置
+				let defaultItems = [
+					{ id: 'main', title: '操作界面', icon: 'bx bx-globe', url: '/src/components/indoor-map/drag_move.html', visible: true, order: 1 },
+					// { id: 'leftmap', title: '手动规划', icon: 'bx bx-git-compare', url: 'pages/leftmap.html', visible: true, order: 2 },
+					// { id: 'globalPath', title: '自动规划', icon: 'bx bx-shape-square', url: 'pages/globalPath.html', visible: true, order: 3 },
+					// { id: 'machine_control', title: '遥控操作', icon: 'bx bxs-joystick', url: 'pages/machine_control.html', visible: true, order: 4 },
+					// { id: 'robot_data', title: '机器参数', icon: 'bx bx-cog', url: 'pages/robot_data.html', visible: true, order: 5 },
+					// { id: 'robotLog', title: '日志数据', icon: 'bx bxs-cloud-download', url: 'pages/robotLog.html', visible: true, order: 6 }
+				];
+
+				// 如果用户角色不是admin，则隐藏路径规划功能和机器参数功能
+				if (this.userRole !== 'admin') {
+					defaultItems = defaultItems.map(item => {
+						if (item.id === 'leftmap' || item.id === 'robot_data') {
+							return { ...item, visible: false };
+						}
+						return item;
+					});
+				}
+
+				this.sidebarItems = defaultItems
+					.filter(item => item.visible)
+					.sort((a, b) => a.order - b.order);
+				return Promise.resolve(); // 明确返回Promise
+			}
+		},
+				async loadHeaderConfig() {
+					try {
+						const response = await fetch('./src/config/header.json');
+						const config = await response.json();
+						// 分组处理
+						this.headerItems.basic = config
+							.filter(item => ['recording_status', 'recording_label', 'map_loader', 'reliability', 'current_position', 'nearest_station', 'nearest_distance'].includes(item.id))
+							.filter(item => item.visible)
+							.sort((a, b) => a.order - b.order);
+
+						this.headerItems.new = config
+							.filter(item => ['coordinates_display', 'positionxy_display', 'position_status', 'heading_status', 'record_control', 'wifi_status', 'shutdown_button', 'track_control'].includes(item.id))
+							.filter(item => item.visible)
+							.sort((a, b) => a.order - b.order);
+					} catch (error) {
+						console.error('加载顶栏配置文件失败:', error);
+						// 如果配置文件加载失败，使用默认配置
+					this.headerItems = {
+						basic: [
+							{ id: 'recording_status', title: '录制状态', type: 'status', visible: true, order: 1, class: 'flicker-box flicker-box-ing' },
+							{ id: 'recording_label', title: '录制标签', type: 'label', visible: true, order: 2, class: 'flicker-box flicker-box-ed' },
+							{ id: 'map_loader', title: '地图加载', type: 'loader', visible: true, order: 3 },
+							{ id: 'reliability', title: '可信度', type: 'text', visible: true, order: 4 },
+							{ id: 'current_position', title: '当前坐标', type: 'coordinate', visible: true, order: 5, class: 'base_span' },
+							{ id: 'nearest_station', title: '最近站点', type: 'station', visible: true, order: 6, class: 'base_span' },
+							{ id: 'nearest_distance', title: '最近距离', type: 'distance', visible: true, order: 7, class: 'base_span' }
+						],
+						new: [
+							{ id: 'coordinates_display', title: '坐标显示', type: 'coordinates', visible: true, order: 8 },
+							{ id: 'positionxy_display', title: '坐标显示', type: 'coordinatesxy', visible: true, order: 9 },
+							{ id: 'record_control', title: '录制控制', type: 'control', visible: true, order: 11 },
+							{ id: 'track_control', title: '轨迹开关', type: 'switch', visible: true, order: 12 },
+							{ id: 'shutdown_button', title: '关机按钮', type: 'button', visible: true, order: 13 }
+						]
+					};
+					}
+				},
+				updateAlarmSidebarBadge(counts) {
+					// 更新侧边栏报警菜单的小气泡
+					this.$nextTick(() => {
+						// 通过ID找到报警菜单项（id已改为wornMsg）
+						// 注意：li标签没有data-id属性，需要通过class和子元素来定位
+						const alarmMenuItem = document.querySelector('li.nav-tab a[href*="alarm-display"]');
+						if (alarmMenuItem) {
+							// 移除已存在的小气泡
+							const existingBadge = alarmMenuItem.querySelector('.alarm-badge');
+							if (existingBadge) {
+								existingBadge.remove();
+							}
+
+							// 如果有未确认的报警，创建小气泡
+							if (counts && counts.total > 0) {
+								const badge = document.createElement('span');
+								badge.className = 'alarm-badge';
+								badge.innerHTML = `
+                                    <span class="alarm-badge-total">${counts.total}</span>
+                                    ${counts.error > 0 ? `<span class="alarm-badge-error">${counts.error}</span>` : ''}
+                                    ${counts.warning > 0 ? `<span class="alarm-badge-warning">${counts.warning}</span>` : ''}
+                                `;
+								alarmMenuItem.appendChild(badge);
+							}
+						}
+					});
+				},
+				navigateToItem(item) {
+					// 设置当前选中项
+					this.activeItem = item.id;
+					// 根据不同的界面设置localStorage值
+					if (item.id === 'leftmap_simple') {
+						// 操作界面
+						localStorage.setItem('currentInterface', '1');
+					} else if (item.id === 'leftmap') {
+						// 路线规划界面
+						localStorage.setItem('currentInterface', '2');
+					} else if (item.id === 'machine_control') {
+						// 机器控制界面
+						localStorage.setItem('currentInterface', '3');
+					}
+				}
+			},
+			mounted() {
+			this.getUserInfo().then(() => {
+				// 获取用户信息后再加载侧边栏配置
+				this.loadSidebarConfig().then(() => {
+					// 加载完侧边栏配置后，设置第一个可见项为默认选中项
+					this.$nextTick(() => {
+						// 找到第一个可见的侧边栏项
+						const firstVisibleItem = this.sidebarItems.find(item => item.visible);
+						if (firstVisibleItem) {
+							this.activeItem = firstVisibleItem.id;
+							// 根据选中项设置对应的localStorage值
+							if (firstVisibleItem.id === 'leftmap_simple') {
+								localStorage.setItem('currentInterface', '1');
+							} else if (firstVisibleItem.id === 'leftmap') {
+								localStorage.setItem('currentInterface', '2');
+							} else if (firstVisibleItem.id === 'machine_control') {
+								localStorage.setItem('currentInterface', '3');
+							}
+						}
+					});
+				});
+				this.loadHeaderConfig();
+				this.setupAdminAccess();
+				this.setupLogout();
+
+				// 创建全局函数供报警组件调用
+				window.updateAlarmSidebarBadge = this.updateAlarmSidebarBadge;
+
+				// 监听报警更新事件
+				window.addEventListener('alarmBadgeUpdate', (event) => {
+					this.updateAlarmSidebarBadge(event.detail);
+				});
+
+				// 手机/平板适配：窗口尺寸变化时自动收起/展开侧边栏
+				window.addEventListener('resize', () => {
+					const isMobile = window.innerWidth <= 900;
+					this.navLeftFlag = !isMobile;
+					if (isMobile) {
+						this.$refs.navRight.style.paddingLeft = '';
+						this.$refs.cPage.style.left = '';
+					}
+				});
+			});
+		}
+		})
+	</script>
+	<script type="text/javascript">
+		/* ========= 导航栏 / 地图左边界拖拽调整（桌面启用） ========= */
+		(function () {
+			const handle = document.getElementById('navigationResizeHandle');
+			const nav = document.getElementById('mainNavigation');
+			const page = document.getElementById('app');
+			const navRight = document.querySelector('.nav-right');
+			const contentPage = document.querySelector('.content-page');
+			const iframe = document.querySelector('.content-page iframe');
+			if (!nav || !page || !navRight || !contentPage) return;
+
+			const STORAGE_KEY = 'layout_nav_width_px';
+			const CFG = { min: 180, max: 360, defaultWidth: 240 };
+			const desktopQuery = window.matchMedia('(min-width: 901px)');
+			let dragging = false;
+			let mask = null;
+
+			function isEnabled() {
+				return desktopQuery.matches;
+			}
+
+			function clampWidth(width) {
+				return Math.max(CFG.min, Math.min(CFG.max, width));
+			}
+
+			function getStoredWidth() {
+				try {
+					const value = Number(localStorage.getItem(STORAGE_KEY));
+					return Number.isFinite(value) && value > 0 ? clampWidth(value) : CFG.defaultWidth;
+				} catch (error) {
+					return CFG.defaultWidth;
+				}
+			}
+
+			window.getNavigationWidth = getStoredWidth;
+
+			function notifyMapResize() {
+				try {
+					if (iframe && iframe.contentWindow) {
+						iframe.contentWindow.postMessage({ type: 'LAYOUT_RESIZE' }, window.location.origin);
+					}
+				} catch (error) {
+					// iframe 尚未加载或浏览器不允许访问时，CSS 仍会完成布局调整。
+				}
+			}
+
+			function applyWidth(width, persist) {
+				width = clampWidth(Number(width) || CFG.defaultWidth);
+				nav.style.width = `${width}px`;
+				navRight.style.paddingLeft = `${width}px`;
+				contentPage.style.left = `${width}px`;
+				if (handle) {
+					handle.style.left = `${width}px`;
+					handle.setAttribute('aria-valuenow', String(Math.round(width)));
+				}
+				if (persist) {
+					try { localStorage.setItem(STORAGE_KEY, String(Math.round(width))); } catch (error) {}
+				}
+			}
+
+			function setHandleVisibility() {
+				if (!handle) return;
+				const visible = isEnabled() && nav.classList.contains('nav-open');
+				handle.style.display = visible ? 'flex' : 'none';
+				if (!visible && !isEnabled()) {
+					nav.style.width = '';
+					navRight.style.paddingLeft = '';
+					contentPage.style.left = '';
+				}
+			}
+
+			function getClientX(event) {
+				return event.touches ? event.touches[0].clientX : event.clientX;
+			}
+
+			function beginDrag() {
+				if (!isEnabled() || !nav.classList.contains('nav-open') || dragging) return;
+				dragging = true;
+				if (handle) handle.classList.add('active');
+				document.body.classList.add('navigation-resizing');
+				mask = document.createElement('div');
+				mask.className = 'navigation-resize-dragging-mask';
+				mask.addEventListener('mouseup', onDragEnd);
+				mask.addEventListener('pointerup', onDragEnd);
+				document.body.appendChild(mask);
+				document.addEventListener('mousemove', onDragMove);
+				document.addEventListener('mouseup', onDragEnd);
+				document.addEventListener('pointermove', onDragMove);
+				document.addEventListener('pointerup', onDragEnd);
+				document.addEventListener('touchmove', onDragMove, { passive: false });
+				document.addEventListener('touchend', onDragEnd);
+				document.addEventListener('touchcancel', onDragEnd);
+				window.addEventListener('blur', onDragEnd);
+			}
+
+			function startDrag(event) {
+				if (!isEnabled() || !nav.classList.contains('nav-open')) return;
+				if (event.cancelable) event.preventDefault();
+				beginDrag();
+			}
+
+			function onDragMove(event) {
+				if (!dragging) return;
+				if (event.cancelable) event.preventDefault();
+				applyWidth(getClientX(event), false);
+			}
+
+			function onDragEnd() {
+				if (!dragging) return;
+				dragging = false;
+				if (handle) handle.classList.remove('active');
+				document.body.classList.remove('navigation-resizing');
+				if (mask) {
+					mask.remove();
+					mask = null;
+				}
+				document.removeEventListener('mousemove', onDragMove);
+				document.removeEventListener('mouseup', onDragEnd);
+				document.removeEventListener('pointermove', onDragMove);
+				document.removeEventListener('pointerup', onDragEnd);
+				document.removeEventListener('touchmove', onDragMove);
+				document.removeEventListener('touchend', onDragEnd);
+				document.removeEventListener('touchcancel', onDragEnd);
+				window.removeEventListener('blur', onDragEnd);
+				applyWidth(parseFloat(nav.style.width), true);
+				notifyMapResize();
+			}
+
+			if (handle) {
+				handle.addEventListener('mousedown', startDrag);
+				handle.addEventListener('touchstart', startDrag, { passive: false });
+				handle.addEventListener('dblclick', function (event) {
+					if (!isEnabled() || !nav.classList.contains('nav-open')) return;
+					event.preventDefault();
+					applyWidth(CFG.defaultWidth, true);
+					notifyMapResize();
+				});
+			}
+
+			const observer = new MutationObserver(setHandleVisibility);
+			observer.observe(nav, { attributes: true, attributeFilter: ['class'] });
+			window.addEventListener('resize', function () {
+				if (isEnabled()) {
+					if (!dragging) applyWidth(getStoredWidth(), false);
+				} else {
+					if (handle) handle.classList.remove('active');
+					setHandleVisibility();
+				}
+				notifyMapResize();
+			});
+
+			if (isEnabled()) applyWidth(getStoredWidth(), false);
+			setHandleVisibility();
+		})();
+	</script>
+	<script type="text/javascript" src="/src/libs/roslib.min.js"></script>
+	<script type="text/javascript" src="/src/libs/coco-message.js"></script>
+	<script src="/src/libs/bootstrap/js5.0/bootstrap.bundle.min.js"></script>
+	<script type="module">
+		import RosManager from '/src/rosManage/RosManager.js'
+		import axiosClient from "/src/api/ApiManager.js";
+		import webSocketUtil from "/src/tools/webSocketUtil.js";
+		// 使用单例模式获取WebSocket实例
+		// location.host 会保留当前访问端口，手机通过任意局域网网段访问都能回连同一后端。
+		const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const wsUrl = `${wsProtocol}//${window.location.host}/ws/pose`;
+		console.log('构建的WebSocket地址:', wsUrl);
+		const wsInstance = webSocketUtil.getInstance(wsUrl);
+		
+		// 订阅连接打开事件
+		webSocketUtil.subscribe('open', () => {
+			console.log('index.html: WebSocket连接已打开');
+		});
+
+		// 订阅消息事件
+		webSocketUtil.subscribe('message', (data) => {
+			// 在这里处理收到的消息
+		});
+
+		// 订阅连接关闭事件
+		webSocketUtil.subscribe('close', () => {
+			console.log('index.html: WebSocket连接已关闭');
+		});
+
+		// 订阅错误事件
+		webSocketUtil.subscribe('error', (error) => {
+			console.error('index.html: WebSocket错误:', error);
+		});
+
+		// 发送消息的示例函数
+		function sendWebSocketMessage(message) {
+			webSocketUtil.send(JSON.stringify(message));
+		}
+		let localX = null;
+		let localY = null;
+		let latitudeCurrent;
+		let longitudeCurrent;
+		let orientationX;
+		let orientationY;
+		let orientationZ;
+		let orientationW;
+
+		// 跟踪localX和localY状态的变量（改回基于local的检测）
+	let prevLocalX = null; // 上一次的localX值
+	let prevLocalY = null; // 上一次的localY值
+	let lastCoordChangeTime = Date.now(); // 上一次坐标变化的时间戳
+	let sameCount = 0; // 连续相同次数计数器
+	const MAX_SAME_COUNT = 20; // 触发"未运行"的连续次数
+	const PRECISION_THRESHOLD = 0.0000001; // 精度阈值（可根据实际需求调整）
+	const TIMEOUT_DURATION = 10000; // 超时时间(毫秒) - 10秒
+
+		// 话题最后接收时间戳
+		let lastGnssFixTime = 0; // gnss_fix话题最后接收时间
+		let lastVehiclePoseTime = 0; // vehicle_pose话题最后接收时间（localX/Y的来源）
+		let robotPose = null;
+		const rosManager = new RosManager();
+		let allowRedirect = false; // 标志位，初始值为false，表示不允许跳转
+		let pendingRedirectUrl = null; // 用于保存待跳转的URL
+		let Recording = document.getElementById("Recording");
+		let RecRoute = document.getElementById("RecRoute");
+		let Record = document.getElementById("Record");
+		let RecordingStatus = false;
+
+		// 现代化指示灯与录制UI更新函数
+		function updateIndicatorLight(elOrId, isOk) {
+			const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+			if (!el) return;
+			if (isOk) {
+				el.classList.remove('status-red', 'status-error');
+				el.classList.add('status-green', 'status-active');
+			} else {
+				el.classList.remove('status-green', 'status-active');
+				el.classList.add('status-red', 'status-error');
+			}
+		}
+
+		function updateRecordingUI(isRecording) {
+			const recordingBtn = document.getElementById("Record");
+			const recordingText = document.getElementById("Recording");
+			const routeIcon = document.getElementById("RecRouteIcon");
+			if (!recordingBtn || !recordingText) return;
+
+			if (isRecording) {
+				recordingBtn.classList.add("is-recording");
+				recordingText.innerText = "结束录制";
+				if (routeIcon) routeIcon.className = "bx bx-stop-circle";
+			} else {
+				recordingBtn.classList.remove("is-recording");
+				recordingText.innerText = "轨迹录制";
+				if (routeIcon) routeIcon.className = "bx bx-play-circle";
+			}
+		}
+
+		// 为历史老代码提供 src 属性兼容代理，避免未更新的插件或代码抛异常
+		['laserStatus', 'positonStatus', 'headeRow'].forEach(id => {
+			const el = document.getElementById(id);
+			if (el) {
+				try {
+					Object.defineProperty(el, 'src', {
+						set: function(val) {
+							if (typeof val === 'string') {
+								const isGreen = val.includes('绿') || val.includes('green') || val.includes('ok');
+								updateIndicatorLight(el, isGreen);
+							}
+						},
+						get: function() { return ''; }
+					});
+				} catch(e) {}
+			}
+		});
+
+		// 页面加载时恢复录制状态
+		function restoreRecordingStatus() {
+			const savedStatus = localStorage.getItem("RecordingStatus");
+			if (savedStatus === "true") {
+				RecordingStatus = true;
+				updateRecordingUI(true);
+				console.log("[录制] 页面加载时恢复录制状态：正在录制");
+			} else {
+				RecordingStatus = false;
+				updateRecordingUI(false);
+				console.log("[录制] 页面加载时恢复录制状态：未录制");
+			}
+		}
+
+		// 页面加载完成后立即恢复录制状态
+		document.addEventListener('DOMContentLoaded', function() {
+			restoreRecordingStatus();
+		});
+
+		wsInstance.subscribe('message', (data) => {
+
+
+			// data已经是解析好的对象，不需要再次解析
+			if (data && data.action === "carCurrentPosition") {
+
+				// 不再重复设置localStorage，因为webSocketUtil.js已经设置过了
+				// 只更新全局变量，但要确保值有效
+				if (data.position.Lat !== null && data.position.Lat !== undefined) {
+
+					window.latitudeCurrent = data.position.Lat;
+				}
+				if (data.position.Lon !== null && data.position.Lon !== undefined) {
+
+					window.longitudeCurrent = data.position.Lon;
+				}
+				if (data.position.LocalX !== null && data.position.LocalX !== undefined) {
+
+					window.localX = data.position.LocalX;
+				}
+				if (data.position.LocalY !== null && data.position.LocalY !== undefined) {
+
+					window.localY = data.position.LocalY;
+				}
+
+				// HTTP模式下，录制由后端处理，前端不再直接处理WebSocket位置数据
+				if (RecordingStatus) {
+					console.log("[HTTP录制] WebSocket位置数据接收中（录制由后端处理），LocalX:", data.position.LocalX, "LocalY:", data.position.LocalY);
+				}
+
+				// HTTP模式下，录制状态由后端控制，这里只做简单记录
+				if (RecordingStatus) {
+					console.log("[HTTP录制] 录制状态激活中...");
+				}
+			}
+		})
+		document.addEventListener('DOMContentLoaded', function () {
+			const settingBtn = document.getElementById("setting");
+			if (settingBtn) {
+				settingBtn.addEventListener("click", function () {
+					const gapNumber = localStorage.getItem("gapNumber") || "0.5";
+					document.getElementById('recordNameInput').value = gapNumber;  // 设置输入框的值为localStorage中的值
+					const modal = new bootstrap.Modal('#recordNameModal');
+					modal.show();
+					// 确认按钮：标记录制状态并启动录制
+					document.getElementById('confirmRecordName').addEventListener('click', () => {
+						const gapNumber = document.getElementById('recordNameInput').value;
+						if (gapNumber && gapNumber > 0) {
+							localStorage.setItem('gapNumber', gapNumber);
+							console.log('[录制] 录制间隔已设置为:', gapNumber, '米');
+							const modal = bootstrap.Modal.getInstance(document.getElementById('recordNameModal'));
+							modal.hide();
+						} else {
+							alert('请输入有效的录制间隔');
+						}
+					});
+				});
+			}
+		});
+
+		// 录制按钮点击事件（简化版）
+		if (Record) {
+			Record.addEventListener('click', function () {
+				if (RecordingStatus) {
+					cocoMessage.success("录制已结束");
+					stopRecording(); // 调用结束录制函数
+					postMsg(); // 刷新路线选择框
+				} else {
+					startRecording(); // 直接开始录制
+				}
+			});
+		}
+		async function postMsg() {
+			// 发送PostMessage告知iframe刷新路线选择框
+			const iframe = document.querySelector('iframe[name="iframe"]');
+			if (iframe && iframe.contentWindow) {
+				iframe.contentWindow.postMessage({
+					type: 'REFRESH_ROUTE_SELECT',
+					action: 'refreshRouteSelect'
+				}, window.location.origin);
+			}
+		}
+		// 保存录制数据函数（简化版）
+		async function saveRecordingData(routeName, autoStartAfterSave = false) {
+			if (!routeName) {
+				cocoMessage.error('请输入路线名称');
+				return;
+			}
+
+			try {
+				// 调用保存接口，传递路线名称
+				const response = await axiosClient.post("ros2/recording/save", {
+					routeName: routeName
+				});
+
+				if (response && response.success) {
+					cocoMessage.success("路线保存成功");
+					// 清除录制数据
+					localStorage.removeItem('myRecording');
+
+					// 关闭模态框
+					const saveModal = bootstrap.Modal.getInstance(document.getElementById('saveRecordingModal'));
+					if (saveModal) {
+						saveModal.hide();
+					}
+
+
+					// 根据标志位决定是否自动开始新的录制
+					if (autoStartAfterSave) {
+						startRecording();
+					}
+				} else {
+					throw new Error(response.message || "路线保存失败");
+				}
+			} catch (error) {
+				console.error("保存路线失败:", error);
+				cocoMessage.error("路线保存失败: " + error.message);
+			}
+		}
+
+		// 开始录制（简化版）
+		async function startRecording() {
+			if (RecordingStatus) return; // 防止重复启动
+			try {
+				// 从localStorage获取录制间隔
+				const savedGap = localStorage.getItem("gapNumber");
+				const interval = savedGap ? parseFloat(savedGap) : 0.5;
+				const result = await axiosClient.post('ros2/recording/start', {
+					distance: interval,  // 录制间隔（米）
+					mapName: localStorage.getItem("lastMapName") || "outdoorMap"
+				});
+				if (result.data.code == 0) {
+					// 录制开始成功
+					RecordingStatus = true;
+					localStorage.setItem("RecordingStatus", true);
+					updateRecordingUI(true);
+					// 显示状态提示
+					cocoMessage.success("录制已开始，请移动机器");
+					console.log("[录制] 录制已开始，状态已保存到localStorage");
+				} else {
+					throw new Error(result.message || "开始录制失败");
+				}
+			} catch (error) {
+				cocoMessage.error("开始录制失败: " + error.message);
+				// 如果开始录制失败，确保状态重置
+				RecordingStatus = false;
+				localStorage.setItem("RecordingStatus", false);
+				updateRecordingUI(false);
+			}
+		}
+
+		// 结束录制（简化版）
+		async function stopRecording() {
+			try {
+				// 更新前端状态
+				RecordingStatus = false;
+				localStorage.setItem("RecordingStatus", false);
+				updateRecordingUI(false);
+				console.log("[录制] 录制已结束，状态已保存到localStorage");
+				// 显示保存模态框
+				showSaveRecordingModal();
+			} catch (error) {
+				console.error("[录制] 结束录制失败:", error);
+				cocoMessage.error("结束录制失败: " + error.message);
+				// 重置状态
+				RecordingStatus = false;
+				localStorage.setItem("RecordingStatus", false);
+				updateRecordingUI(false);
+			}
+		}
+
+		async function plcstart() {
+			const result = await axiosClient.post('ros2/plcstart');
+			if (result.data.code == 0) {
+				cocoMessage.success("PLC已启动");
+			} else {
+				cocoMessage.error("PLC启动失败");
+			}
+		}
+		//给plc启动信号
+		plcstart()
+
+		// 显示保存录制数据模态框
+		function showSaveRecordingModal() {
+			// 检查Bootstrap是否可用
+			if (typeof bootstrap === 'undefined') {
+				console.error("[HTTP录制] Bootstrap未加载");
+				cocoMessage.error("系统组件加载失败，请刷新页面重试");
+				return;
+			}
+			// 检查模态框元素是否存在
+			const modalElement = document.getElementById('saveRecordingModal');
+			if (!modalElement) {
+				console.error("[HTTP录制] 保存模态框元素未找到");
+				cocoMessage.error("保存对话框元素未找到");
+				return;
+			}
+			// 显示保存录制数据模态框
+			try {
+				const saveModal = new bootstrap.Modal('#saveRecordingModal');
+				saveModal.show();
+				// 清除之前的事件绑定，避免重复绑定
+				const confirmBtn = document.getElementById('confirmSaveRecording');
+				confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+
+				// 确认保存按钮点击事件
+				document.getElementById('confirmSaveRecording').onclick = async function () {
+					const routeName = document.getElementById('routeNameInput').value.trim();
+					if (!routeName) {
+						cocoMessage.error("请填写路线名称");
+						return;
+					}
+					try {
+						// 先调用接口获取录制数据
+						const result = await axiosClient.post('ros2/recording/save', {
+							routeName: routeName  // 传递用户输入的路线名
+						});
+						if (result.data.code == 0) {
+							RecordingStatus = false;
+							localStorage.setItem("RecordingStatus", false);
+							updateRecordingUI(false);
+							console.log("[录制] 路线保存成功，录制状态已重置");
+							// 隐藏保存对话框
+							const saveModal = bootstrap.Modal.getInstance(document.getElementById('saveRecordingModal'));
+							if (saveModal) {
+								saveModal.hide();
+							}
+							// 显示成功消息
+							cocoMessage.success(result.data.description);
+
+							// 发送PostMessage告知iframe刷新路线选择框
+							const iframe = document.querySelector('iframe[name="iframe"]');
+							if (iframe && iframe.contentWindow) {
+								iframe.contentWindow.postMessage({
+									type: 'REFRESH_ROUTE_SELECT',
+									action: 'refreshRouteSelect'
+								}, '*');
+							}
+						} else {
+							cocoMessage.error(result.data.description);
+						}
+					} catch (error) {
+						cocoMessage.error("获取录制数据失败: " + error.message);
+					}
+				};
+
+				// 取消按钮点击事件
+				// 找到取消按钮元素
+				const cancelBtn = document.querySelector('#saveRecordingModal .btn-secondary[data-bs-dismiss="modal"]');
+				// 保存原始点击处理函数
+				const originalCancelHandler = cancelBtn.onclick;
+				// 为取消按钮添加新的点击事件处理函数
+				cancelBtn.onclick = async function (e) {
+					try {
+						// 调用后端接口，routeName传空值
+						const result = await axiosClient.post('ros2/recording/cancel');
+						if (result.data.code == 200) {
+							cocoMessage.success("录制已结束");
+						} else {
+							cocoMessage.error(result.data.description);
+						}
+						// 无论结果如何，都继续执行原始的取消逻辑（关闭模态框）
+						if (originalCancelHandler) {
+							originalCancelHandler(e);
+						}
+						// 更新录制状态
+						RecordingStatus = false;
+						localStorage.setItem("RecordingStatus", false);
+						updateRecordingUI(false);
+						console.log("[录制] 录制已取消，状态已保存到localStorage");
+						// 显示成功消息
+						if (result.data.code == 0) {
+							cocoMessage.success("录制已结束");
+						} else {
+							cocoMessage.error(result.data.description);
+						}
+					} catch (error) {
+						cocoMessage.error("结束录制失败: " + error.message);
+						// 即使接口调用失败，也要关闭模态框
+						if (originalCancelHandler) {
+							originalCancelHandler(e);
+						}
+						// 确保状态重置
+						RecordingStatus = false;
+						localStorage.setItem("RecordingStatus", false);
+						updateRecordingUI(false);
+					}
+				};
+			} catch (error) {
+				console.error("[HTTP录制] 显示保存模态框失败:", error);
+				cocoMessage.error("显示保存对话框失败，请重试");
+			}
+		}
+		document.addEventListener('click', function (event) {
+			const target = event.target;
+			if (target.tagName.toLowerCase() === 'a' && (target.classList.contains('Aroute') || target.classList.contains('RobotData') || target.classList.contains(
+				'Astation'))) {
+				allowRedirect = false
+				pendingRedirectUrl = target.href; // 保存待跳转的URL
+				$('#passwordModal').modal('show')
+				event.preventDefault(); // 阻止默认的跳转行为
+			}
+		});
+
+		document.getElementById('canTarget').addEventListener('click', function () {
+			$('#passwordModal').modal('hide')
+		});
+
+		$('#passwordModalBtn').on('click', function () {
+			let pwd = $("#passwordModalInput").val()
+			$("#passwordModalInput").val("")
+
+			if (pwd == '123') {
+				$('#passwordModal').modal('hide')
+				allowRedirect = true; // 设置标志位为true，表示允许跳转
+				// console.log(pendingRedirectUrl, allowRedirect)
+				if (pendingRedirectUrl && allowRedirect) {
+					const tmpLink = document.createElement('a')
+					tmpLink.href = pendingRedirectUrl
+					tmpLink.target = 'iframe'
+					tmpLink.click()
+					tmpLink.remove()
+				}
+			} else {
+				cocoMessage.error('密码错误')
+			}
+		})
+
+		// 声明变量存储上一次的状态值
+		let lastSlamStatus = null;
+		let lastGnssPositionStatus = null;
+		let lastGnssHeadingStatus = null;
+
+		rosManager.slam_status.subscribe(function (message) {
+			// 获取当前状态
+			const currentSlamStatus = message.data[1] <= 2;
+
+			// 只有当状态发生变化时才更新灯的显示
+			if (lastSlamStatus === null || currentSlamStatus !== lastSlamStatus) {
+				console.log("slam状态：", currentSlamStatus ? "正常" : "异常");
+				updateIndicatorLight('laserStatus', currentSlamStatus);
+				lastSlamStatus = currentSlamStatus;
+			}
+		});
+
+		rosManager.gnss_pose.subscribe(function (message) {
+			// 获取当前状态
+			const currentPositionStatus = message.data[0] == 4;
+			const currentHeadingStatus = message.data[1] == 4;
+
+			// 只有当卫星定位状态发生变化时才更新灯的显示
+			if (lastGnssPositionStatus === null || currentPositionStatus !== lastGnssPositionStatus) {
+				console.log("卫星定位状态：", currentPositionStatus ? "正常" : "异常");
+				updateIndicatorLight('positonStatus', currentPositionStatus);
+				lastGnssPositionStatus = currentPositionStatus;
+			}
+
+			// 只有当航向状态发生变化时才更新灯的显示
+			if (lastGnssHeadingStatus === null || currentHeadingStatus !== lastGnssHeadingStatus) {
+				console.log("航向状态：", currentHeadingStatus ? "正常" : "异常");
+				updateIndicatorLight('headeRow', currentHeadingStatus);
+				lastGnssHeadingStatus = currentHeadingStatus;
+			}
+		});
+
+
+		let refLat = null;
+		let refLon = null;
+		// 获取初始经纬度作为参考点
+		getRobotData()
+		async function getRobotData() {
+			try {
+				const res = await axiosClient.get("param/queryalldata");
+				let getRobotDataMessage = res.data.data[0]
+				refLon = getRobotDataMessage.local_origin_longitude;
+				refLat = getRobotDataMessage.local_origin_latitude;
+
+			} catch {
+				cocoMessage.error("获取初始经纬度失败")
+			}
+		};
+
+		rosManager.vehicle_pose.subscribe(function (message) {
+			const send_msg = message['pose'];
+			if (!send_msg) return;
+			localX = send_msg['position']['x'];
+			localY = send_msg['position']['y'];
+			orientationX = send_msg['orientation']['x'];
+			orientationY = send_msg['orientation']['y'];
+			orientationZ = send_msg['orientation']['z'];
+			orientationW = send_msg['orientation']['w'];
+			lastVehiclePoseTime = Date.now(); // 更新localX/Y的来源话题时间戳
+
+			// 使用llh2xyzConverter将局部坐标转换为经纬度
+			try {
+				if (localX !== null && localY !== null && !isNaN(localX) && !isNaN(localY)) {
+					const [convertedLat, convertedLon] = llh2xyzConverter.convertFromLocalCoordinates(
+						refLat, refLon, localX, localY, 0
+					);
+
+					// 更新经纬度变量
+					latitudeCurrent = convertedLat;
+					longitudeCurrent = convertedLon;
+
+					// 更新lastGnssFixTime，表示有有效的经纬度数据
+					lastGnssFixTime = Date.now();
+
+					// HTTP录制模式下，录制由后端处理，前端不再直接处理坐标数据
+					if (RecordingStatus) {
+						console.log("[HTTP录制] 录制状态激活中，坐标数据由后端处理");
+					}
+
+				}
+			} catch (error) {
+				console.error('坐标转换失败:', error);
+			}
+		});
+
+		const topLatElement = document.getElementById("topLat");
+		const topLonElement = document.getElementById("topLon");
+
+		// 启动定时器
+		setInterval(updateDisplayFromLocalStorage, 500);
+		// 初始执行一次
+		updateDisplayFromLocalStorage();
+
+		// 定时器每500ms执行一次
+		// setInterval(getPose, 1000);
+
+		// 新函数：监控localStorage中的值并更新页面顶部显示
+		function updateDisplayFromLocalStorage() {
+			try {
+				// 重新获取元素，因为它们可能是条件渲染的
+				const topLatElement = document.getElementById("topLat");
+				const topLonElement = document.getElementById("topLon");
+				
+				// 从JSON对象中获取数据
+				const positionDataStr = localStorage.getItem("positionData");
+				let positionData = null;
+
+				if (positionDataStr) {
+					positionData = JSON.parse(positionDataStr);
+				}
+
+				// 如果JSON对象不存在或解析失败，显示断开连接
+				if (!positionData) {
+					if (topLatElement) topLatElement.textContent = `已断开连接`;
+					if (topLonElement) topLonElement.textContent = ``;
+					return;
+				}
+
+				// 从positionData中获取数据，确保localX和localY存在且类型正确
+				const latitudeCurrent = positionData.latitudeCurrent;
+				const longitudeCurrent = positionData.longitudeCurrent;
+				const localX = positionData.localX;
+				const localY = positionData.localY;
+
+				// 检查数据是否有效
+				const hasValidCoord = latitudeCurrent && longitudeCurrent &&
+					latitudeCurrent !== "0" && longitudeCurrent !== "0" &&
+					latitudeCurrent !== "机器未运行" &&
+					longitudeCurrent !== "机器未运行" &&
+					longitudeCurrent !== "NaN" &&
+					!isNaN(parseFloat(latitudeCurrent)) && !isNaN(parseFloat(longitudeCurrent));
+
+				// 修复localX和localY的有效性检查：0是有效的坐标值，不应该被排除
+				const hasValidLocalCoord = (localX !== null && localX !== undefined && localY !== null && localY !== undefined) &&
+					!isNaN(parseFloat(localX)) && !isNaN(parseFloat(localY));
+
+				// 检查坐标是否变化
+				let isCoordChanged = false;
+				if (hasValidLocalCoord) {
+					const currentLocalX = parseFloat(localX);
+					const currentLocalY = parseFloat(localY);
+					
+					// 如果是首次获取坐标或者坐标有变化，更新最后变化时间
+					if (prevLocalX === null || prevLocalY === null || 
+						Math.abs(currentLocalX - prevLocalX) > PRECISION_THRESHOLD || 
+						Math.abs(currentLocalY - prevLocalY) > PRECISION_THRESHOLD) {
+						lastCoordChangeTime = Date.now();
+						isCoordChanged = true;
+						// 更新上一次的坐标值
+						prevLocalX = currentLocalX;
+						prevLocalY = currentLocalY;
+					}
+				}
+
+				// 检查是否超时（10秒未变化）
+				const isCoordTimeout = Date.now() - lastCoordChangeTime > TIMEOUT_DURATION;
+
+				// 更新显示内容
+				if (hasValidCoord) {
+					const eastWest = parseFloat(longitudeCurrent) > 0 ? "°E" : "°W";
+					const southNorth = parseFloat(latitudeCurrent) > 0 ? "°N" : "°S";
+
+					// 正常显示经纬度（保留7位小数）
+					if (topLatElement) topLatElement.textContent = `纬度: ${parseFloat(latitudeCurrent).toFixed(7)}${southNorth}`;
+					if (topLonElement) topLonElement.textContent = `经度: ${parseFloat(longitudeCurrent).toFixed(7)}${eastWest}`;
+				} else {
+					// 数据无效，显示断开连接
+					if (topLatElement) topLatElement.textContent = `已断开连接`;
+					if (topLonElement) topLonElement.textContent = ``;
+				}
+
+				// 更新localX和localY显示
+				// 注意：localX和localY元素是在Vue模板中条件渲染的，只有当positionxy_display可见时才存在
+				const localXElement = document.getElementById('localX');
+				const localYElement = document.getElementById('localY');
+				if (localXElement) {
+					if (hasValidLocalCoord && !isCoordTimeout) {
+						localXElement.textContent = `坐标X: ${parseFloat(localX).toFixed(3)}m`;
+					} else {
+						localXElement.textContent = `坐标X: 无数据`;
+					}
+				}
+				if (localYElement) {
+					if (hasValidLocalCoord && !isCoordTimeout) {
+						localYElement.textContent = `坐标Y: ${parseFloat(localY).toFixed(3)}m`;
+					} else {
+						localYElement.textContent = `坐标Y: 无数据`;
+					}
+				}
+
+				// 可以根据需要添加更多的状态检查和显示逻辑
+				// 例如检查localX/localY是否有效，或者添加其他状态指示器
+			} catch (error) {
+				console.error("更新显示时出错:", error);
+				// 只在元素存在时才更新内容
+				const topLatElement = document.getElementById("topLat");
+				const topLonElement = document.getElementById("topLon");
+				if (topLatElement) topLatElement.textContent = `数据错误`;
+				if (topLonElement) topLonElement.textContent = ``;
+			}
+		}
+
+		function getPose() {
+			const now = Date.now();
+			// 检查是否超时
+			const isGnssTimeout = now - lastGnssFixTime > TIMEOUT_DURATION;
+			const isVehiclePoseTimeout = now - lastVehiclePoseTime > TIMEOUT_DURATION; // localX/Y超时判断
+			console.log(isGnssTimeout, "1423");
+
+			// 超时处理 - 将对应数据设为0
+			// isGnssTimeout为true表示GNSS定位数据超时，需要清空经纬度数据
+			if (isGnssTimeout) {
+				latitudeCurrent = 0;
+				longitudeCurrent = 0;
+			}
+			// isVehiclePoseTimeout为true表示车辆位姿数据超时，需要清空所有位姿相关数据
+			if (isVehiclePoseTimeout) {
+				localX = 0;
+				localY = 0;
+				orientationX = 0;
+				orientationY = 0;
+				orientationZ = 0;
+				orientationW = 0;
+			}
+
+			// 保存当前localX和localY用于比较
+			const currentLocalX = parseFloat(localX);
+			const currentLocalY = parseFloat(localY);
+
+			// 1. 处理localX和localY连续相同检测（基于精度阈值）
+			// !isNaN(currentLocalX) && !isNaN(currentLocalY) 表示当前坐标数据有效
+			// prevLocalX !== null && prevLocalY !== null 表示存在上一次的坐标数据用于比较
+			// !isVehiclePoseTimeout 表示车辆位姿数据未超时，可以进行有效比较
+			if (!isNaN(currentLocalX) && !isNaN(currentLocalY) &&
+				prevLocalX !== null && prevLocalY !== null &&
+				!isVehiclePoseTimeout) { // 超时状态下不进行相同检测
+
+				// 计算与上一次值的差值（考虑浮点数精度）
+				const xDiff = Math.abs(currentLocalX - prevLocalX);
+				const yDiff = Math.abs(currentLocalY - prevLocalY);
+
+				// 当localX和localY变化都小于精度阈值时，视为未变化
+				// xDiff < PRECISION_THRESHOLD && yDiff < PRECISION_THRESHOLD 表示坐标变化在精度范围内，视为无变化
+				if (xDiff < PRECISION_THRESHOLD && yDiff < PRECISION_THRESHOLD) {
+					sameCount++; // 连续相同次数+1
+				} else {
+					// 坐标变化超过精度阈值，有有效移动，重置计数器
+					sameCount = 0; // 有有效变化，重置计数器
+				}
+			} else {
+				// 数据无效或超时，重置计数器
+				sameCount = 0;
+			}
+
+			// 2. 更新localStorage（始终更新，超时状态下会存入0）
+			localStorage.setItem("latitudeCurrent", latitudeCurrent);
+			localStorage.setItem("longitudeCurrent", longitudeCurrent);
+			localStorage.setItem("localX", localX);
+			localStorage.setItem("localY", localY);
+			localStorage.setItem("orientationX", orientationX);
+			localStorage.setItem("orientationY", orientationY);
+			localStorage.setItem("orientationZ", orientationZ);
+			localStorage.setItem("orientationW", orientationW);
+
+			// 3. 更新显示内容
+			const eastWest = longitudeCurrent > 0 ? "°E" : "°W";
+			const southNorth = latitudeCurrent > 0 ? "°N" : "°S";
+
+			// 判断是否需要显示"已断开连接"
+			// isStuck表示localX/Y连续相同次数超过阈值，可能设备卡住
+			const isStuck = sameCount >= MAX_SAME_COUNT; // 基于localX/Y的连续相同判断
+			// hasValidCoord表示经纬度数据有效且未超时，可以正常显示
+			const hasValidCoord = !isNaN(parseFloat(latitudeCurrent)) && !isNaN(parseFloat(longitudeCurrent)) &&
+				longitudeCurrent !== "机器未运行" &&
+				longitudeCurrent !== "NaN" &&
+				!isGnssTimeout; // 经纬度有效且未超时
+
+			// isStuck || isVehiclePoseTimeout || isGnssTimeout 任一条件为true时显示断开连接
+			// 分别表示：设备卡住、车辆位姿超时、GNSS定位超时
+			if (isStuck || isVehiclePoseTimeout || isGnssTimeout) {
+				// localX/Y连续相同、任意超时，显示断开连接
+				topLatElement.textContent = `已断开连接`;
+				topLonElement.textContent = ``;
+			} else if (hasValidCoord) {
+				// hasValidCoord为true时，正常显示经纬度（保留7位小数）
+				// 正常显示经纬度（保留7位小数）
+				topLatElement.textContent = `纬度: ${parseFloat(latitudeCurrent).toFixed(7)}${southNorth}`;
+				topLonElement.textContent = `经度: ${parseFloat(longitudeCurrent).toFixed(7)}${eastWest}`;
+			} else {
+				// 其他情况（数据无效）也显示断开连接
+				topLatElement.textContent = `已断开连接`;
+				topLonElement.textContent = ``;
+			}
+
+			// 4. 保存当前值作为下一次的"上一次值"（vehicle_pose未超时才更新）
+			// !isVehiclePoseTimeout表示车辆位姿数据未超时，数据有效，可以保存用于下次比较
+			if (!isVehiclePoseTimeout) {
+				prevLocalX = currentLocalX;
+				prevLocalY = currentLocalY;
+			}
+		}
+
+		
+
+		document.addEventListener('DOMContentLoaded', function () {
+			// track_control 开关逻辑
+			const closetrackSwitch = document.getElementById('closetrackSwitch');
+			const closetrack = document.getElementById('closetrack');
+			const switchStatus = document.getElementById('switchStatus');
+
+			// 初始化track_control开关状态
+			// 检查元素是否存在，避免TypeError
+			if (closetrack && closetrackSwitch) {
+				// closetrack.value === '1' 表示远程控制功能已开启
+				closetrackSwitch.checked = closetrack.value === '1';
+			}
+
+			// 初始化时调用updateTrackSwitchStatus函数，确保状态显示正确
+			updateTrackSwitchStatus();
+
+
+			// 监听track_control开关变化
+			if (closetrackSwitch && closetrack) {
+				closetrackSwitch.addEventListener('change', function () {
+					// this.checked 表示开关被用户开启
+					if (this.checked) {
+						closetrack.value = '1';
+					} else {
+						// this.checked === false 表示开关被用户关闭
+						closetrack.value = '0';
+					}
+					updateTrackSwitchStatus();
+				});
+			}
+
+			// 更新track_control状态文字显示
+			function updateTrackSwitchStatus() {
+				// 检查元素是否存在，避免TypeError
+				if (closetrack && switchStatus && rosManager) {
+					// closetrack.value === '1' 表示远程控制功能处于开启状态
+					if (closetrack.value === '1') {
+						switchStatus.textContent = '远程控制';
+						switchStatus.className = 'ms-2 text-success';
+						rosManager.publishRemoteSwitch(Number(0));
+					} else {
+						// closetrack.value !== '1' 表示远程控制功能处于关闭状态
+						switchStatus.textContent = '本地控制';
+						switchStatus.className = 'ms-2 text-muted';
+						rosManager.publishRemoteSwitch(Number(1));
+					}
+				}
+			}
+		});
+
+
+
+// 		// 1. 定义核心参数
+// const textElement = document.getElementById('dynamic-text');
+// const thresholdWidth = 500; // 宽度阈值（小于500px时精简）
+
+// // 只有当元素存在时才执行后续操作
+// if (textElement) {
+//   const fullText = textElement.textContent; // 原始完整文字
+//   const shortText = '远程控制'; // 自定义精简文字（或用截取）
+
+//   // 2. 定义文字精简函数
+//   function adjustText() {
+//     // 获取容器宽度（也可以用window.innerWidth获取屏幕宽度）
+//     const containerWidth = document.querySelector('.container')?.offsetWidth || window.innerWidth;
+    
+//     if (containerWidth < thresholdWidth) {
+//       // 方案A：自定义精简文字
+//       textElement.textContent = shortText;
+//       // 方案B：自动截取前N个字（比如前4个）
+//       // textElement.textContent = fullText.substring(0, 4) + '...';
+//       // 同时修改字体大小
+//       textElement.style.fontSize = '14px';
+//     } else {
+//       // 恢复完整文字和默认字体
+//       textElement.textContent = fullText;
+//       textElement.style.fontSize = '16px';
+//     }
+//   }
+
+//   // 3. 初始化执行一次
+//   adjustText();
+
+//   // 4. 监听窗口尺寸变化（加防抖避免频繁触发）
+//   let resizeTimer;
+//   window.addEventListener('resize', () => {
+//     clearTimeout(resizeTimer);
+//     resizeTimer = setTimeout(adjustText, 100); // 100ms防抖
+//   });
+// }
+	
+	
+	
+	
+	</script>
+	<!-- 独立雷达配置抽屉组件 (Livox MID-360 / MID-360s) -->
+	<script src="/src/components/indoor-map/js/radar_drawer.js?v=20260929"></script>
+<script src="src/modules/operations/legacy-localization-status.js"></script>
+</body>
+
+</html>
+

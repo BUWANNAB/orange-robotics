@@ -1,0 +1,37 @@
+/* ul */
+.pose-show {
+    /* height: 600px; */
+    /* border: 1px solid red; */
+    overflow: auto;
+    overflow-x: hidden;
+}
+
+.pose-show li {
+    height: 50px;
+    line-height: 50px;
+    padding-top: 0;
+    padding-bottom: 0;
+    /* border: 1px solid red; */
+}
+
+.pose-show li .pose-tag {
+    display: inline-block;
+    width: 135px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pose-show li .pose-tag:nth-child(1) {
+    width: 160px;
+}
+
+.pose-show .opt-div {
+    /* border: 1px solid blue; */
+    float: right;
+    margin-right: 40px;
+}
+
+.pose-show .opt-div button {
+    margin-right: 10px;
+}

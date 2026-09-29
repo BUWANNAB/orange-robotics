@@ -1,0 +1,153 @@
+/*header nav */
+.base_span {
+    height: 44px;
+    line-height: 44px;
+    
+    font-size: 18px;
+    display: block;
+    color: #fff;
+  }
+  .base_span:nth-child(2n+1) {
+    margin-right: 10px;
+  }
+  .base_span:nth-child(2n) {
+    margin-right: 20px;
+  }
+  .btn {
+    border: 1px solid #ddd;
+  }
+  
+  /*aside */
+  aside {
+    margin-top: 6px;
+    border: 1px solid #eee;
+    font-size: 16px;
+    width: 100%;
+  }
+  
+  .aside-nav {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 4px !important;
+    padding: 10px 17px !important;
+  }
+  .aside-nav .btn {
+    font-size: 15px !important;
+  }
+  
+  /* aside nav 初始化站点 下拉菜单 */
+  
+  .aside-nav .dropdown-toggle {
+    width: 110px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .aside-nav .dropdown-menu {
+    width: 110px;
+    min-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    padding-bottom: 0;
+    height:500px !important;
+    overflow-y:scroll;
+  }
+  
+  .aside-nav .dropdown-header {
+    font-size: 14px;
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+  }
+  
+  .aside-nav .dropdown-item {
+    width: 110px;
+    text-align: center;
+    line-height: 30px;
+    font-size: 16px;
+    border-top: 1px solid #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  
+  /* index pose_table 布局 */
+  .pose_table {
+    margin-bottom: 0;
+  }
+  
+  .pose_table .dropdown-menu {
+    width: 100px;
+    min-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    padding-bottom: 0;
+  }
+  
+  .pose_table .dropdown-header {
+    font-size: 14px;
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+  }
+  
+  .pose_table .dropdown-item {
+    text-align: center;
+    line-height: 30px;
+    font-size: 16px;
+    border-top: 1px solid #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* pose_table table */
+  .pose_table thead th {
+    width: 120px;
+  }
+  
+  
+  /* 
+  .pose_table thead th:nth-child(-n+6):nth-child(n+3) { width: 70px; }
+  
+  .pose_table thead th:nth-child(-n+10):nth-child(n+7) { width: 100px; } */
+  
+  .pose_table tbody th, .pose_table tbody td { vertical-align: middle; }
+  
+  
+  .pose_table tbody th, .pose_table tbody td .btn-secondary  {
+    width: 120px;
+  }
+  
+  
+  .pose_table thead th:nth-child(1) { width: 40px; }
+  .pose_table tbody th:nth-child(1) { width: 40px; }
+  
+  
+  .table_input {
+    width: 70%;
+    height: calc(1.5em + .75rem + 2px);
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+  }
+  
+  /* 自动模式切换 */
+  .bootstrap-switch {
+    border: 1px solid rgb(63,81,181);
+  }

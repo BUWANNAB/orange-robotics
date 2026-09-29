@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>显示/隐藏管理器</title>
+    <link href="../../libs/bootstrap/css5.0/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="./css/visibility_manager.css">
+
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="text-center mt-4 mb-4">显示/隐藏管理器</h1>
+                <div id="loading" class="loading">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载配置...</p>
+                </div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div class="row justify-content-center">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="userAccount" class="form-label">用户名</label>
+                            <input type="text" id="userAccount" class="form-control" placeholder="请输入用户名（至少4位）" autocomplete="off" minlength="4" required>
+                            <div class="form-text">用户名至少需要4个字符</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="userPassword" class="form-label">密码</label>
+                            <div class="input-group">
+                                <input type="password" id="userPassword" class="form-control" placeholder="请输入密码（至少6位）" autocomplete="new-password" minlength="6" required>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye" id="eyeIcon"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">密码至少需要8个字符</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">确认密码</label>
+                            <div class="input-group">
+                                <input type="password" id="confirmPassword" class="form-control" placeholder="请再次输入密码" autocomplete="new-password" minlength="6" required>
+                                <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword">
+                                    <i class="bi bi-eye" id="confirmEyeIcon"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">请再次输入密码以确认</div>
+                        </div>
+                        <div class="row">
+                            <div >
+                                <button type="button" id="registerBtn" class="btn btn-primary w-100">注册账号</button>
+                            </div>
+                        </div>
+                        <div id="registerError" class="alert alert-danger mt-3" style="display: none;"></div>
+                        <div id="registerSuccess" class="alert alert-success mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+                </div>
+                <div id="config-container">
+                    <!-- 发布模式配置 -->
+                    <div class="config-section">
+                        <h3 class="config-title">发布模式配置</h3>
+                        <div class="mb-3">
+                            <label for="publishModel" class="form-label">选择发布模式</label>
+                            <select class="form-select" id="publishModel">
+                                <option value="route_id">发布路线id</option>
+                                <option value="path_point">发布path_point</option>
+                            </select>
+                            <div class="form-text">选择机器人导航数据的发布模式</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 机器人参数配置 -->
+                    <div class="config-section">
+                        <h3 class="config-title">机器人参数配置</h3>
+                        <div id="robot-data-config"></div>
+                    </div>
+                    
+                    <!-- 顶部栏配置 -->
+                    <div class="config-section">
+                        <h3 class="config-title">顶部栏元素</h3>
+                        <div id="header-config"></div>
+                    </div>
+                    
+                    <!-- 侧边栏配置 -->
+                    <div class="config-section">
+                        <h3 class="config-title">侧边栏菜单</h3>
+                        <div id="sidebar-config"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="btn btn-primary save-btn" id="saveBtn" disabled>
+        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        保存所有更改
+    </button>
+
+
+    <script src="../../libs/jquery-3.1.0.min.js"></script>
+    <script>
+        class VisibilityManager {
+            constructor() {
+                this.configs = {
+                    robot_data: {},
+                    header: {},
+                    sidebar: {}
+                };
+                this.hasChanges = false;
+                this.publishModel = localStorage.getItem('publishModel') || 'route_id'; // 默认值
+                this.init();
+            }
+
+            async init() {
+                this.showLoading(true);
+                try {
+                    await this.loadAllConfigs();
+                    this.renderAllConfigs();
+                    this.initPublishModel();
+                    this.bindEvents();
+                } catch (error) {
+                    this.showError('加载配置失败: ' + error.message);
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            initPublishModel() {
+                const publishModelSelect = document.getElementById('publishModel');
+                if (publishModelSelect) {
+                    publishModelSelect.value = this.publishModel;
+                }
+            }
+
+            savePublishModel() {
+                const publishModelSelect = document.getElementById('publishModel');
+                if (publishModelSelect) {
+                    this.publishModel = publishModelSelect.value;
+                    localStorage.setItem('publishModel', this.publishModel);
+                }
+            }
+
+            async loadAllConfigs() {
+                const configs = [
+                    { name: 'robot_data', url: '../../../src/config/robot_data_visibility.json' },
+                    { name: 'header', url: '../../../src/config/header.json' },
+                    { name: 'sidebar', url: '../../../src/config/sidebar.json' }
+                ];
+
+                for (const config of configs) {
+                    try {
+                        const response = await fetch(config.url);
+                        this.configs[config.name] = await response.json();
+                    } catch (error) {
+                        console.error(`加载 ${config.name} 配置失败:`, error);
+                        this.showError(`加载 ${config.name} 配置失败`);
+                    }
+                }
+            }
+
+            renderAllConfigs() {
+                this.renderRobotDataConfig();
+                this.renderHeaderConfig();
+                this.renderSidebarConfig();
+            }
+
+            renderRobotDataConfig() {
+                const container = document.getElementById('robot-data-config');
+                container.innerHTML = '';
+                
+                const parameters = this.configs.robot_data.parameters || {};
+                Object.keys(parameters).forEach(groupKey => {
+                    const group = parameters[groupKey];
+                    Object.keys(group).forEach(paramKey => {
+                        const param = group[paramKey];
+                        container.appendChild(this.createItemRow(param.id, param.label, param.visible, 'robot_data', groupKey, paramKey));
+                    });
+                });
+            }
+
+            renderHeaderConfig() {
+                const container = document.getElementById('header-config');
+                container.innerHTML = '';
+                
+                const items = Array.isArray(this.configs.header) ? this.configs.header : [];
+                items.forEach((item, index) => {
+                    container.appendChild(this.createItemRow(item.id, item.title, item.visible, 'header', index));
+                });
+            }
+
+            renderSidebarConfig() {
+                const container = document.getElementById('sidebar-config');
+                container.innerHTML = '';
+                
+                const items = this.configs.sidebar.sidebar || [];
+                items.forEach((item, index) => {
+                    container.appendChild(this.createItemRow(item.id, item.title, item.visible, 'sidebar', index));
+                });
+            }
+
+            createItemRow(id, label, visible, configType, ...path) {
+                const row = document.createElement('div');
+                row.className = 'item-row';
+                row.innerHTML = `
+                    <div class="item-label">
+                        <strong>${label}</strong>
+                        <div class="item-id">${id}</div>
+                    </div>
+                    <div class="switch-container">
+                        <label class="custom-switch">
+                            <input type="checkbox" 
+                                   data-config="${configType}" 
+                                   data-path="${path.join(',')}" 
+                                   ${visible ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                `;
+                return row;
+            }
+
+            bindEvents() {
+                // 发布模式选择框事件
+                const publishModelSelect = document.getElementById('publishModel');
+                if (publishModelSelect) {
+                    publishModelSelect.addEventListener('change', () => {
+                        this.savePublishModel();
+                        this.hasChanges = true;
+                        document.getElementById('saveBtn').disabled = false;
+                    });
+                }
+
+                document.addEventListener('change', (e) => {
+                    if (e.target.matches('input[type="checkbox"]')) {
+                        this.handleToggleChange(e);
+                    }
+                });
+
+                document.getElementById('saveBtn').addEventListener('click', () => {
+                    this.saveAllConfigs();
+                });
+            }
+
+            handleToggleChange(e) {
+                const checkbox = e.target;
+                const configType = checkbox.dataset.config;
+                const path = checkbox.dataset.path.split(',');
+                const isVisible = checkbox.checked;
+
+                this.updateConfig(configType, path, isVisible);
+                this.hasChanges = true;
+                document.getElementById('saveBtn').disabled = false;
+            }
+
+            updateConfig(configType, path, visible) {
+                let target = this.configs[configType];
+                
+                if (configType === 'robot_data') {
+                    const [groupKey, paramKey] = path;
+                    if (target.parameters && target.parameters[groupKey] && target.parameters[groupKey][paramKey]) {
+                        target.parameters[groupKey][paramKey].visible = visible;
+                    }
+                } else if (configType === 'header') {
+                    const index = parseInt(path[0]);
+                    if (target[index]) {
+                        target[index].visible = visible;
+                    }
+                } else if (configType === 'sidebar') {
+                    const index = parseInt(path[0]);
+                    if (target.sidebar && target.sidebar[index]) {
+                        target.sidebar[index].visible = visible;
+                    }
+                }
+            }
+
+            async saveAllConfigs() {
+                const saveBtn = document.getElementById('saveBtn');
+                const spinner = saveBtn.querySelector('.spinner-border');
+                
+                saveBtn.disabled = true;
+                spinner.classList.remove('d-none');
+
+                try {
+                    await Promise.all([
+                        this.saveConfig('robot_data', '../../../src/config/robot_data_visibility.json'),
+                        this.saveConfig('header', '../../../src/config/header.json'),
+                        this.saveConfig('sidebar', '../../../src/config/sidebar.json')
+                    ]);
+
+                    alert('所有配置已保存成功！');
+                    this.hasChanges = false;
+                } catch (error) {
+                    alert('保存失败: ' + error.message);
+                } finally {
+                    spinner.classList.add('d-none');
+                    saveBtn.disabled = !this.hasChanges;
+                }
+            }
+
+
+
+
+
+            async saveConfig(configType, url) {
+                const config = this.configs[configType];
+                const jsonString = JSON.stringify(config, null, 2);
+                
+                // 创建配置文件编辑模态框
+                this.showConfigEditor(configType, jsonString);
+            }
+
+
+
+
+
+
+
+
+
+            showConfigEditor(configType, jsonString) {
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.8);
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+
+                const content = document.createElement('div');
+                content.style.cssText = `
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    max-width: 800px;
+                    max-height: 80vh;
+                    overflow: auto;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                `;
+
+                const title = document.createElement('h3');
+                title.textContent = `配置文件: ${this.getConfigName(configType)}`;
+                title.style.marginTop = '0';
+
+                const textarea = document.createElement('textarea');
+                textarea.value = jsonString;
+                textarea.style.cssText = `
+                    width: 100%;
+                    height: 400px;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 12px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    padding: 10px;
+                    resize: vertical;
+                `;
+
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.cssText = 'margin-top: 15px; text-align: right;';
+
+                const copyBtn = document.createElement('button');
+                copyBtn.textContent = '复制到剪贴板';
+                copyBtn.style.cssText = `
+                    background: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                `;
+                copyBtn.onclick = () => {
+                    textarea.select();
+                    document.execCommand('copy');
+                    alert('配置文件内容已复制到剪贴板！');
+                };
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = '下载文件';
+                downloadBtn.style.cssText = `
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                `;
+                downloadBtn.onclick = () => {
+                    const blob = new Blob([textarea.value], { type: 'application/json' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = this.getConfigName(configType);
+                    a.click();
+                };
+
+                const closeBtn = document.createElement('button');
+                closeBtn.textContent = '关闭';
+                closeBtn.style.cssText = `
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                `;
+                closeBtn.onclick = () => document.body.removeChild(modal);
+
+                const instructions = document.createElement('div');
+                instructions.innerHTML = `
+                    <p><strong>使用说明：</strong></p>
+                    <ol>
+                        <li>复制上面的JSON内容到剪贴板</li>
+                        <li>打开服务器上的配置文件：${this.getConfigPath(configType)}</li>
+                        <li>用复制的内容替换原文件内容</li>
+                        <li>或者点击"下载文件"保存到本地后手动上传</li>
+                    </ol>
+                    <p style="color: #dc3545;"><strong>注意：</strong>修改前请备份原文件！</p>
+                `;
+                instructions.style.cssText = 'margin: 15px 0; font-size: 14px;';
+
+                buttonContainer.appendChild(copyBtn);
+                buttonContainer.appendChild(downloadBtn);
+                buttonContainer.appendChild(closeBtn);
+
+                content.appendChild(title);
+                content.appendChild(textarea);
+                content.appendChild(instructions);
+                content.appendChild(buttonContainer);
+                modal.appendChild(content);
+                document.body.appendChild(modal);
+
+                // 点击模态框背景关闭
+                modal.onclick = (e) => {
+                    if (e.target === modal) {
+                        document.body.removeChild(modal);
+                    }
+                };
+            }
+
+            getConfigName(configType) {
+                const names = {
+                    'robot_data': 'robot_data_visibility.json',
+                    'header': 'header.json',
+                    'sidebar': 'sidebar.json'
+                };
+                return names[configType] || 'config.json';
+            }
+
+            getConfigPath(configType) {
+                const paths = {
+                    'robot_data': '../../../src/config/robot_data_visibility.json',
+                    'header': '../../../src/config/header.json',
+                    'sidebar': '../../../src/config/sidebar.json'
+                };
+                return paths[configType] || '../../../config/';
+            }
+
+            showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'block' : 'none';
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            const manager = new VisibilityManager();
+            window.visibilityManager = manager;
+        });
+
+        // 添加一些实用功能
+        function toggleAll(section, visible) {
+            const checkboxes = document.querySelectorAll(`#${section}-config input[type="checkbox"]`);
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = visible;
+                checkbox.dispatchEvent(new Event('change'));
+            });
+        }
+
+
+      
+    </script>
+    <script type="text/javascript" src="../../tools/roslibjs/build/roslib.js"></script>
+    <script type="module">
+            import axiosClient from "../../api/ApiManager.js";
+          // 密码可见性切换功能
+          document.getElementById('togglePassword').addEventListener('click', function() {
+              const passwordInput = document.getElementById('userPassword');
+              const eyeIcon = document.getElementById('eyeIcon');
+              if (passwordInput.type === 'password') {
+                  passwordInput.type = 'text';
+                  eyeIcon.classList.remove('bi-eye');
+                  eyeIcon.classList.add('bi-eye-slash');
+              } else {
+                  passwordInput.type = 'password';
+                  eyeIcon.classList.remove('bi-eye-slash');
+                  eyeIcon.classList.add('bi-eye');
+              }
+          });
+          // 确认密码可见性切换功能
+          document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
+              const confirmPasswordInput = document.getElementById('confirmPassword');
+              const confirmEyeIcon = document.getElementById('confirmEyeIcon');
+              
+              if (confirmPasswordInput.type === 'password') {
+                  confirmPasswordInput.type = 'text';
+                  confirmEyeIcon.classList.remove('bi-eye');
+                  confirmEyeIcon.classList.add('bi-eye-slash');
+              } else {
+                  confirmPasswordInput.type = 'password';
+                  confirmEyeIcon.classList.remove('bi-eye-slash');
+                  confirmEyeIcon.classList.add('bi-eye');
+              }
+          });
+          
+          // 注册功能
+          document.getElementById('registerBtn').addEventListener('click', function() {
+                    // 获取输入值
+                    const userAccount = document.getElementById('userAccount').value.trim();
+                    const userPassword = document.getElementById('userPassword').value;
+                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    
+                    // 获取错误和成功提示元素
+                    const registerError = document.getElementById('registerError');
+                    const registerSuccess = document.getElementById('registerSuccess');
+                    
+                    // 隐藏之前的提示信息
+                    registerError.style.display = 'none';
+                    registerSuccess.style.display = 'none';
+                    
+                    // 验证输入
+                    if (!userAccount) {
+                        registerError.textContent = '请输入用户名';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    if (userAccount.length < 4) {
+                        registerError.textContent = '用户名至少需要4个字符';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    if (!userPassword) {
+                        registerError.textContent = '请输入密码';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    if (userPassword.length < 6) {
+                        registerError.textContent = '密码至少需要8个字符';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    if (!confirmPassword) {
+                        registerError.textContent = '请确认密码';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    if (userPassword !== confirmPassword) {
+                        registerError.textContent = '两次输入的密码不一致';
+                        registerError.style.display = 'block';
+                        return;
+                    }
+                    
+                    // 构建请求参数
+                    const params = {
+                        userAccount: userAccount,
+                        userPassword: userPassword,
+                        checkPassword: confirmPassword
+                    };
+                    
+                    // 发送注册请求
+                    axiosClient.post('user/register', params)
+                    .then((res) => {
+                        console.log('注册响应:', res.data);
+                        if(res.data.code == 40000){
+                           registerError.textContent = `${res.data.description}`
+                           registerError.style.display = 'block';
+                        }else if(res.data.code == 0){
+                         registerSuccess.textContent = '注册成功！';
+                         registerSuccess.style.display = 'block';
+                        }
+                        // 清空输入框
+                        document.getElementById('userAccount').value = '';
+                        document.getElementById('userPassword').value = '';
+                        document.getElementById('confirmPassword').value = '';
+                    })
+                    .catch((error) => {
+                        console.error("注册请求失败:", error);
+                        let errorMessage = '注册失败，请稍后再试';
+                        
+                        // 尝试从错误响应中获取更详细的错误信息
+                        if (error.response && error.response.data && error.response.data.message) {
+                            errorMessage = error.response.data.message;
+                        } else if (error.message) {
+                            errorMessage = error.message;
+                        }
+                        
+                        registerError.textContent = errorMessage;
+                        registerError.style.display = 'block';
+                    });
+                });
+    </script>
+</body>
+</html>

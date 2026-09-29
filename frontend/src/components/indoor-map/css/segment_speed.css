@@ -1,0 +1,65 @@
+/* ========= 路线分段速度标签与悬停点击样式 ========= */
+.segment-speed-badge {
+    pointer-events: auto !important;
+}
+
+.speed-tag {
+    background: #ffffff;
+    border: 1.5px solid #ea580c;
+    color: #ea580c;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.speed-tag:hover {
+    background: #ea580c;
+    color: #ffffff;
+    transform: scale(1.12);
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.4);
+}
+
+.speed-tag.reverse {
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+.speed-tag.reverse:hover {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.route-segment-clickable {
+    cursor: pointer;
+    transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.route-segment-clickable:hover {
+    filter: drop-shadow(0 0 5px rgba(234, 88, 12, 0.65));
+}
+
+.segment-speed-leaflet-popup .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+    border: 1.5px solid #fdba74;
+}
+
+.segment-speed-leaflet-popup .leaflet-popup-content {
+    margin: 12px 14px;
+    line-height: 1.4;
+}
+
+.btn-quick-speed:hover {
+    background: #ea580c !important;
+    color: #ffffff !important;
+    border-color: #ea580c !important;
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Value Printer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        select {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Select Value Printer</h1>
+    <p>点击下面的下拉框选择选项，每次点击都会打印选中的值，包括重复选择同一个选项：</p>
+    
+    <select id="mySelect">
+        <option value="">请选择</option>
+        <option value="a">选项A</option>
+        <option value="b">选项B</option>
+        <option value="c">选项C</option>
+        <option value="d">选项D</option>
+    </select>
+    
+    <div class="result">
+        <h3>打印结果：</h3>
+        <div id="printResult"></div>
+    </div>
+
+    <script>
+        // 获取select元素
+        const selectElement = document.getElementById('mySelect');
+        const printResult = document.getElementById('printResult');
+        
+        // 打印函数
+        function printSelectedValue() {
+            const currentTime = new Date().toLocaleTimeString();
+            const selectedIndex = selectElement.selectedIndex;
+            const selectedValue = selectElement.value;
+            const selectedText = selectedIndex >= 0 ? selectElement.options[selectedIndex].text : '';
+            
+            // 打印到控制台
+            console.log(`[${currentTime}] 点击选择框，当前选中值: ${selectedValue} (${selectedText})`);
+            
+            // 同时显示在页面上
+            const resultItem = document.createElement('div');
+            resultItem.innerHTML = `[${currentTime}] 点击选择框，当前选中值: <strong>${selectedValue}</strong> (${selectedText})`;
+            printResult.appendChild(resultItem);
+            
+            // 滚动到底部，显示最新结果
+            printResult.scrollTop = printResult.scrollHeight;
+        }
+        
+        // 监听select的click事件 - 点击选择框时触发
+        selectElement.addEventListener('click', function() {
+            // 直接打印当前选中值
+            printSelectedValue();
+        });
+        
+        // 初始加载时打印一次
+        printSelectedValue();
+    </script>
+</body>
+</html>

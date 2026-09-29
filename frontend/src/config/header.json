@@ -1,0 +1,67 @@
+[
+  {
+    "id": "coordinates_display",
+    "title": "坐标显示",
+    "type": "coordinates",
+    "visible": false,
+    "order": 7,
+    "id_selector": "topLat,topLon"
+  },
+   {
+    "id": "positionxy_display",
+    "title": "xy坐标显示",
+    "type": "coordinatesxy",
+    "visible": true,
+    "order": 8,
+    "id_selector": "localX,localY"
+  },
+  {
+    "id": "position_status",
+    "title": "定位状态",
+    "type": "status_icon",
+    "visible": true,
+    "order": 9,
+    "id_selector": "positonStatus"
+  },
+  {
+    "id": "heading_status",
+    "title": "航向状态",
+    "type": "status_icon",
+    "visible": false,
+    "order": 10,
+    "id_selector": "headeRow"
+  },
+  {
+    "id": "record_control",
+    "title": "录制控制",
+    "type": "control",
+    "visible": true,
+    "order": 11,
+    "id_selector": "Record"
+  },
+  {
+    "id": "wifi_status",
+    "title": "WiFi状态",
+    "type": "status_icon",
+    "visible": false,
+    "order": 12,
+    "id_selector": "currentWifi"
+  },
+  {
+    "id": "track_control",
+    "title": "轨迹开关",
+    "type": "switch",
+    "visible": false,
+    "order": 13,
+    "id_selector": "closetrack"
+  },
+
+  {
+    "id": "shutdown_button",
+    "title": "关机按钮",
+    "type": "button",
+    "visible": true,
+    "order": 15,
+    "id_selector": "closeRobot"
+  }
+]

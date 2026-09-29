@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆安全区域可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .app-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .visualization-area {
+            flex: 1;
+            min-width: 600px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        #vehicleCanvas {
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            display: block;
+            margin: 0 auto;
+            background-color: #fafafa;
+        }
+        
+        
+        .control-section {
+            margin-bottom: 20px;
+        }
+        
+        .control-section h3 {
+            margin-bottom: 10px;
+            color: #34495e;
+            font-size: 16px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .form-group .number-input {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .form-group .number-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .form-group .number-input .btn {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background-color: #f5f5f5;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .form-group .number-input .btn:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .form-group .number-input .btn-decrease {
+            border-radius: 4px 0 0 4px;
+            border-right: none;
+        }
+        
+        .form-group .number-input .btn-increase {
+            border-radius: 0 4px 4px 0;
+            border-left: none;
+        }
+        
+        .form-group input[type="range"] {
+            padding: 0;
+        }
+        
+        .status-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .status-btn {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .status-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .status-btn.active {
+            background-color: #27ae60;
+        }
+        
+        .value-display {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .parameter-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>车辆安全区域可视化</h1>
+        <div id="cameraFrame" >
+            <iframe src="http://169.254.41.225/doc/index.html#/portal/login" target="_blank" width="100%" height="600">跳转到登录页面</iframe>
+        </div>
+        <div class="app-container">
+            <div class="visualization-area">
+                <canvas id="vehicleCanvas" width="800" height="600"></canvas>
+            </div>
+            <div class="control-panel">
+                <div class="control-section">
+                    <h3>行驶状态</h3>
+                    <div class="status-buttons">
+                        <button class="status-btn active" data-status="high-speed-straight">高速直行</button>
+                        <button class="status-btn" data-status="low-speed-straight">低速直行</button>
+                        <button class="status-btn" data-status="left-turn">左转</button>
+                        <button class="status-btn" data-status="right-turn">右转</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>车辆参数</h3>
+                    <div class="parameter-grid">
+                        <div class="form-group">
+                            <label>车辆长度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('vehicleLength', -5)">-</button>
+                                <input type="number" id="vehicleLength" min="50" max="200" value="100" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('vehicleLength', 5)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>车辆宽度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('vehicleWidth', -5)">-</button>
+                                <input type="number" id="vehicleWidth" min="30" max="100" value="50" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('vehicleWidth', 5)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>停车区域 (红色)</h3>
+                    <div class="parameter-grid">
+                        <div class="form-group">
+                            <label>停车区域长度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('stopZoneLength', -5)">-</button>
+                                <input type="number" id="stopZoneLength" min="50" max="200" value="80" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('stopZoneLength', 5)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>停车区域宽度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('stopZoneWidth', -5)">-</button>
+                                <input type="number" id="stopZoneWidth" min="60" max="150" value="100" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('stopZoneWidth', 5)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>减速区域 (黄色)</h3>
+                    <div class="parameter-grid">
+                        <div class="form-group">
+                            <label>减速区域长度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('slowZoneLength', -10)">-</button>
+                                <input type="number" id="slowZoneLength" min="100" max="400" value="200" step="10">
+                                <button class="btn btn-increase" onclick="adjustValue('slowZoneLength', 10)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>减速区域宽度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('slowZoneWidth', -5)">-</button>
+                                <input type="number" id="slowZoneWidth" min="80" max="200" value="150" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('slowZoneWidth', 5)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>二次减速区域 (橙色)</h3>
+                    <div class="parameter-grid">
+                        <div class="form-group">
+                            <label>二次减速区域长度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('secondarySlowZoneLength', -10)">-</button>
+                                <input type="number" id="secondarySlowZoneLength" min="50" max="300" value="150" step="10">
+                                <button class="btn btn-increase" onclick="adjustValue('secondarySlowZoneLength', 10)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>二次减速区域宽度 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('secondarySlowZoneWidth', -5)">-</button>
+                                <input type="number" id="secondarySlowZoneWidth" min="60" max="180" value="120" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('secondarySlowZoneWidth', 5)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>转向检测距离</h3>
+                    <div class="parameter-grid">
+                        <div class="form-group">
+                            <label>左转检测距离 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('leftTurnDistance', -5)">-</button>
+                                <input type="number" id="leftTurnDistance" min="0" max="150" value="80" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('leftTurnDistance', 5)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>右转检测距离 (cm)</label>
+                            <div class="number-input">
+                                <button class="btn btn-decrease" onclick="adjustValue('rightTurnDistance', -5)">-</button>
+                                <input type="number" id="rightTurnDistance" min="0" max="150" value="80" step="5">
+                                <button class="btn btn-increase" onclick="adjustValue('rightTurnDistance', 5)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 车辆状态
+        let currentStatus = 'high-speed-straight';
+        // 参数配置
+        const params = {
+            vehicleLength: 100,
+            vehicleWidth: 50,
+            stopZoneLength: 80,
+            stopZoneWidth: 100,
+            slowZoneLength: 200,
+            slowZoneWidth: 150,
+            secondarySlowZoneLength: 150,
+            secondarySlowZoneWidth: 120,
+            leftTurnDistance: 80,
+            rightTurnDistance: 80
+        };
+        
+        // 获取Canvas元素
+        const canvas = document.getElementById('vehicleCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 初始化参数显示
+        function initParameterDisplay() {
+            for (const param in params) {
+                const valueDisplay = document.getElementById(param + 'Value');
+                if (valueDisplay) {
+                    valueDisplay.textContent = params[param];
+                }
+            }
+        }
+        
+        // 更新参数
+        function updateParameter(param, value) {
+            params[param] = value;
+            const valueDisplay = document.getElementById(param + 'Value');
+            if (valueDisplay) {
+                valueDisplay.textContent = value;
+            }
+            drawVehicleSafetyArea();
+        }
+        
+        // 调整参数值（用于加减按钮）
+        function adjustValue(param, delta) {
+            const inputElement = document.getElementById(param);
+            const currentValue = parseInt(inputElement.value);
+            const minValue = parseInt(inputElement.min);
+            const maxValue = parseInt(inputElement.max);
+            
+            // 计算新值
+            let newValue = currentValue + delta;
+            
+            // 确保新值在有效范围内
+            newValue = Math.max(minValue, Math.min(maxValue, newValue));
+            
+            // 更新输入框值
+            inputElement.value = newValue;
+            
+            // 更新参数并重新绘制
+            updateParameter(param, newValue);
+        }
+        
+        // 设置行驶状态
+        function setStatus(status) {
+            currentStatus = status;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-status="${status}"]`).classList.add('active');
+            
+            drawVehicleSafetyArea();
+        }
+        
+        // 绘制车辆
+        function drawVehicle(x, y) {
+            const { vehicleLength, vehicleWidth } = params;
+            
+            // 绘制车辆主体
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(x - vehicleLength/2, y - vehicleWidth/2, vehicleLength, vehicleWidth);
+            
+            // 绘制箭头指示车辆方向（向右）
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            // 箭头顶点
+            ctx.moveTo(x + vehicleLength/2 - 20, y);
+            // 箭头左下方点
+            ctx.lineTo(x + vehicleLength/2 - 30, y - 8);
+            // 箭头左上方点
+            ctx.lineTo(x + vehicleLength/2 - 30, y + 8);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 添加车辆的长宽标记
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // 显示车辆长度（上方中间）
+            ctx.fillText(`车辆长度: ${vehicleLength.toFixed(1)}`, x, y - vehicleWidth/2 - 5);
+            
+            // 显示车辆宽度（右侧中间）
+            ctx.textAlign = 'left';
+            ctx.fillText(`车辆宽度: ${vehicleWidth.toFixed(1)}`, x + vehicleLength/2 + 5, y);
+        }
+        
+        // 单独绘制车轮，确保完整显示在所有元素之上（已移除）
+        function drawWheels(x, y) {
+            // 轮胎样式已移除
+        }
+        
+
+        
+        // 绘制网格背景
+        function drawGrid() {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            
+            const gridSize = 20;
+            for (let i = 0; i <= canvas.width; i += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let i = 0; i <= canvas.height; i += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+        }
+        
+        // 绘制车辆安全区域
+        function drawVehicleSafetyArea() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格
+            drawGrid();
+            
+            // 车辆中心位置
+            const centerX = 200;
+            const centerY = canvas.height / 2;
+            
+            // 绘制安全区域（不包括红色停车区域）
+            // 先绘制黄色区域和虚线
+            const tempFillStyle = ctx.fillStyle;
+            const tempStrokeStyle = ctx.strokeStyle;
+            const tempLineDash = ctx.getLineDash();
+            const tempLineWidth = ctx.lineWidth;
+            
+            // 重新实现部分drawSafetyAreas功能，只绘制黄色区域和虚线
+            const { stopZoneLength, stopZoneWidth, slowZoneLength, slowZoneWidth, vehicleLength, vehicleWidth } = params;
+            const frontX = centerX + vehicleLength/2;
+            const frontLeft = { x: frontX, y: centerY - vehicleWidth/2 };
+            const frontRight = { x: frontX, y: centerY + vehicleWidth/2 };
+            const yellowStartX = frontX;
+            const yellowStartY = centerY;
+            const curveLength = slowZoneLength;
+            
+            // 根据行驶状态设置曲线方向
+            let direction = 0;
+            switch (currentStatus) {
+                case 'left-turn':
+                    direction = -1; // 向左
+                    break;
+                case 'right-turn':
+                    direction = 1; // 向右
+                    break;
+                default:
+                    direction = 0; // 直行
+                    break;
+            }
+            
+            // 根据速度状态调整安全区域参数
+            let currentSlowZoneLength = slowZoneLength;
+            let currentSlowZoneWidth = slowZoneWidth;
+            let currentStopZoneLength = stopZoneLength;
+            let currentStopZoneWidth = stopZoneWidth;
+            
+            // 高速直行时需要更大的安全距离
+            if (currentStatus === 'high-speed-straight') {
+                currentSlowZoneLength *= 1.5;  // 高速时减速区域更长
+                currentSlowZoneWidth *= 1.2;    // 高速时减速区域更宽
+                currentStopZoneLength *= 1.3;   // 高速时停车区域更长
+                currentStopZoneWidth *= 1.1;    // 高速时停车区域更宽
+            }
+            
+            // 绘制黄色区域
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.setLineDash([]); // 设置实线
+            ctx.lineWidth = 2;
+            
+            // 计算黄色区域的宽度，确保上下对称
+            const yellowHalfWidth = currentSlowZoneWidth / 2;
+            
+            // 保存当前线条样式
+            const originalLineDash = ctx.getLineDash();
+            
+            // 保存实线样式，后续绘制曲线时再设置虚线
+            
+            if (direction === 0) {
+                // 直行
+                // 绘制黄色区域（矩形），与车辆中心对齐
+                ctx.fillRect(yellowStartX, centerY - yellowHalfWidth, currentSlowZoneLength, currentSlowZoneWidth);
+                
+                // 绘制黄色区域边框（实线）
+                ctx.strokeRect(yellowStartX, centerY - yellowHalfWidth, currentSlowZoneLength, currentSlowZoneWidth);
+                
+                // 设置虚线样式，用于绘制延伸线
+                ctx.setLineDash([5, 5]);
+                
+                // 绘制向左延伸的虚线边框
+                // 计算延伸长度（从车辆前端到车辆后端）
+                const extendLength = params.vehicleLength + 20; // 延伸到车辆后端之外
+                
+                // 绘制左侧延伸的虚线
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX - extendLength, centerY - yellowHalfWidth);
+                ctx.lineTo(yellowStartX, centerY - yellowHalfWidth);
+                ctx.stroke();
+                
+                // 绘制右侧延伸的虚线
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX - extendLength, centerY + yellowHalfWidth);
+                ctx.lineTo(yellowStartX, centerY + yellowHalfWidth);
+                ctx.stroke();
+                
+                // 绘制原来的矩形边框
+                ctx.strokeRect(yellowStartX, centerY - yellowHalfWidth, currentSlowZoneLength, currentSlowZoneWidth);
+                
+                // 添加黄色区域的长宽标记
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                // 显示长度（上方中间）
+                ctx.fillText(`减速区域长度: ${currentSlowZoneLength.toFixed(1)}`, yellowStartX + currentSlowZoneLength/2, centerY - yellowHalfWidth - 5);
+                
+                // 显示宽度（右侧中间）
+                ctx.textAlign = 'left';
+                ctx.fillText(`减速区域宽度: ${currentSlowZoneWidth.toFixed(1)}`, yellowStartX + currentSlowZoneLength + 5, centerY);
+                
+                // 绘制二次减速区域（橙色）
+                const { secondarySlowZoneLength, secondarySlowZoneWidth } = params;
+                const orangeStartX = yellowStartX + currentSlowZoneLength;
+                const orangeHalfWidth = secondarySlowZoneWidth / 2;
+                
+                // 绘制橙色区域（矩形）
+                ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+                ctx.strokeStyle = '#2c3e50';
+                ctx.setLineDash([]); // 设置实线
+                ctx.lineWidth = 2;
+                ctx.fillRect(orangeStartX, centerY - orangeHalfWidth, secondarySlowZoneLength, secondarySlowZoneWidth);
+                ctx.strokeRect(orangeStartX, centerY - orangeHalfWidth, secondarySlowZoneLength, secondarySlowZoneWidth);
+                
+                // 添加二次减速区域的长宽标记
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                // 显示长度（上方中间）
+                ctx.fillText(`二次减速区域长度: ${secondarySlowZoneLength.toFixed(1)}`, orangeStartX + secondarySlowZoneLength/2, centerY - orangeHalfWidth - 5);
+                
+                // 显示宽度（右侧中间）
+                ctx.textAlign = 'left';
+                ctx.fillText(`二次减速区域宽度: ${secondarySlowZoneWidth.toFixed(1)}`, orangeStartX + secondarySlowZoneLength + 5, centerY);
+            } else {
+                // 转向：根据用户需求，黄色矩形框只需要到下方虚线的起点
+                // 根据转向方向获取对应的检测距离
+                let turnDistance = direction === -1 ? params.leftTurnDistance : params.rightTurnDistance;
+                
+                // 高速转弯时需要更大的检测距离
+                if (currentStatus === 'high-speed-straight') {
+                    turnDistance *= 1.2;  // 高速时转向检测距离更大
+                }
+                
+                // 计算轨迹曲线的参数
+                const curveEndOffset = direction * turnDistance * 0.5;
+                
+                // 根据用户需求：下方到虚线起点，上方到终点位置
+                // 计算轨迹曲线的终点
+                const curveEndLeft = { x: yellowStartX + currentSlowZoneLength, y: centerY - yellowHalfWidth + curveEndOffset };
+                const curveEndRight = { x: yellowStartX + currentSlowZoneLength, y: centerY + yellowHalfWidth + curveEndOffset };
+                
+                // 绘制矩形黄色区域，包裹两条虚线
+                // 计算矩形边界，确保完全包裹两条曲线
+                const maxY = Math.max(centerY + yellowHalfWidth, curveEndLeft.y, curveEndRight.y);
+                const minY = Math.min(centerY - yellowHalfWidth, curveEndLeft.y, curveEndRight.y);
+                const rectHeight = maxY - minY;
+                const rectY = minY;
+                
+                // 绘制黄色矩形
+                ctx.fillRect(yellowStartX, rectY, currentSlowZoneLength, rectHeight);
+                
+                // 绘制矩形边框
+                ctx.strokeRect(yellowStartX, rectY, currentSlowZoneLength, rectHeight);
+                
+                // 添加黄色区域的长宽标记
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                // 显示长度（上方中间）
+                ctx.fillText(`减速区域长度: ${currentSlowZoneLength.toFixed(1)}`, yellowStartX + currentSlowZoneLength/2, rectY - 5);
+                
+                // 显示宽度（右侧中间）
+                ctx.textAlign = 'left';
+                ctx.fillText(`减速区域宽度: ${currentSlowZoneWidth.toFixed(1)}`, yellowStartX + currentSlowZoneLength + 5, rectY + rectHeight/2);
+                
+                // 绘制二次减速区域（橙色）
+                const { secondarySlowZoneLength, secondarySlowZoneWidth } = params;
+                const orangeStartX = yellowStartX + currentSlowZoneLength;
+                const orangeHalfWidth = secondarySlowZoneWidth / 2;
+                
+                // 绘制橙色区域（矩形）
+                ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+                ctx.strokeStyle = '#2c3e50';
+                ctx.setLineDash([]); // 设置实线
+                ctx.lineWidth = 2;
+                ctx.fillRect(orangeStartX, centerY - orangeHalfWidth, secondarySlowZoneLength, secondarySlowZoneWidth);
+                ctx.strokeRect(orangeStartX, centerY - orangeHalfWidth, secondarySlowZoneLength, secondarySlowZoneWidth);
+                
+                // 添加二次减速区域的长宽标记
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                // 显示长度（上方中间）
+                ctx.fillText(`二次减速区域长度: ${secondarySlowZoneLength.toFixed(1)}`, orangeStartX + secondarySlowZoneLength/2, centerY - orangeHalfWidth - 5);
+                
+                // 显示宽度（右侧中间）
+                ctx.textAlign = 'left';
+                ctx.fillText(`二次减速区域宽度: ${secondarySlowZoneWidth.toFixed(1)}`, orangeStartX + secondarySlowZoneLength + 5, centerY);
+                
+                // 设置虚线样式，用于绘制延伸线和轨迹曲线
+                ctx.setLineDash([5, 5]);
+                
+                // 绘制向左延伸的虚线
+                const extendLength = params.vehicleLength + 20; // 延伸到车辆后端之外
+                
+                // 绘制左侧延伸的虚线（上）
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX - extendLength, centerY - yellowHalfWidth);
+                ctx.lineTo(yellowStartX, centerY - yellowHalfWidth);
+                ctx.stroke();
+                
+                // 绘制右侧延伸的虚线（下）
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX - extendLength, centerY + yellowHalfWidth);
+                ctx.lineTo(yellowStartX, centerY + yellowHalfWidth);
+                ctx.stroke();
+                
+                // 绘制转向轨迹曲线（保持原有的虚线样式）
+                
+                // 绘制内侧轨迹线
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX, centerY - yellowHalfWidth);
+                ctx.bezierCurveTo(
+                    yellowStartX + currentSlowZoneLength * 0.4, centerY - yellowHalfWidth,
+                    yellowStartX + currentSlowZoneLength * 0.7, centerY - yellowHalfWidth + curveEndOffset * 0.7,
+                    curveEndLeft.x, curveEndLeft.y
+                );
+                ctx.stroke();
+                
+                // 绘制外侧轨迹线
+                ctx.beginPath();
+                ctx.moveTo(yellowStartX, centerY + yellowHalfWidth);
+                ctx.bezierCurveTo(
+                    yellowStartX + currentSlowZoneLength * 0.4, centerY + yellowHalfWidth,
+                    yellowStartX + currentSlowZoneLength * 0.7, centerY + yellowHalfWidth + curveEndOffset * 0.7,
+                    curveEndRight.x, curveEndRight.y
+                );
+                ctx.stroke();
+            }
+            
+            // 恢复原始线条样式
+            ctx.setLineDash(originalLineDash);
+            
+            // 绘制红色停车区域（在车辆之下）
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            // 根据用户需求，红色区域应从车辆后端开始，延伸到黄色区域的前端
+            const vehicleRearX = centerX - params.vehicleLength/2;
+            // 红色区域的总长度 = 车辆长度 + 停车区域长度
+            const totalRedLength = params.vehicleLength + currentStopZoneLength;
+            ctx.fillRect(vehicleRearX, centerY - currentStopZoneWidth/2, totalRedLength, currentStopZoneWidth);
+            
+            // 添加红色区域的长宽标记
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // 显示红色区域长度（上方中间）
+            ctx.fillText(`停车区域长度: ${currentStopZoneLength.toFixed(1)}`, vehicleRearX + totalRedLength/2, centerY - currentStopZoneWidth/2 - 5);
+            
+            // 显示红色区域宽度（左侧中间）
+            ctx.textAlign = 'right';
+            ctx.fillText(`停车区域宽度: ${currentStopZoneWidth.toFixed(1)}`, vehicleRearX - 5, centerY);
+            
+            // 绘制车辆主体（在红色区域之上）
+            drawVehicle(centerX, centerY);
+            
+            // 绘制车轮（在所有元素之上，确保完整显示）
+            drawWheels(centerX, centerY);
+            
+            // 恢复上下文状态
+            ctx.strokeStyle = tempStrokeStyle;
+            ctx.fillStyle = tempFillStyle;
+            ctx.setLineDash(tempLineDash);
+            ctx.lineWidth = tempLineWidth;
+            
+            // 绘制状态文本
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            
+            const statusTextMap = {
+                'high-speed-straight': '高速直行',
+                'low-speed-straight': '低速直行',
+                'left-turn': '左转',
+                'right-turn': '右转'
+            };
+            
+            ctx.fillText(statusTextMap[currentStatus], canvas.width / 2, 30);
+        }
+        
+        // 初始化事件监听
+        function initEventListeners() {
+            // 参数滑块事件
+            document.getElementById('vehicleLength').addEventListener('input', (e) => {
+                updateParameter('vehicleLength', parseInt(e.target.value));
+            });
+            
+            document.getElementById('vehicleWidth').addEventListener('input', (e) => {
+                updateParameter('vehicleWidth', parseInt(e.target.value));
+            });
+            
+            document.getElementById('stopZoneLength').addEventListener('input', (e) => {
+                updateParameter('stopZoneLength', parseInt(e.target.value));
+            });
+            
+            document.getElementById('stopZoneWidth').addEventListener('input', (e) => {
+                updateParameter('stopZoneWidth', parseInt(e.target.value));
+            });
+            
+            document.getElementById('slowZoneLength').addEventListener('input', (e) => {
+                updateParameter('slowZoneLength', parseInt(e.target.value));
+            });
+            
+            document.getElementById('slowZoneWidth').addEventListener('input', (e) => {
+                updateParameter('slowZoneWidth', parseInt(e.target.value));
+            });
+            
+            document.getElementById('leftTurnDistance').addEventListener('input', (e) => {
+                updateParameter('leftTurnDistance', parseInt(e.target.value));
+            });
+            
+            document.getElementById('rightTurnDistance').addEventListener('input', (e) => {
+                updateParameter('rightTurnDistance', parseInt(e.target.value));
+            });
+            
+            document.getElementById('secondarySlowZoneLength').addEventListener('input', (e) => {
+                updateParameter('secondarySlowZoneLength', parseInt(e.target.value));
+            });
+            
+            document.getElementById('secondarySlowZoneWidth').addEventListener('input', (e) => {
+                updateParameter('secondarySlowZoneWidth', parseInt(e.target.value));
+            });
+            
+            // 状态按钮事件
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setStatus(btn.dataset.status);
+                });
+            });
+        }
+        // 初始化应用
+        function init() {
+            initParameterDisplay();
+            initEventListeners();
+            drawVehicleSafetyArea();
+        }
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
