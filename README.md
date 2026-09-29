@@ -1,6 +1,6 @@
 # Orange AGV / RCS
 
-面向 Ubuntu 22.04 与 ROS 2 Humble 的新系统。Web 由 Python 后端提供，前端独立存放，机器人节点由 ROS 2 工作区提供；Java 源码和旧部署资料仅保存在 `archive/`，不参与当前启动链。
+面向 Ubuntu 22.04 与 ROS 2 Humble 的新系统。Web 由 Python 后端提供，前端独立存放，机器人节点由 ROS 2 工作区提供。Java 源码、旧部署资料和历史地图样例仅保存在本机归档中，不上传到新仓库，也不参与当前启动链。
 
 ## 项目结构
 
@@ -21,7 +21,7 @@
 │   └── packaging/
 ├── runtime_data/            本机开发运行数据；生产使用 /var/lib/orange
 ├── docs/                    当前部署、地图、ROS 与接口文档
-└── archive/                 Java 遗留源码、解耦硬件包、历史文档和示例地图
+└── archive/                 当前仓库只包含解耦硬件包；本机另存历史资料
 ```
 
 ## 地图保存路径
@@ -35,7 +35,7 @@ Web 与 ROS 共用 `ops/config/runtime.env` 中的两个绝对路径，必须指
 | 二维地图 | `$ROBOT_MAP_DIR/<地图编号>/setting/map.pgm` |
 | 地图参数 | `$ROBOT_MAP_DIR/<地图编号>/setting/map.yaml` |
 
-本地默认目录为 `runtime_data/pcd` 和 `runtime_data/maps`；生产示例为 `/var/lib/orange/pcd` 和 `/var/lib/orange/maps`。`archive/map-examples/` 中的旧地图只作参考，不随新系统交付包发布。建图保存后，后台会从 `ROBOT_PCD_DIR` 校验点云，地图工作台从 `ROBOT_MAP_DIR` 读取栅格图；两端和 ROS launch 使用同一份运行配置，避免保存成功但页面找不到地图。
+本地默认目录为 `runtime_data/pcd` 和 `runtime_data/maps`；生产示例为 `/var/lib/orange/pcd` 和 `/var/lib/orange/maps`。旧地图样例仅保存在本机，不上传到新仓库或新系统交付包。建图保存后，后台会从 `ROBOT_PCD_DIR` 校验点云，地图工作台从 `ROBOT_MAP_DIR` 读取栅格图；两端和 ROS launch 使用同一份运行配置，避免保存成功但页面找不到地图。
 
 ## 构建交付包
 
