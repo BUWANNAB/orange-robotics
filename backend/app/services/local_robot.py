@@ -2,6 +2,7 @@
 import asyncio
 import heapq
 import math
+import logging
 import os
 import time
 from sqlalchemy import select
@@ -12,6 +13,8 @@ from app.services.fleet_service import finish_command, raise_alarm
 from app.services.map_editor import published_map, inside, intersects
 from app.services.ros2_service import ros2_service as bridge
 from app.services.vehicle_state import vehicle_state as state
+
+logger = logging.getLogger(__name__)
 
 
 def plan(document, target, start=None):
@@ -99,25 +102,49 @@ async def execute(db, robot, command):
     raise RuntimeError("该 ROS 设备未声明指令能力: " + name)
 
 
+async def lock_missing_active(db, robot):
+    bridge.inhibited = True
+    try:
+        await bridge.stop_route()
+    except (RuntimeError, TimeoutError):
+        pass
+    robot.locked, robot.lock_reason = True, "运行指令记录丢失，需核实设备状态"
+    await raise_alarm(db, robot.id, "ACTIVE_COMMAND_MISSING", robot.lock_reason)
+
+
 async def run_local_robot():
     robot_id = int(os.environ["RCS_LOCAL_ROBOT_ID"])
     # On restart do not replay ambiguous motion commands.
-    async with AsyncSessionLocal() as db:
-        robot = await db.get(Robot, robot_id)
-        if robot is None: raise RuntimeError("RCS_LOCAL_ROBOT_ID 对应机器人不存在")
-        pending = (await db.scalars(select(Command).where(Command.robot_id == robot_id, Command.status.in_(["accepted", "running"])))).all()
-        for command in pending:
-            if command.expires_at < now():
-                command.status = "timeout"
-                if command.command == "execute-task":
-                    run = await db.get(TaskRun, command.params["task_id"])
-                    if run and run.status in {"running", "dispatched"}:
-                        run.status, run.finished_at, run.failure = "timeout", now(), "进程重启且原指令已过期"
-                continue
-            await finish_command(db, robot, command, "failed", "桥接进程重启，执行结果未知，请核实设备")
-        if pending:
-            robot.locked, robot.lock_reason, bridge.inhibited = True, "重启后需核实设备状态", True
-        await db.commit()
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                robot = await db.get(Robot, robot_id)
+                if robot is None: raise RuntimeError("RCS_LOCAL_ROBOT_ID 对应机器人不存在")
+                pending = (await db.scalars(select(Command).where(Command.robot_id == robot_id, Command.status.in_(["accepted", "running"])))).all()
+                for command in pending:
+                    if command.expires_at < now():
+                        command.status = "timeout"
+                        if command.command == "execute-task":
+                            params = command.params if isinstance(command.params, dict) else {}
+                            task_id = params.get("task_id")
+                            if type(task_id) is not int or task_id < 1:
+                                await raise_alarm(db, robot_id, "INVALID_TASK_COMMAND", "重启恢复时任务指令缺少有效 task_id")
+                                continue
+                            run = await db.get(TaskRun, task_id)
+                            if run and run.status in {"running", "dispatched"}:
+                                run.status, run.finished_at, run.failure = "timeout", now(), "进程重启且原指令已过期"
+                        continue
+                    await finish_command(db, robot, command, "failed", "桥接进程重启，执行结果未知，请核实设备")
+                if pending:
+                    robot.locked, robot.lock_reason, bridge.inhibited = True, "重启后需核实设备状态", True
+                await db.commit()
+            break
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("本机机器人启动恢复失败，稍后重试")
+            bridge.inhibited = True
+            await asyncio.sleep(3)
     active = None
     sampled_at = 0.0
     while True:
@@ -154,6 +181,11 @@ async def run_local_robot():
                     await db.commit()
                 if active:
                     command = await db.get(Command, active)
+                    if command is None:
+                        await lock_missing_active(db, robot)
+                        active = None
+                        await db.commit()
+                        continue
                     status = bridge.navigation["status"]
                     if command.status in {"timeout", "cancelled", "failed"}:
                         if command.result != "设备确认停止并锁定":
@@ -188,6 +220,5 @@ async def run_local_robot():
         except asyncio.CancelledError:
             raise
         except Exception:
-            import logging
-            logging.getLogger(__name__).exception("Local ROS fleet bridge iteration failed")
+            logger.exception("Local ROS fleet bridge iteration failed")
         await asyncio.sleep(0.5)

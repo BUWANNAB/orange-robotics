@@ -6,13 +6,18 @@ import getpass
 from sqlalchemy import func, select
 
 from app.api.user import hash_password
+from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.models.user import User
 
 
 async def create_admin(password: str):
-    if not engine.url.drivername.startswith("mysql+"):
+    if len(password) < 12:
+        raise RuntimeError("管理员密码至少 12 位")
+    if settings.ENVIRONMENT == "production" and not engine.url.drivername.startswith("mysql+"):
         raise RuntimeError("生产管理员只能创建在新 MySQL 数据库中")
+    if settings.ENVIRONMENT not in {"production", "development"}:
+        raise RuntimeError("必须明确设置 ENVIRONMENT")
     async with AsyncSessionLocal() as db:
         count = await db.scalar(select(func.count()).select_from(User))
         if count:

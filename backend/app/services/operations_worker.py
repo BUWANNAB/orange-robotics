@@ -6,7 +6,7 @@ import secrets
 import time
 from datetime import timedelta
 import httpx
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, or_
 from app.database import AsyncSessionLocal
 from app.models.operations import Robot, Alarm, Command, TaskRun, Callback, IntegrationApp, Nonce, Upgrade, UpgradeDetail, Firmware, BatterySample, AuditLog, MapDocument
 from app.services.operations_common import now, online, audit, public
@@ -103,7 +103,8 @@ async def upgrade_tick(db):
 async def callbacks_tick():
     from app.api.integration import decrypt, signature, validate_callback
     async with AsyncSessionLocal() as db:
-        terminal = (await db.scalars(select(TaskRun).where(TaskRun.status.in_(TERMINAL), TaskRun.source != "manual",
+        terminal = (await db.scalars(select(TaskRun).where(TaskRun.status.in_(TERMINAL),
+            or_(TaskRun.source.is_(None), TaskRun.source != "manual"),
             ~TaskRun.id.in_(select(Callback.task_id))).limit(100))).all()
         for task in terminal:
             app = await db.scalar(select(IntegrationApp).where(IntegrationApp.code == task.source))
@@ -114,7 +115,18 @@ async def callbacks_tick():
         for callback in pending:
             app = await db.get(IntegrationApp, callback.app_id)
             task = await db.get(TaskRun, callback.task_id)
-            if not app or not app.enabled: continue
+            if not task:
+                callback.status, callback.result = "dead", "关联任务不存在"
+                await db.commit()
+                continue
+            if not app:
+                callback.status, callback.result = "dead", "回调应用不存在"
+                await db.commit()
+                continue
+            if not app.enabled:
+                callback.next_at = now() + timedelta(minutes=5)
+                await db.commit()
+                continue
             callback.status = "sending"
             await db.commit()
             payload = json.dumps({"event_id": callback.id, "task_id": task.id, "externalId": task.external_id,
@@ -155,11 +167,21 @@ async def tick():
         for command in commands:
             command.status, command.result = "timeout", "设备未按时回执"
             if command.command == "execute-task":
-                task = await db.get(TaskRun, command.params["task_id"])
+                params = command.params if isinstance(command.params, dict) else {}
+                task_id = params.get("task_id")
+                if type(task_id) is not int or task_id < 1:
+                    command.result = "任务指令缺少 task_id，需核实设备状态"
+                    robot = await db.get(Robot, command.robot_id)
+                    if robot:
+                        robot.locked, robot.lock_reason = True, command.result
+                    await raise_alarm(db, command.robot_id, "INVALID_TASK_COMMAND", command.result)
+                    continue
+                task = await db.get(TaskRun, task_id)
                 if task and task.status not in TERMINAL:
                     task.status, task.finished_at, task.failure = "timeout", now(), command.result
                     robot = await db.get(Robot, command.robot_id)
-                    robot.locked, robot.lock_reason = True, "任务回执超时，需要人工核实设备状态"
+                    if robot:
+                        robot.locked, robot.lock_reason = True, "任务回执超时，需要人工核实设备状态"
         await upgrade_tick(db)
         await dispatch_tasks(db)
         await db.commit()

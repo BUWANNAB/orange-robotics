@@ -7,11 +7,9 @@ class RequestLimits:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("method") not in {"POST", "PUT"}:
+        if scope["type"] != "http" or scope.get("method") not in {"POST", "PUT", "PATCH"}:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
-        if not path.startswith(("/openapi/", "/api/")):
-            return await self.app(scope, receive, send)
         maximum = 1048576 if path.startswith("/openapi/") else 6*1048576
         if path == "/api/map-workbench/grid": maximum = 81*1048576
         chunks, size = [], 0

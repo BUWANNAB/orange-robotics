@@ -13,7 +13,7 @@ DATA_DIR = Path(os.getenv("ORANGE_DATA_DIR", str(WORKSPACE_ROOT / "runtime_data"
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Orange AGV/AMR 智能调度控制系统"
     VERSION: str = "2.0.0"
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "")
     HOST: str = os.getenv("ROBOT_WEB_HOST", "0.0.0.0")
     PORT: int = int(os.getenv("ROBOT_WEB_PORT", "8088"))
 
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     FILES_DIR: Path = Path(os.getenv("ROBOT_FILES_DIR", str(DATA_DIR / "files"))).expanduser()
 
     # JWT 鉴权
-    SECRET_KEY: str = os.getenv("JWT_SECRET", "orange_agv_super_secret_key_2026")
+    SECRET_KEY: str = os.getenv("JWT_SECRET", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24小时
 

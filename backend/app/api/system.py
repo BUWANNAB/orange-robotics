@@ -2,7 +2,6 @@ import logging
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from app.common.response import ok, error
-from app.services.mode_manager import ModeManager, SystemMode
 from app.services.operations_common import require, permissions
 from app.services.ros2_service import ros2_service as bridge
 
@@ -12,7 +11,7 @@ router = APIRouter()
 @router.get("/mode")
 async def get_system_mode():
     """获取当前系统模式与状态"""
-    info = ModeManager.get_current_mode()
+    info = {}
     snapshot = bridge.snapshot()
     info["mode"] = "EMERGENCY_STOP" if bridge.inhibited else "RELOCALIZING" if snapshot["switch"]["status"] in {"loading", "localizing"} else "NAVIGATION" if snapshot["navigation"]["status"] == "running" else "STANDBY"
     info.update(source=snapshot["localization"]["source"], localization=snapshot["localization"],
@@ -44,7 +43,7 @@ async def switch_system_mode(payload: Dict[str, Any], actor=Depends(require("rob
 
 @router.post("/emergency_stop")
 async def trigger_emergency_stop(actor=Depends(require("robot:control"))):
-    """软件急停抱闸"""
+    """请求 ROS 软件停车；物理急停仍由独立硬件回路执行。"""
     from app.api.localization import stop
     return await stop(actor)
 

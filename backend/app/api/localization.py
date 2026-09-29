@@ -49,7 +49,7 @@ def catalog():
     known = {str((root / row['pcd']).resolve()) for row in entries}
     if registry and root.is_dir():
         entries += [{"key": str(p.relative_to(root)), "pcd": str(p.relative_to(root))}
-                    for p in root.rglob('GlobalMap.pcd') if str(p.resolve()) not in known]
+                    for p in root.rglob('*.pcd') if p.name.lower() == 'globalmap.pcd' and str(p.resolve()) not in known]
     overrides = map_bindings.read()
     result = []
     for row in entries:
@@ -58,7 +58,7 @@ def catalog():
             continue
         if any(c in str(path) for c in "\r\n"):
             continue
-        asset_id=path.parent.relative_to(root).as_posix() if path.name=='GlobalMap.pcd' else None
+        asset_id=path.parent.relative_to(root).as_posix() if path.name.lower()=='globalmap.pcd' else None
         binding = overrides.get(row['key'], row)
         result.append({"key": row["key"], "asset_id":asset_id,"pcd": str(path), "map_id": binding.get("map_id"), "version": binding.get("version")})
     return result

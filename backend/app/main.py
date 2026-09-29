@@ -34,11 +34,13 @@ except ImportError:
 async def lifespan(app: FastAPI):
     # 启动前检查
     logger.info("Starting %s v%s...", settings.PROJECT_NAME, settings.VERSION)
-    if settings.ENVIRONMENT == "production" and (
+    if settings.ENVIRONMENT not in {"development", "production"}:
+        raise RuntimeError("必须明确设置 ENVIRONMENT=development 或 production")
+    if (
         len(settings.SECRET_KEY) < 32 or settings.SECRET_KEY.startswith("CHANGE_")
         or settings.SECRET_KEY == "orange_agv_super_secret_key_2026"
     ):
-        raise RuntimeError("生产环境必须设置至少 32 字符的独立 JWT_SECRET")
+        raise RuntimeError("必须设置至少 32 字符的独立 JWT_SECRET")
     if settings.ENVIRONMENT == "production" and settings.USE_SQLITE_DEV:
         raise RuntimeError("生产环境必须连接新建的 MySQL，禁止使用开发 SQLite")
 
@@ -146,13 +148,13 @@ async def invalid_request(request, exc):
 async def integrity_conflict(request, exc):
     return JSONResponse(status_code=409, content={"code":40900,"data":None,"message":"记录冲突，请刷新后重试"})
 
-# 允许跨域（本地开发和现场平板访问）
+# 同源网页无需 CORS；跨域部署时显式列出可信来源。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in os.getenv("ROBOT_CORS_ORIGINS", "").split(",") if origin.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "X-Device-Key", "X-App-Code", "X-Timestamp", "X-Nonce", "X-Signature"],
 )
 
 @app.get("/health", tags=["System"])

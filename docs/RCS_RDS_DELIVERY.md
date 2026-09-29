@@ -40,7 +40,7 @@ E:\CodexWork\rcs-rds-venv\Scripts\python.exe -m uvicorn app.main:app --host 127.
 部署要求：
 
 - **单 Uvicorn worker**。会话计数、QPS 限流和分片锁是进程内对象，未支持多进程；编辑锁、nonce、任务、升级预留则在数据库持久化。
-- `ENVIRONMENT=production` 时必须设置独立 `JWT_SECRET`，默认密钥将阻止启动。该密钥也用于加密 WMS secret，变更前需要迁移现有密文。
+- 必须明确设置 `ENVIRONMENT=development` 或 `production`，且两种环境均须设置至少 32 字符的独立 `JWT_SECRET`；缺失时拒绝启动。该密钥也用于加密 WMS secret，变更前需要迁移现有密文。管理员只通过 `scripts/bootstrap_admin.py --bootstrap` 显式创建；登录不会自动生成默认账户。单进程内同一来源和账号连续失败 5 次后限制登录 5 分钟。跨域前端需通过 `ROBOT_CORS_ORIGINS` 列出准确来源。
 - 生产禁止默认管理员自动初始化，禁止匿名注册；先通过现有可信用户管理方式准备管理员。已有密码兼容策略仍保留，未进行全库密码迁移。
 - `RCS_PERMISSIONS` 为「账号 -> 权限数组」JSON。未配置时 admin 拥有全部权限，其他现有账号只有查看权限；可明确收紧 admin。
 - 回调只允许 HTTPS，主机需在 `RCS_CALLBACK_HOSTS` 列表中。列表由部署管理员维护；应配合出口 ACL，避免将不可信域名/DNS 指向内部服务。

@@ -9,6 +9,7 @@ import unittest
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock
 
 temporary = tempfile.TemporaryDirectory(prefix="rcs-tests-", ignore_cleanup_errors=True)
 os.environ["RCS_DATABASE_URL"] = "sqlite+aiosqlite:///" + str(Path(temporary.name)/"test.db").replace("\\", "/")
@@ -16,19 +17,22 @@ os.environ["RCS_DATA_DIR"] = str(Path(temporary.name)/"data")
 os.environ["RCS_WORKER_ENABLED"] = "false"
 os.environ["USE_SQLITE_DEV"] = "true"
 os.environ["ENVIRONMENT"] = "development"
+os.environ["JWT_SECRET"] = "test-only-independent-secret-32-characters-minimum"
 
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from app.main import app
 from app.database import AsyncSessionLocal, engine
 assert Path(engine.url.database).resolve() == (Path(temporary.name)/"test.db").resolve(), "Refusing to run integration tests against a non-test database"
-from app.models.operations import Robot, TaskRun, UpgradeDetail, Callback
+from app.models.operations import Robot, TaskRun, UpgradeDetail, Callback, Command, Alarm
 from app.api.integration import signature
 from app.services.operations_worker import tick, callbacks_tick
 from app.services.operations_common import now
 from sqlalchemy import select
 from app.services.map_editor import validate_map
 from app.api.user import generate_token
+from app.api.user import hash_password
+from app.models.user import User
 
 
 MAP = {"width":20,"height":20,"points":[{"code":"A","x":1,"y":1,"type":"station"},
@@ -42,6 +46,11 @@ class OperationsTests(unittest.TestCase):
         for p in cls.patches: p.start()
         cls.client = TestClient(app, client=("127.0.0.1", 50000))
         cls.client.__enter__()
+        async def seed_admin():
+            async with AsyncSessionLocal() as db:
+                db.add(User(userAccount="admin", userPassword=hash_password("admin")))
+                await db.commit()
+        asyncio.run(seed_admin())
         login = cls.client.post('/user/login',json={"userAccount":"admin","userPassword":"admin"}).json()
         assert login['code'] == 0, login
         cls.headers = {'Authorization':login['data']}
@@ -74,7 +83,9 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(self.client.get('/user/current').status_code,401)
         self.assertEqual(self.client.get('/user/current',headers=self.headers).json()['data']['username'],'admin')
         self.assertEqual(self.client.get('/api/robots',headers={'Authorization':'agv_admin_1_bad'}).status_code,401)
-        response=self.client.post('/user/register',json={'userAccount':'viewer','userPassword':'viewer-pass'})
+        self.assertEqual(self.client.post('/user/register',json={'userAccount':'unauthorized','userPassword':'a-long-password'}).status_code,401)
+        response=self.client.post('/user/register',headers=self.headers,
+                                  json={'userAccount':'viewer','userPassword':'viewer-password'})
         self.assertEqual(response.json()['code'],0)
         viewer_token=generate_token('viewer')
         current=self.client.get('/user/current',headers={'Authorization':viewer_token})
@@ -456,7 +467,7 @@ class OperationsTests(unittest.TestCase):
         self.assertTrue(verify_password('test-password',hash_password('test-password')))
         self.assertFalse(verify_password('incorrect',hash_password('test-password')))
         java_hash=hashlib.md5(b'ant-robottest-password').hexdigest()
-        self.assertTrue(verify_password('test-password',java_hash))
+        self.assertFalse(verify_password('test-password',java_hash))
         with patch.object(settings,'ENVIRONMENT','production'):
             self.assertFalse(verify_password('test-password',java_hash))
             self.assertFalse(verify_password('test-password','test-password'))
@@ -469,15 +480,82 @@ class OperationsTests(unittest.TestCase):
         response=self.client.post('/user/login',json={
             'userAccount':'java_migrated_user','userPassword':'test-password'})
         self.assertEqual(response.status_code,200)
-        self.assertEqual(response.json()['code'],0)
+        self.assertEqual(response.json()['code'],40100)
 
     def test_21_fresh_install_refuses_preview_database(self):
-        from deploy.init_fresh_db import initialize
-        from deploy.bootstrap_admin import create_admin
+        from scripts.init_fresh_db import initialize
+        from scripts.bootstrap_admin import create_admin
         with self.assertRaisesRegex(RuntimeError,'MySQL'):
             asyncio.run(initialize())
-        with self.assertRaisesRegex(RuntimeError,'MySQL'):
+        with self.assertRaisesRegex(RuntimeError,'已有账户'):
             asyncio.run(create_admin('safe-example-password'))
+
+    def test_22_malformed_timeout_does_not_block_scheduler(self):
+        from datetime import timedelta
+        async def check():
+            async with AsyncSessionLocal() as db:
+                command = Command(robot_id=999999, command='execute-task', params={},
+                                  status='running', key='malformed-timeout-test',
+                                  expires_at=now()-timedelta(seconds=1))
+                db.add(command)
+                await db.commit()
+                command_id = command.id
+            await tick()
+            async with AsyncSessionLocal() as db:
+                command = await db.get(Command, command_id)
+                alarm = await db.scalar(select(Alarm).where(Alarm.code == 'INVALID_TASK_COMMAND'))
+                self.assertEqual(command.status, 'timeout')
+                self.assertIn('task_id', command.result)
+                self.assertIsNotNone(alarm)
+        asyncio.run(check())
+
+    def test_23_orphan_callback_is_retired(self):
+        async def check():
+            async with AsyncSessionLocal() as db:
+                callback = Callback(task_id=999999, app_id=999999, status='pending', next_at=now())
+                db.add(callback)
+                await db.commit()
+                callback_id = callback.id
+            await callbacks_tick()
+            async with AsyncSessionLocal() as db:
+                callback = await db.get(Callback, callback_id)
+                self.assertEqual(callback.status, 'dead')
+        asyncio.run(check())
+
+    def test_24_login_never_bootstraps_default_admin(self):
+        from app.api.user import UserLoginRequest, user_login
+        db = Mock()
+        db.execute = AsyncMock(return_value=Mock(scalar_one_or_none=lambda: None))
+        db.commit = AsyncMock()
+        result = asyncio.run(user_login(UserLoginRequest(userAccount='admin', userPassword='123456'),
+                                        Mock(client=Mock(host='unit-test')), db))
+        self.assertEqual(result['code'], 40100)
+        db.commit.assert_not_awaited()
+
+    def test_26_login_throttles_repeated_failures(self):
+        from app.api.user import login_allowed, record_login
+        key = ('unit-test', 'rate-limited-account')
+        for _ in range(5):
+            self.assertTrue(login_allowed(key))
+            record_login(key, False)
+        self.assertFalse(login_allowed(key))
+        record_login(key, True)
+        self.assertTrue(login_allowed(key))
+
+    def test_27_legacy_login_body_is_limited(self):
+        response = self.client.post('/user/login', content=b'x' * (6 * 1048576 + 1),
+                                    headers={'Content-Type': 'application/json'})
+        self.assertEqual(response.status_code, 413)
+
+    def test_25_startup_requires_explicit_environment_and_secret(self):
+        from app.main import lifespan
+        from app.config import settings
+        with patch.object(settings, 'ENVIRONMENT', ''):
+            with self.assertRaisesRegex(RuntimeError, 'ENVIRONMENT'):
+                asyncio.run(lifespan(app).__aenter__())
+        with patch.object(settings, 'SECRET_KEY', ''):
+            with self.assertRaisesRegex(RuntimeError, 'JWT_SECRET'):
+                asyncio.run(lifespan(app).__aenter__())
 
 if __name__=='__main__':
     unittest.main(verbosity=2)

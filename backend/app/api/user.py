@@ -3,9 +3,11 @@ import hmac
 import secrets
 import time
 import logging
+import threading
+from collections import OrderedDict, deque
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
@@ -18,6 +20,34 @@ from app.models.user import User
 logger = logging.getLogger("orange_agv.api.user")
 
 router = APIRouter()
+_failed_logins = OrderedDict()
+_login_lock = threading.Lock()
+
+
+def login_allowed(key: tuple[str, str]) -> bool:
+    with _login_lock:
+        attempts = _failed_logins.get(key)
+        if not attempts:
+            return True
+        cutoff = time.monotonic() - 300
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        if not attempts:
+            _failed_logins.pop(key, None)
+            return True
+        return len(attempts) < 5
+
+
+def record_login(key: tuple[str, str], success: bool) -> None:
+    with _login_lock:
+        if success:
+            _failed_logins.pop(key, None)
+            return
+        attempts = _failed_logins.setdefault(key, deque())
+        attempts.append(time.monotonic())
+        _failed_logins.move_to_end(key)
+        if len(_failed_logins) > 4096:
+            _failed_logins.popitem(last=False)
 
 class UserLoginRequest(BaseModel):
     userAccount: str
@@ -46,12 +76,7 @@ def verify_password(pwd: str, stored: str) -> bool:
             return hmac.compare_digest(actual, digest)
         except (ValueError, OverflowError):
             return False
-    # Preview-era passwords are never accepted by the fresh production system.
-    if settings.ENVIRONMENT == "production":
-        return False
-    legacy_java = hashlib.md5(("ant-robot" + pwd).encode("utf-8")).hexdigest()
-    legacy_python = hashlib.md5(pwd.encode("utf-8")).hexdigest()
-    return any(hmac.compare_digest(stored, candidate) for candidate in (legacy_java, legacy_python, pwd))
+    return False
 
 def generate_token(account: str) -> str:
     """生成简单可靠的带时间戳令牌"""
@@ -61,37 +86,27 @@ def generate_token(account: str) -> str:
     return f"agv_{account}_{ts}_{signature}"
 
 @router.post("/login")
-async def user_login(login_req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
+async def user_login(login_req: UserLoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """用户登录接口 (兼容现有前端拦截器与本地脱机调试)"""
     account = login_req.userAccount.strip()
     pwd = login_req.userPassword
     
     if not account or not pwd.strip():
         return error(40000, "账号和密码不能为空")
+    key = (request.client.host if request.client else "unknown", account)
+    if not login_allowed(key):
+        raise HTTPException(429, "登录尝试过多，请五分钟后重试")
 
     try:
         # 1. 尝试从数据库查询
         result = await db.execute(select(User).where(User.userAccount == account, User.isDelete == 0))
         user = result.scalar_one_or_none()
 
-        is_valid = False
-
-        if user:
-            if verify_password(pwd, user.userPassword):
-                is_valid = True
-        else:
-            # 若数据库未预设管理员账号，自动支持默认账号 admin/123456 或 admin/admin
-            if settings.ENVIRONMENT != "production" and account == "admin" and (pwd in ("admin", "123456", "admin123")):
-                is_valid = True
-                # 自动将默认管理员写入数据库
-                new_admin = User(userAccount="admin", userPassword=hash_password(pwd))
-                db.add(new_admin)
-                await db.commit()
-                logger.info("已自动初始化默认管理员账户 admin")
-
-        if not is_valid:
+        if not user or not verify_password(pwd, user.userPassword):
+            record_login(key, False)
             return error(40100, "账号或密码错误")
 
+        record_login(key, True)
         token = generate_token(account)
         logger.info("用户 %s 登录成功", account)
         return ok(token, message="登录成功")
@@ -104,11 +119,10 @@ async def user_login(login_req: UserLoginRequest, db: AsyncSession = Depends(get
 @router.post("/register")
 async def user_register(reg_req: UserRegisterRequest, db: AsyncSession = Depends(get_db), authorization: Optional[str] = Header(None)):
     """用户注册"""
-    if settings.ENVIRONMENT == "production":
-        from app.services.operations_common import authenticate, permissions
-        actor = await authenticate(authorization, db)
-        if not {"*", "user:manage"}.intersection(permissions(actor)):
-            raise HTTPException(403, "生产环境只允许管理员创建用户")
+    from app.services.operations_common import authenticate, permissions
+    actor = await authenticate(authorization, db)
+    if not {"*", "user:manage"}.intersection(permissions(actor)):
+        raise HTTPException(403, "只允许管理员创建用户")
     if reg_req.checkPassword and reg_req.userPassword != reg_req.checkPassword:
         return error(40000, "两次输入的密码不一致")
 
@@ -117,7 +131,7 @@ async def user_register(reg_req: UserRegisterRequest, db: AsyncSession = Depends
         if result.scalar_one_or_none():
             return error(40000, "该账号已存在")
 
-        if settings.ENVIRONMENT == "production" and len(reg_req.userPassword) < 12:
+        if len(reg_req.userPassword) < 12:
             return error(40000, "密码至少 12 位")
 
         new_user = User(

@@ -2,12 +2,14 @@
 import asyncio
 import math
 import tempfile
+import threading
 import time
 import unittest
 import json
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import patch, AsyncMock
+from unittest.mock import Mock
 from app.services.ros2_service import ROS2BridgeService
 from app.services.vehicle_state import VehicleState
 
@@ -34,6 +36,63 @@ class ROSAlignmentTests(unittest.IsolatedAsyncioTestCase):
         self.bridge._on_plc_link(NS(data=True))
         self.bridge._on_tf_pose(pose())
         self.bridge._on_quality(NS(data=[1.,.1, .01]))
+
+    async def test_missing_active_command_requests_stop_and_locks_robot(self):
+        from app.services.local_robot import lock_missing_active
+        robot = NS(id=7, locked=False, lock_reason='')
+        self.bridge.stop_route = AsyncMock(side_effect=TimeoutError('no acknowledgement'))
+        with (patch('app.services.local_robot.bridge', self.bridge),
+              patch('app.services.local_robot.raise_alarm', new_callable=AsyncMock) as alarm):
+            await lock_missing_active(None, robot)
+        self.assertTrue(self.bridge.inhibited)
+        self.assertTrue(robot.locked)
+        self.bridge.stop_route.assert_awaited_once()
+        alarm.assert_awaited_once()
+
+    async def test_ros_control_callback_runs_on_asyncio_thread(self):
+        self.bridge._loop = asyncio.get_running_loop()
+        caller = threading.get_ident()
+        observed = asyncio.Event()
+        threads = []
+        def callback():
+            threads.append(threading.get_ident())
+            observed.set()
+        worker = threading.Thread(target=self.bridge._schedule, args=(callback,))
+        worker.start()
+        worker.join()
+        await asyncio.wait_for(observed.wait(), 1)
+        self.assertEqual(threads, [caller])
+
+    async def test_lowercase_globalmap_keeps_asset_binding(self):
+        from app.api.localization import catalog
+        from app.config import settings
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'new-map').mkdir()
+            (root / 'new-map' / 'globalmap.pcd').write_bytes(b'pcd')
+            with (patch.object(settings, 'PCD_DIR', root),
+                  patch.dict('os.environ', {'ROS_MAP_CATALOG': ''}),
+                  patch('app.services.map_bindings.read', return_value={})):
+                rows = catalog()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['asset_id'], 'new-map')
+
+    async def test_partial_ros_initialization_is_shutdown(self):
+        ros = NS(shutdown=Mock())
+        self.bridge._ros_initialized = True
+        with patch.dict('sys.modules', {'rclpy': ros}):
+            self.bridge.stop()
+        ros.shutdown.assert_called_once()
+        self.assertFalse(self.bridge._ros_initialized)
+
+    async def test_ros_shutdown_survives_node_cleanup_error(self):
+        ros = NS(shutdown=Mock())
+        self.bridge._ros_initialized = True
+        self.bridge.node = NS(destroy_node=Mock(side_effect=RuntimeError('cleanup failed')))
+        with patch.dict('sys.modules', {'rclpy': ros}), patch('app.services.ros2_service.log.exception'):
+            self.bridge.stop()
+        ros.shutdown.assert_called_once()
+        self.assertIsNone(self.bridge.node)
 
     async def test_progress_requires_matching_running_route_and_expires(self):
         self.bridge.navigation = {"id":"current", "status":"running", "points":[{}, {}, {}]}

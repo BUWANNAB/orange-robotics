@@ -20,6 +20,8 @@ class ROS2BridgeService:
         self._running = False
         self._sim_task = None
         self._spin_thread = None
+        self._loop = None
+        self._ros_initialized = False
         self.publishers, self.types, self.events = {}, {}, {}
         self.event_seq = 0
         self.control_lock = asyncio.Lock()
@@ -33,6 +35,7 @@ class ROS2BridgeService:
 
     def start(self):
         self._running = True
+        self._loop = asyncio.get_running_loop()
         self.is_simulation = settings.SIMULATION_MODE
         if self.is_simulation:
             state.source = "simulation"
@@ -46,9 +49,10 @@ class ROS2BridgeService:
             from std_msgs.msg import UInt32, UInt8, Float32, Float64MultiArray, Float32MultiArray, String, Bool
             from rclpy.qos import qos_profile_sensor_data
             rclpy.init()
+            self._ros_initialized = True
             self.node = rclpy.create_node("orange_agv_web_bridge")
             from app.services.mapping_control import receive as mapping_receive
-            self.node.create_subscription(String, "/buildmap_status", mapping_receive, 10)
+            self.node.create_subscription(String, "/buildmap_status", lambda m: self._schedule(mapping_receive, m), 10)
             subscriptions = [
                 (PoseStamped, "/tf_pose", self._on_tf_pose),
                 (UInt32, "/path_point_id", lambda m: setattr(state, "current_station_id", int(m.data))),
@@ -57,15 +61,15 @@ class ROS2BridgeService:
                 (Float32, "/bat_topic", self._on_voltage),
                 (BatteryState, os.getenv("ROS_BATTERY_STATE_TOPIC", "/battery_state"), self._on_battery),
                 (Float32MultiArray, "/slam_status", self._on_quality),
-                (String, "/navigation/result", self._on_nav_result),
-                (String, "/localization/auto_result", self._on_auto_result),
-                (String, "/localization/map_result", self._on_map_result)]
+                (String, "/navigation/result", lambda m: self._schedule(self._on_nav_result, m)),
+                (String, "/localization/auto_result", lambda m: self._schedule(self._on_auto_result, m)),
+                (String, "/localization/map_result", lambda m: self._schedule(self._on_map_result, m))]
             for kind, topic, callback in subscriptions:
                 self.node.create_subscription(kind, topic, callback, 10)
             self.node.create_subscription(Odometry, "/odom_topic", self._on_odom, qos_profile_sensor_data)
             self.node.create_subscription(PointCloud2, "/livox/lidar", lambda msg: setattr(self,"lidar_received",time.monotonic()) if msg.width*msg.height else None, qos_profile_sensor_data)
             for topic in ("/path_received_finish", "/close_route_finish", "/goal_finish"):
-                self.node.create_subscription(UInt8, topic, lambda m, t=topic: self._event(t, m.data), 10)
+                self.node.create_subscription(UInt8, topic, lambda m, t=topic: self._schedule(self._event, t, m.data), 10)
             for topic, kind in [("/path_point", Float64MultiArray), ("/vehicle_run_star", UInt8),
                                 ("/close_route", UInt8), ("/initialpose", PoseWithCovarianceStamped),
                                 ("/plc_start", UInt8),
@@ -78,8 +82,12 @@ class ROS2BridgeService:
             self._spin_thread.start()
         except Exception as exc:
             self.error = str(exc)
-            state.source = "disconnected"
+            self.stop()
             log.exception("ROS unavailable; remaining offline, without simulated poses")
+
+    def _schedule(self, callback, *args):
+        if self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(callback, *args)
 
     def _event(self, topic, value):
         self.event_seq += 1
@@ -370,12 +378,29 @@ class ROS2BridgeService:
         self._running = False
         if self._sim_task:
             self._sim_task.cancel()
-        if self.node:
+            self._sim_task = None
+        if self.node or self._ros_initialized:
             import rclpy
-            rclpy.shutdown()
+            if self.node:
+                try:
+                    self.node.destroy_node()
+                except Exception:
+                    log.exception("ROS bridge node cleanup failed")
+                finally:
+                    self.node = None
+            if self._ros_initialized:
+                try:
+                    rclpy.shutdown()
+                except Exception:
+                    log.exception("ROS bridge context shutdown failed")
+                finally:
+                    self._ros_initialized = False
             if self._spin_thread:
                 self._spin_thread.join(timeout=2)
-            self.node.destroy_node()
+                self._spin_thread = None
+        self.publishers.clear()
+        self.types.clear()
+        self._loop = None
         state.source, state.pose_received = "disconnected", 0
 
 ros2_service = ROS2BridgeService()
