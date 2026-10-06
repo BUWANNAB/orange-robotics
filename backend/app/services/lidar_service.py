@@ -6,6 +6,7 @@ import math
 import asyncio
 import hashlib
 import platform
+import re
 import shutil
 import tempfile
 import time
@@ -16,6 +17,7 @@ from sqlalchemy import select
 
 from app.config import WORKSPACE_ROOT
 from app.models.route import Param
+from app.services.obstacle_protection import DEFAULT_OBSTACLE_CONFIG, validate_obstacle_config
 
 logger = logging.getLogger("orange_agv.lidar_service")
 _config_lock = asyncio.Lock()
@@ -23,6 +25,7 @@ _MODELS = {"MID-360": ("MID360", "MID360_config.json"),
            "MID-360S": ("Mid360s", "MID360s_config.json")}
 _NAV_WS = Path(os.getenv("ROBOT_NAV_WS", str(WORKSPACE_ROOT / "ros" / "orange_nav_ws"))).expanduser()
 _TEMPLATES = _NAV_WS / "src" / "drivers" / "livox_ros_driver2" / "config"
+_OBSTACLE_DEFAULT_PATH = _NAV_WS / "src" / "runtime" / "orange_runtime" / "config" / "obstacle_protection.json"
 
 # 使用当前配置工作区内的型号模板；现场运行配置由 MID360_CONFIG_FILE 单独指定。
 CONFIG_PATHS = [
@@ -38,6 +41,12 @@ def get_mid360_config_path() -> Optional[Path]:
         if p.exists():
             return p
     return CONFIG_PATHS[0]
+
+
+def get_obstacle_config_path() -> Path:
+    """The Web service and ROS launch must use the same shared JSON sidecar."""
+    configured = os.getenv("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()
+    return Path(configured).expanduser() if configured else _OBSTACLE_DEFAULT_PATH
 
 
 def _write_json(path: Path, value: Dict[str, Any]) -> None:
@@ -141,6 +150,17 @@ class LidarService:
 
         configured_path = os.getenv("MID360_CONFIG_FILE", "").strip()
         pending = _pending_path(cfg_path).exists() if cfg_path else False
+        obstacle_path = get_obstacle_config_path()
+        obstacle_valid = True
+        try:
+            obstacle_config = validate_obstacle_config(
+                json.loads(obstacle_path.read_text(encoding="utf-8"))
+                if obstacle_path.is_file() else DEFAULT_OBSTACLE_CONFIG)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.error("读取点云防护配置失败: %s", exc)
+            obstacle_config = json.loads(json.dumps(DEFAULT_OBSTACLE_CONFIG))
+            obstacle_valid = False
+        obstacle_pending = _pending_path(obstacle_path).is_file()
         from app.services.ros2_service import ros2_service
         fresh_cloud = bool(not ros2_service.is_simulation and ros2_service.lidar_received
                            and time.monotonic() - ros2_service.lidar_received < 2)
@@ -150,12 +170,19 @@ class LidarService:
             "lidar_count": len(lidar_list),
             "lidars": lidar_list,
             "filter": filter_params,
+            "obstacle_protection": obstacle_config,
             "status": {"online": fresh_cloud, "model": f"Livox {model}",
                        "temperature": None, "ptp_sync": None, "point_rate_hz": None},
             "deployment": {"config_path": str(cfg_path),
                            "shared_configured": bool(configured_path),
                            "mount_configured": bool(raw_json.get("robot_mount")),
-                           "pending_verification": pending}
+                           "pending_verification": pending or obstacle_pending,
+                           "protection_config_path": str(obstacle_path),
+                           "protection_shared_configured": bool(
+                               os.getenv("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()
+                               and Path(os.getenv("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()).is_absolute()),
+                           "protection_config_valid": obstacle_valid,
+                           "protection_pending_verification": obstacle_pending}
         }
 
 
@@ -163,7 +190,18 @@ class LidarService:
     async def update_config(cls, new_cfg: Dict[str, Any], db: AsyncSession) -> bool:
         """Validate and atomically save the shared ROS/Web sensor configuration."""
         if "filter" in new_cfg:
-            raise ValueError("感知阈值尚未接入 ROS 避障链，雷达配置接口不允许修改")
+            raise ValueError("旧版 filter 参数不允许修改；请使用 obstacle_protection 点云防护配置")
+        protection = None
+        obstacle_path = get_obstacle_config_path()
+        if "obstacle_protection" in new_cfg:
+            protection = validate_obstacle_config(new_cfg["obstacle_protection"])
+            configured_obstacle_path = os.getenv("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()
+            if not configured_obstacle_path or not Path(configured_obstacle_path).is_absolute():
+                raise ValueError("请为 Web 和 ROS 服务配置同一个绝对路径 ORANGE_OBSTACLE_CONFIG_FILE")
+            if obstacle_path.is_symlink():
+                raise ValueError("点云防护配置文件不能是符号链接")
+            if not obstacle_path.parent.is_dir():
+                raise ValueError("点云防护配置目录不存在；请先创建共享运行配置目录")
         configured = os.getenv("MID360_CONFIG_FILE", "").strip()
         if not configured or not Path(configured).is_absolute():
             raise ValueError("请先为 Web 和 ROS 服务设置同一个绝对路径 MID360_CONFIG_FILE")
@@ -251,17 +289,45 @@ class LidarService:
                       "boot_id": _boot_id()}
             pending_path = _pending_path(cfg_path)
             old_marker = pending_path.read_bytes() if pending_path.exists() else None
+            obstacle_pending_path = _pending_path(obstacle_path)
+            old_obstacle = obstacle_path.read_bytes() if obstacle_path.exists() else None
+            old_obstacle_marker = (obstacle_pending_path.read_bytes()
+                                   if obstacle_pending_path.exists() else None)
+            if protection is not None and cfg_path.resolve() == obstacle_path.resolve():
+                raise ValueError("雷达驱动文件与点云防护文件必须是两个独立文件")
+            obstacle_marker = None
+            if protection is not None:
+                obstacle_marker = {
+                    "sha256": hashlib.sha256(json.dumps(protection, sort_keys=True).encode()).hexdigest(),
+                    "saved_at": time.time(), "saved_monotonic": time.monotonic(),
+                    "boot_id": _boot_id(),
+                }
             try:
+                if protection is not None and old_obstacle is not None:
+                    obstacle_backup = obstacle_path.with_name(obstacle_path.name + ".bak")
+                    _write_json(obstacle_backup, json.loads(old_obstacle.decode("utf-8")))
                 _write_json(cfg_path, updated)
                 _write_json(pending_path, marker)
+                if protection is not None:
+                    _write_json(obstacle_path, protection)
+                    _write_json(obstacle_pending_path, obstacle_marker)
             except Exception:
                 _write_json(cfg_path, original)
                 if old_marker is None:
                     pending_path.unlink(missing_ok=True)
                 else:
                     pending_path.write_bytes(old_marker)
+                if protection is not None:
+                    if old_obstacle is None:
+                        obstacle_path.unlink(missing_ok=True)
+                    else:
+                        obstacle_path.write_bytes(old_obstacle)
+                    if old_obstacle_marker is None:
+                        obstacle_pending_path.unlink(missing_ok=True)
+                    else:
+                        obstacle_pending_path.write_bytes(old_obstacle_marker)
                 raise
-            logger.info("雷达配置已保存，等待 ROS 核心服务重启与点云验证: %s", cfg_path)
+            logger.info("雷达/点云配置已保存，等待 ROS 核心服务重启与验证: %s", cfg_path)
             return True
 
     @classmethod
@@ -306,7 +372,48 @@ class LidarService:
         if (ros2_service.is_simulation or not ros2_service.lidar_received or
                 time.monotonic() - ros2_service.lidar_received >= 2):
             raise ValueError("雷达点云没有新鲜数据，不能判定配置已生效")
+
+        obstacle_path = get_obstacle_config_path()
+        obstacle_configured = os.getenv("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()
+        obstacle_pending_path = _pending_path(obstacle_path)
+        obstacle_config = validate_obstacle_config(
+            json.loads(obstacle_path.read_text(encoding="utf-8"))
+            if obstacle_path.is_file() else DEFAULT_OBSTACLE_CONFIG)
+        configured_obstacle_path = Path(obstacle_configured).expanduser() if obstacle_configured else None
+        if obstacle_config["enabled"]:
+            if (configured_obstacle_path is None or not configured_obstacle_path.is_absolute() or
+                    configured_obstacle_path.resolve() != obstacle_path.resolve()):
+                raise ValueError("点云防护已启用，但 Web 与 ROS 未指向同一个共享配置文件")
+            if not obstacle_path.is_file():
+                raise ValueError("已启用的点云防护共享配置文件不存在")
+        if obstacle_pending_path.is_file():
+            if (configured_obstacle_path is None or not configured_obstacle_path.is_absolute() or
+                    configured_obstacle_path.resolve() != obstacle_path.resolve()):
+                raise ValueError("点云防护尚未配置 Web 与 ROS 共用的绝对路径")
+            obstacle_marker = json.loads(obstacle_pending_path.read_text(encoding="utf-8"))
+            obstacle_digest = hashlib.sha256(
+                json.dumps(obstacle_config, sort_keys=True).encode()).hexdigest()
+            if obstacle_digest != obstacle_marker.get("sha256"):
+                raise ValueError("点云防护配置保存后被外部修改，请重新核对")
+        if obstacle_config["enabled"]:
+            nodes = set(ros_runtime.graph())
+            required = {"obstacle_pointcloud_filter", "collision_monitor", "obstacle_command_watchdog"}
+            if not required.issubset(nodes):
+                raise ValueError("点云防护节点未全部启动：需要 PCL 预处理器和 Collision Monitor")
+            lifecycle = await ros_runtime.command("ros2", "lifecycle", "get", "/collision_monitor", timeout=7)
+            if "active" not in lifecycle.lower():
+                raise ValueError("Collision Monitor 尚未进入 active 状态")
+            filtered_cloud = await ros_runtime.command("ros2", "topic", "info",
+                                                        "/cloud/obstacles_filtered", timeout=7)
+            publisher_count = re.search(r"Publisher count:\s*(\d+)", filtered_cloud)
+            if not publisher_count or int(publisher_count.group(1)) < 1:
+                raise ValueError("VoxelGrid 尚未发布过滤后的点云")
+        if obstacle_pending_path.is_file():
+            obstacle_pending_path.unlink()
         pending_path.unlink()
         return {"applied": True, "model": cls.model_of(content),
+                "obstacle_protection_enabled": obstacle_config["enabled"],
                 "config_path": str(cfg_path),
-                "message": "驱动重启、配置路径、静态 TF 节点和新鲜点云已验证；TF 数值仍需现场实测核对"}
+                "message": ("驱动重启、配置路径、静态 TF 和新鲜点云已验证" +
+                            ("；点云裁剪、体素滤波和 Collision Monitor 节点已验证" if obstacle_config["enabled"] else "") +
+                            "；外参数值及保护区尺寸仍需现场核对")}

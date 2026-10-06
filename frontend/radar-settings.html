@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17394a">
+    <title>雷达配置 · Orange AGV</title>
+    <link rel="stylesheet" href="src/modules/maps/workbench.css">
+    <link rel="stylesheet" href="src/components/indoor-map/css/radar_drawer.css?v=standalone-20261004">
+</head>
+<body class="radar-settings-page" data-radar-settings-page="true">
+    <header class="masthead">
+        <div>
+            <span class="eyebrow">ORANGE AGV / 设备与点云</span>
+            <h1>雷达配置</h1>
+        </div>
+        <nav class="radar-page-nav" aria-label="相关页面">
+            <a href="ros-maintenance.html">ROS 运行维护</a>
+            <a href="map-workbench.html">地图工作台</a>
+        </nav>
+    </header>
+    <main id="radarSettingsMount">
+        <p class="radar-page-intro">单台 Livox MID-360 / MID-360S 参数、车体安装外参与点云防护区域。修改配置后按页面状态提示停车重启并验证。</p>
+        <div id="radarNotification" class="radar-page-notice" role="status" aria-live="polite" hidden></div>
+    </main>
+    <script src="src/components/indoor-map/js/radar_drawer.js?v=standalone-20261004"></script>
+</body>
+</html>

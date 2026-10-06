@@ -1,15 +1,40 @@
 import logging
+import asyncio
 from typing import Dict, Any
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.common.response import ok, error
 from app.services.lidar_service import LidarService
 from app.services.operations_common import require
+from app.services.lidar_discovery import LidarDiscoveryError, scan_livox_devices
 
 logger = logging.getLogger("orange_agv.api.lidar")
 router = APIRouter()
+_scan_lock = asyncio.Lock()
+
+
+class LidarScanRequest(BaseModel):
+    host_ip: str = Field(min_length=7, max_length=15)
+    timeout_seconds: float = Field(default=3.0, ge=1.0, le=6.0)
+
+
+@router.post("/scan")
+async def scan_lidar(payload: LidarScanRequest, actor=Depends(require("ros:maintain"))):
+    """Read-only Livox broadcast discovery on the selected, local radar NIC."""
+    if _scan_lock.locked():
+        raise HTTPException(status_code=409, detail="已有雷达扫描在进行，请稍后重试")
+    async with _scan_lock:
+        try:
+            result = await asyncio.to_thread(scan_livox_devices, payload.host_ip, payload.timeout_seconds)
+        except LidarDiscoveryError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("雷达扫描失败")
+            raise HTTPException(status_code=500, detail="雷达扫描失败，请检查工控机网卡和后端日志") from exc
+    return ok(result, message="扫描完成；结果仅回填页面，不会自动保存或修改设备")
 
 @router.get("/config")
 async def get_lidar_config(db: AsyncSession = Depends(get_db), actor=Depends(require("ros:view"))):

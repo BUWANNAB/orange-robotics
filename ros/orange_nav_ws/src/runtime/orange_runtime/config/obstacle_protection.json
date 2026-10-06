@@ -1,0 +1,20 @@
+{
+  "enabled": false,
+  "cloud_topic": "/livox/lidar",
+  "base_frame": "base_link",
+  "odom_frame": "odom",
+  "min_range": 0.2,
+  "max_range": 12.0,
+  "min_height": 0.08,
+  "max_height": 1.6,
+  "voxel_leaf": 0.12,
+  "voxel_min_points": 1,
+  "source_timeout": 0.5,
+  "regions": [
+    {"id": "front_slow", "name": "前方减速区", "enabled": false, "x_min": 0.2, "x_max": 1.8, "y_min": -0.6, "y_max": 0.6, "max_points": 45, "action": "slowdown", "slowdown_ratio": 0.35},
+    {"id": "front_stop", "name": "前方停车区", "enabled": false, "x_min": 0.1, "x_max": 0.75, "y_min": -0.45, "y_max": 0.45, "max_points": 12, "action": "stop", "slowdown_ratio": 0.35},
+    {"id": "rear_stop", "name": "后方停车区", "enabled": false, "x_min": -0.8, "x_max": -0.1, "y_min": -0.45, "y_max": 0.45, "max_points": 12, "action": "stop", "slowdown_ratio": 0.35},
+    {"id": "left_stop", "name": "左侧停车区", "enabled": false, "x_min": -0.4, "x_max": 0.4, "y_min": 0.3, "y_max": 1.0, "max_points": 12, "action": "stop", "slowdown_ratio": 0.35},
+    {"id": "right_stop", "name": "右侧停车区", "enabled": false, "x_min": -0.4, "x_max": 0.4, "y_min": -1.0, "y_max": -0.3, "max_points": 12, "action": "stop", "slowdown_ratio": 0.35}
+  ]
+}

@@ -33,14 +33,22 @@
       "visible": true,
       "order": 3
     },
-        {
+    {
       "id": "drawMap",
       "title": "地图创建",
       "icon": "bx bx-buildings",
       "url": "/src/components/process-map/handle_map.html",
       "visible": true,
       "order": 4
-    }  ,
+    },
+    {
+      "id": "lidarSettings",
+      "title": "雷达配置",
+      "icon": "bx bx-radar",
+      "url": "/ui/radar-settings.html",
+      "visible": true,
+      "order": 5
+    },
 
     {
       "id": "dataAdmin",

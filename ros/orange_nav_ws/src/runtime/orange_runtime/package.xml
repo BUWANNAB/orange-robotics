@@ -5,6 +5,9 @@
   <maintainer email="maintainer@example.invalid">Orange AGV maintainers</maintainer><license>Apache-2.0</license>
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend><exec_depend>sensor_msgs</exec_depend><exec_depend>livox_ros_driver2</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>pcl_ros</exec_depend><exec_depend>nav2_collision_monitor</exec_depend><exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>orange_pointcloud_filter</exec_depend>
   <exec_depend>launch_ros</exec_depend><exec_depend>ament_index_python</exec_depend>
   <exec_depend>lidar_localization_ros2</exec_depend><exec_depend>vehicle_navigation</exec_depend>
   <exec_depend>tf_to_pose</exec_depend><exec_depend>ros2plc</exec_depend><exec_depend>build_map_manager</exec_depend>

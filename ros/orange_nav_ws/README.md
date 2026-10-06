@@ -12,6 +12,7 @@ ROS 2 Humble 导航工作区，汇聚现场导航链路的**全部功能包**。
 | 导航 | `src/navigation` | `tf_to_pose`、`vehicle_navigation` |
 | 硬件 | `src/hardware` | `ros2plc`（注：`hardware_bind_lib` 已暂时解耦并移至 `archive/` 归档） |
 | 第三方依赖 | `third_party` | `gtsam`、`Livox-SDK2`（构建期依赖，非 ROS 包） |
+| 点云防护 | `src/runtime/orange_pointcloud_filter`、`orange_runtime` | C++ PCL TF/CropBox/VoxelGrid 预处理 + Nav2 Collision Monitor（Humble；默认关闭） |
 
 ## 启动组件 ↔ 包 对照
 
@@ -31,7 +32,11 @@ ROS 2 Humble 导航工作区，汇聚现场导航链路的**全部功能包**。
 # 1) 首次：安装第三方依赖到 /usr/local（需要 sudo）
 sudo BUILD_JOBS=1 ./scripts/install-vendored-dependencies.sh
 
-# 2) 编译工作区
+# 2) 初次设置 rosdep 时初始化并更新规则索引（sudo rosdep init 只需执行一次）
+sudo rosdep init
+rosdep update
+
+# 3) 安装工作区依赖并编译
 source /opt/ros/humble/setup.bash
 rosdep install --from-paths src --ignore-src --skip-keys gtsam -r -y
 ./scripts/build-workspace.sh

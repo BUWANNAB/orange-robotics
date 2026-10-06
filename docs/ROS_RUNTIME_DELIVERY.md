@@ -3,7 +3,7 @@
 ## 页面分工
 
 - 日常操作：`/ui/map-workbench.html`，开始建图、保存结束、地图处理、定位应用。建图和定位仍使用已有反馈握手，不靠固定等待时间表示成功。
-- 工程维护：`/ui/ros-maintenance.html`，检查真实连接、雷达新鲜数据、底盘反馈、定位质量；查看固定服务的状态、节点发现结果和日志，启动缺失服务或维护定位/建图控制器。页面右下角“雷达配置”用于维护型号、连接目标与现场实测安装外参。
+- 工程维护：`/ui/ros-maintenance.html`，检查真实连接、雷达新鲜数据、底盘反馈、定位质量；查看固定服务的状态、节点发现结果和日志，启动缺失服务或维护定位/建图控制器。雷达配置使用独立页面 `/ui/radar-settings.html`，从主侧栏“雷达配置”或维护页顶部链接进入，设置型号、连接目标、现场实测安装外参，以及自动导航点云分区和 PCL 滤波参数。
 - Web 独立于 ROS 服务组。ROS 停止后，Web 仍可显示 systemd 状态和日志。Web 进程需要预先 source 同一 ROS/工作区环境；在缺少 rclpy 的进程里安装节点不能自动修复桥接，需要修正 Web 部署环境。
 
 维护页不接受任意命令、unit 名或节点名。核心雷达/底盘仅允许启动，网页不允许停止或重启。定位与导航、建图控制器可以启动、停止、重启。停止或重启要求新鲜的静止反馈及导航停止确认，操作后保持停止锁定。正在建图、切图或其他地图任务时拒绝服务变更。反馈缺失而无法恢复时应使用现场维护流程，不在网页提供绕过停车确认的按钮。
@@ -26,6 +26,8 @@
 - 新 mapping launch 显式 `manage_livox=false`，只拥有自身 LIO-SAM 进程。停止回执为 `mapping_stopped`；旧模式 `rviz_livox_started` 仍兼容。
 - 新模式关闭 LIO-SAM 的 RViz 和重复 robot_state_publisher。核心服务从共享雷达 JSON 的 `robot_mount` 发布唯一的 `base_link → livox_frame` 静态 TF；Livox 驱动外参必须保持零，防止点云重复变换。首次复制型号模板后，先在 Web 页面填入现场实测安装外参，才能启动核心服务。定位启动链不再重复发布该 TF。
 - 新服务入口要求显式初始位姿；首次无可用地图时，定位节点等待地图和初始位姿，不对空点云建立匹配目标。
+- 自动导航防护链为 PointCloud2 → `orange_pointcloud_filter`（TF 到 `base_link`、CropBox、近远距离裁剪、VoxelGrid）→ Nav2 Humble `collision_monitor` → 新鲜度看门狗 → `/cmd_vel`。区域默认关闭，启用时必须至少有一个停车区；碰撞区顶点按 Humble 参数格式传为扁平数值数组。点云或监测速度过期时，看门狗持续输出零速度。
+- 分区保护只覆盖 `vehicle_navigation` 的自动路线速度；Web 遥控走 PLC 的独立通道，不经过此链路。它不负责规划绕行，也不是安全认证的急停设备。上线前须在现场校准检测区、点数阈值、体素大小、雷达外参和制动距离。
 
 旧 Java 启动脚本已从活动目录移除并在 Git 历史中保留；现场已有的旧自启动项仍须按维护流程停用，不能与新 systemd 服务并行。旧 driver launch 和直接启动的 ROS 进程也必须清理。ROS DDS 发现可帮助拒绝重复启动，但不能替代现场清理原自启动链。
 
@@ -42,6 +44,7 @@
    ROBOT_PCD_DIR=/absolute/path/to/pcd
    ROBOT_MAP_DIR=/absolute/path/to/maps
    MID360_CONFIG_FILE=/var/lib/orange/lidar/active.json
+   ORANGE_OBSTACLE_CONFIG_FILE=/var/lib/orange/lidar/obstacle_protection.json
    ROS_DOMAIN_ID=0
    # 已有初始地图时配置，否则可以不填，等待建图/显式加载。
    # BLUEANT_MAP_PCD=/absolute/path/to/pcd/map-name/GlobalMap.pcd
@@ -56,8 +59,10 @@
 
    这里的路径示意必须替换，`MID360_CONFIG_FILE` 应是经过确认的真实设备网络配置。底盘、授权、数据库和其他现场依赖继续按原部署配置，不能从节点启动成功推断这些依赖通过。
 
-5. 同用户运行 `systemctl --user daemon-reload`，先启动 core，再 navigation、mapping。确认状态和日志后，可用 `systemctl --user enable orange-ros-core orange-ros-navigation orange-ros-mapping` 配置用户服务自启动。无人登录即开机启动需要管理员为该机器人用户配置 lingering。
-6. Web 使用同一机器人用户、同一 `ROS_DOMAIN_ID`、PCD/MAPS 根目录和已 source 的工作区，并能访问该用户的 systemd bus。Web 自己不能放入上述 ROS 服务的停止依赖里。Web 环境启用 `RCS_ROS_CONTROL_ENABLED=true`、`SIMULATION_MODE=false`，只运行一个后端 worker；模板不授予 sudo 权限。
+   若启用点云防护，`ORANGE_OBSTACLE_CONFIG_FILE` 必须由 Web 与导航服务指向同一绝对路径；先把仓库内 `orange_runtime/config/obstacle_protection.json` 模板复制到该运行目录。安装 Nav2 Collision Monitor、lifecycle manager 和 PCL 开发依赖，并通过工作区构建将 `orange_pointcloud_filter` 安装到 ROS 环境。
+
+5. 确认车辆处于物理禁动状态、雷达/PLC 网络与外参均已核实后，同用户运行 `systemctl --user daemon-reload`，再先启动 core。确认状态和日志后，才启动 navigation、mapping；可用 `systemctl --user enable orange-ros-core orange-ros-navigation orange-ros-mapping` 配置用户服务自启动。无人登录即开机启动需要管理员为该机器人用户配置 lingering。
+6. Web 使用同一机器人用户、同一 `ROS_DOMAIN_ID`、PCD/MAPS 根目录和已 source 的工作区，并能访问该用户的 systemd bus。Web 自己不能放入上述 ROS 服务的停止依赖里。首次配置保持 `SIMULATION_MODE=true`、`RCS_WORKER_ENABLED=false`、`RCS_ROS_CONTROL_ENABLED=false`，不填 `RCS_LOCAL_ROBOT_ID`。完成静止状态、传感器、PLC 协议和 ROS 话题验收后，才显式切换真实 ROS 模式、按需启用 worker 和服务控制；模板不授予 sudo 权限。
 7. 打开维护页检查节点与数据，再到地图工作台验证完整链：开始采集 → 保存 → SLAM 停止 → 雷达继续发布 → 定位初始化 → 连续收敛 → 核对车辆实际位置。
 8. 在受控场地测试断雷达、缺底盘反馈、节点异常和服务重启。先做静态验收；软件停止锁定不替代物理急停。
 
@@ -69,8 +74,10 @@
 
 `GET /api/ros-runtime/services/{id}/logs` 返回最近 100 条用户服务日志，应用层会限制输出长度并遮蔽常见凭据字段。
 
+雷达配置页的“扫描雷达”通过 `POST /api/v1/lidar/scan` 发送 Livox SDK2 `LidarSearch` 只读广播，只在操作者填写的本机雷达网口上扫描 MID-360 / MID-360S，并将发现结果回填到页面；多台设备时由操作者选择。该操作需要 `ros:maintain` 权限，**不会保存配置、修改雷达自身 IP 或修改工控机网卡**。扫描时需要 Livox 驱动停止并独占本机 UDP 56000 检测端口；如果端口被占用，页面会说明原因。后端只接受本机已启用的局域网 IPv4 地址。未发现设备时应检查雷达网线、同网段/网口选择和防火墙；不能据此推断雷达损坏。
+
 ## 验证边界
 
-Windows 已完成维护 API、固定命令参数、核心保护、停车反馈门控、建图互斥、重复节点拒绝、点云坐标转换的隔离测试。systemd 调用使用测试替身，没有执行真实服务启停。
+Windows 已完成维护 API、固定命令参数、核心保护、停车反馈门控、建图互斥、重复节点拒绝、点云坐标转换的隔离测试。点云防护的配置校验和 Humble 参数生成有独立单元测试；本地没有重编 ROS C++ 工作区或启动 Collision Monitor，也没有验证真实车体的避障、刹停距离和绕障行为。systemd 调用使用测试替身，没有执行真实服务启停。
 
 本机 WSL 挂载权限已修复，Livox SDK 及驱动已完成 ROS 2 Humble 编译；整套 ROS 工作区、真实消息链吞吐、用户服务权限、传感器安装外参和硬件行为仍待机器人现场验收。当前方案与页面已实现，不能据此宣称机器人已完成常驻模式迁移。

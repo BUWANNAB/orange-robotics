@@ -26,7 +26,9 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
    Web 与 ROS 共用 `MID360_CONFIG_FILE`，建议 `/var/lib/orange/lidar/active.json`。服务用户创建可写目录并从实际型号模板复制初始文件；首次启动核心服务前，在 Web 页面填写现场实测的 `base_link → livox_frame` 安装外参。网页保存时把驱动外参置零，核心服务从同一 JSON 的 `robot_mount` 发布唯一静态 TF，避免对点云重复变换。缺少该外参时核心服务拒绝启动。网页不能改变设备自身 IP 或主机网卡地址。
 
-   网页确认实物型号后可转换运行文件的型号格式，保留旧版 `.bak` 并留下待验证标记。核心服务运行时须有新鲜停车反馈且没有执行中的任务，否则先按现场维护流程停用核心服务。停车后重启核心服务，再点“验证生效”；只有服务在保存后重启、驱动读取同一文件且点云新鲜时才通过。TF 的实测标定仍须现场核对。配置读取需 `ros:view`，修改与验证需 `ros:maintain` 权限。感知阈值尚未接入 ROS 避障链，页面只读显示。WSL 编译不代表真实设备已验证。
+   网页确认实物型号后可转换运行文件的型号格式，保留旧版 `.bak` 并留下待验证标记。核心服务运行时须有新鲜停车反馈且没有执行中的任务，否则先按现场维护流程停用核心服务。停车后重启核心服务，再点“验证生效”；只有服务在保存后重启、驱动读取同一文件且点云新鲜时才通过。TF 的实测标定仍须现场核对。配置读取需 `ros:view`，修改与验证需 `ros:maintain` 权限。
+
+   雷达配置页还可设置自动导航点云防护区。Web 和 ROS 必须共用绝对路径 `ORANGE_OBSTACLE_CONFIG_FILE`，首次从 `orange_runtime/config/obstacle_protection.json` 复制模板。默认关闭；启用时至少保留一个停车区。处理链为 `base_link` 坐标变换、CropBox 范围/高度裁剪、近远距离裁剪、PCL VoxelGrid 降采样、Nav2 Humble Collision Monitor 和新鲜度看门狗；点云或监测命令超时会让看门狗输出零速度。首次部署需安装 Humble 的 `nav2_collision_monitor`、`nav2_lifecycle_manager` 和 PCL 依赖，并将 `orange_pointcloud_filter` 与 `orange_runtime` 一起构建。保护区和减速阈值须按实车外形、雷达外参、遮挡及制动距离校准；这条链只保护自主导航 `/cmd_vel`，不处理 Web 手动遥控、不负责绕行，也不替代硬件急停。目标 ROS 系统和实车行为仍须单独验收。
 
    仅升级 Livox 时，先停止正在运行的雷达驱动，再在机器人 Ubuntu/ROS 2 Humble 环境执行：
 
@@ -48,7 +50,9 @@ cd /opt/orange && sha256sum -c SHA256SUMS
    .venv/bin/python -m pip install -r backend/requirements.txt
    ```
 
-3. 在 MySQL 8 中创建**全新空数据库**和专用账号，授予该库建表及运行所需权限。不要指向旧 `db_ant`。把 `ops/config/runtime.env.example` 复制为 `~/.config/orange-agv/runtime.env`，填写真实路径、数据库连接和至少 32 字符随机 `JWT_SECRET`，设置文件权限 `600`。`ROBOT_NAV_WS` 应为 `/opt/orange/ros/orange_nav_ws`；确保服务用户可写 `ROBOT_PCD_DIR`、`ROBOT_MAP_DIR`、`RCS_DATA_DIR`、`ROBOT_FILES_DIR` 和 `ROBOT_STATIC_MAPS_DIR`；不要提交实际配置文件。
+3. 手动部署时，在 MySQL 8 中创建**全新空数据库**和专用账号，授予该库建表及运行所需权限。不要指向旧 `db_ant`。把 `ops/config/runtime.env.example` 复制为 `~/.config/orange-agv/runtime.env`，填写真实路径、数据库连接和至少 32 字符随机 `JWT_SECRET`，设置文件权限 `600`。首次配置保留 `SIMULATION_MODE=true`、`RCS_WORKER_ENABLED=false`、`RCS_ROS_CONTROL_ENABLED=false`，不要填写 `RCS_LOCAL_ROBOT_ID`；确认环境后再按验收流程逐项开放。`ROBOT_NAV_WS` 应为 `/opt/orange/ros/orange_nav_ws`；确保服务用户可写 `ROBOT_PCD_DIR`、`ROBOT_MAP_DIR`、`RCS_DATA_DIR`、`ROBOT_FILES_DIR` 和 `ROBOT_STATIC_MAPS_DIR`；不要提交实际配置文件。
+
+   新机已部署好源码、venv 和运行目录时，可在**可交互的 SSH 终端**运行 `bash /opt/orange/ops/scripts/bootstrap-rcs-first-start.sh`。脚本会提示输入 MariaDB DBA 凭据和首个 Web 管理员密码；它只接受不存在的 `orange_rcs` 数据库及 `orange_rcs_app` 账号，生成独立 DB/JWT 密钥，初始化空表，并只启动仿真 Web。发现同名库、账号或已有运行配置时会拒绝覆盖。此脚本不会启动 ROS core、PLC、定位或建图服务。
 4. 初始化新数据库与首个管理员。命令会拒绝非 MySQL 或已有表的数据库；管理员密码在终端交互输入，不出现在命令行：
 
    ```bash
@@ -59,7 +63,7 @@ cd /opt/orange && sha256sum -c SHA256SUMS
    ../.venv/bin/python scripts/bootstrap_admin.py --bootstrap
    ```
 
-5. 安装 Web 和固定 ROS 单元。先只启用核心服务与 Web；定位/导航和建图按网页维护页切换。所有 user service 应由同一机器人用户运行；现场需配置登录后自动启动或 user lingering。
+5. 安装 Web 和固定 ROS 单元。首次只启动 Web 仿真预览，不启动 ROS core、底盘 PLC、定位或建图服务。车辆物理禁动和传感器配置确认后，才按 ROS 交付流程启动 core；定位/导航和建图随后按网页维护页切换。所有 user service 应由同一机器人用户运行；现场需配置登录后自动启动或 user lingering。
 
    ```bash
    install -d -m 700 ~/.config/orange-agv
@@ -67,15 +71,15 @@ cd /opt/orange && sha256sum -c SHA256SUMS
    install -m 755 /opt/orange/ops/scripts/{web-service.sh,ros-service.sh} ~/.config/orange-agv/
    install -m 644 /opt/orange/ops/systemd/*.service ~/.config/systemd/user/
    systemctl --user daemon-reload
-   systemctl --user enable --now orange-ros-core.service orange-web.service
+   systemctl --user enable --now orange-web.service
    ```
 
-   确认三个 ROS 单元均已安装后，将 `runtime.env` 中的 `RCS_ROS_CONTROL_ENABLED` 改为 `true`，重启 `orange-web.service`，网页维护页才能启动定位/导航或建图控制器。
+   首次不启用 ROS 服务控制。完成车辆静止、急停/驱动器状态、PLC 协议、雷达和 ROS 话题验收后，再将 `SIMULATION_MODE=false`、`RCS_ROS_CONTROL_ENABLED=true`，明确启用后台 worker；需要绑定本机机器人时才设置 `RCS_LOCAL_ROBOT_ID`。然后重启 Web 并按现场验收流程操作。
 6. 地图和点云保存在两条独立、由 Web 与 ROS 共用的运行路径：`$ROBOT_PCD_DIR/<地图编号>/GlobalMap.pcd` 与 `$ROBOT_MAP_DIR/<地图编号>/setting/map.pgm`、`map.yaml`。新系统交付包不含旧地图；地图工作台保存成功前会由后端核对同一 `ROBOT_PCD_DIR` 中的 PCD 文件。打开 `http://机器人地址:8097/`，首次登录后依次：ROS 维护页检查雷达/底盘 → 地图工作台采集点云 → 裁剪去噪和二维修图 → 绑定 PCD 与线路地图并发布 → 定位页完成初始定位/自动找回 → 创建机器人和路线任务。注册本机机器人后，将其 ID 写入 `RCS_LOCAL_ROBOT_ID` 并重启 Web 服务，任务执行才会接入本机 ROS。
 
 ## 切换与验收边界
 
-- `ops/scripts/web-service.sh` 强制生产 MySQL、真实 ROS、单 Web 进程，并拒绝缺少 rclpy 的环境；生产启动还检查数据库连接、管理员账号和可选的本机机器人 ID。仿真预览与现场服务配置分开。
+- `ops/scripts/web-service.sh` 强制生产 MySQL、单 Web 进程，并要求显式设置仿真、后台 worker 和 ROS 服务控制开关；启动时保留 ROS 的 Python 路径。生产启动还检查数据库连接、管理员账号和可选的本机机器人 ID。首次配置以仿真预览开始，现场服务需在硬件验收后显式切换。
 - 新系统首页是 `/ui/operations.html`，并提供地图工作台、地图绑定、定位和 ROS 维护入口。旧 `/ui/index.html` 重定向到新首页；`/src` 仅为旧资源兼容。新系统不依赖旧 Java 的 116 条业务路由。
 - 新生产环境只接受带独立盐的 scrypt 密码；旧式 Java/预览密码格式只留在非生产开发环境。新建账号须设置至少 12 位密码。
 - 软件测试无法证明雷达、定位收敛、PLC 使能和底盘制动。首次接车按静止状态逐项确认地图坐标、实时位姿、停止回执、速度反馈、路线跟踪与断线锁定；未经现场确认不执行载人/自主行驶。

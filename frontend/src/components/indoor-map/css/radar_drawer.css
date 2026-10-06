@@ -456,3 +456,920 @@
     border-color: #00f0ff;
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
 }
+
+/* Point-cloud protection zones: the geometry preview is the distinctive, shared reference for every region editor. */
+.protection-mode-label {
+    color: #8ca6b8;
+    font-size: 10px;
+    letter-spacing: .08em;
+}
+
+.protection-switch-row,
+.protection-regions-heading,
+.protection-region-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.protection-switch-row {
+    margin: 2px 0 12px;
+}
+
+.protection-switch,
+.protection-region-enable {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e4edf2;
+    font-size: 12px;
+}
+
+.protection-switch input,
+.protection-region-enable input[type="checkbox"] {
+    accent-color: #00d1c1;
+    width: 16px;
+    height: 16px;
+}
+
+.protection-state-pill {
+    border: 1px solid rgba(148, 163, 184, .35);
+    border-radius: 999px;
+    padding: 3px 9px;
+    color: #9aabba;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.protection-state-pill.protection-state-active {
+    color: #ffd07b;
+    border-color: rgba(245, 158, 11, .55);
+    background: rgba(245, 158, 11, .09);
+}
+
+.protection-preview-card {
+    overflow: hidden;
+    border: 1px solid rgba(92, 130, 153, .34);
+    border-radius: 8px;
+    background: linear-gradient(145deg, #0a1420, #111e2b 72%, #101b27);
+    padding: 8px 10px 7px;
+}
+
+.protection-preview-card svg {
+    display: block;
+    width: 100%;
+    max-height: 250px;
+}
+
+.protection-svg-axis,
+.protection-svg-caption {
+    fill: #93aabc;
+    font-family: "Bahnschrift", "Segoe UI", sans-serif;
+    font-size: 9px;
+    letter-spacing: .04em;
+}
+
+.protection-svg-caption {
+    fill: #c9dbe4;
+    font-size: 8px;
+}
+
+.protection-zone-shape {
+    stroke-width: 1.6;
+    vector-effect: non-scaling-stroke;
+}
+
+.protection-zone-shape.zone-slow {
+    fill: rgba(245, 158, 11, .16);
+    stroke: #eeb451;
+}
+
+.protection-zone-shape.zone-stop {
+    fill: rgba(239, 83, 94, .18);
+    stroke: #ef6570;
+}
+
+.protection-zone-shape.zone-disabled {
+    opacity: .34;
+    stroke-dasharray: 4 3;
+}
+
+.protection-zone-shape.zone-enabled {
+    opacity: .9;
+}
+
+.protection-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 3px 0 1px;
+    color: #afc1cc;
+    font-size: 10px;
+}
+
+.protection-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+}
+
+.legend-slow { background: #eeb451; }
+.legend-stop { background: #ef6570; }
+
+.protection-help {
+    margin: 9px 0 11px;
+    color: #9eb0bc;
+    font-size: 10px;
+    line-height: 1.55;
+}
+
+.protection-global-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.protection-global-grid label,
+.protection-region-bounds label,
+.protection-region-threshold label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: #91a6b5;
+    font-size: 10px;
+}
+
+.protection-global-grid input,
+.protection-region-card input,
+.protection-region-card select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: rgba(7, 16, 27, .88);
+    border: 1px solid rgba(126, 157, 176, .25);
+    border-radius: 5px;
+    padding: 7px 8px;
+    color: #e5f1f5;
+    font: inherit;
+    font-size: 11px;
+}
+
+.protection-global-grid input:focus,
+.protection-region-card input:focus,
+.protection-region-card select:focus,
+.protection-add-region:focus-visible,
+.protection-region-enable input:focus-visible {
+    outline: 2px solid #00d1c1;
+    outline-offset: 2px;
+}
+
+.protection-pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin-top: 12px;
+    padding: 9px;
+    border-left: 2px solid #00c8bd;
+    background: rgba(4, 13, 23, .62);
+    color: #9fb2be;
+    font-size: 9px;
+    line-height: 1.45;
+}
+
+.protection-pipeline b {
+    flex-basis: 100%;
+    margin-bottom: 2px;
+    color: #58d9cf;
+    font-size: 10px;
+}
+
+.protection-pipeline i {
+    color: #49bdb6;
+    font-size: 13px;
+    font-style: normal;
+}
+
+.protection-count-note {
+    margin: 8px 0 12px;
+}
+
+.protection-regions-heading {
+    margin: 14px 0 8px;
+    color: #dbe7ed;
+    font-size: 12px;
+}
+
+.protection-add-region {
+    border: 1px solid rgba(0, 209, 193, .42);
+    border-radius: 5px;
+    padding: 5px 8px;
+    background: rgba(0, 209, 193, .08);
+    color: #76e5db;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.protection-add-region:hover {
+    background: rgba(0, 209, 193, .17);
+}
+
+.protection-regions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.protection-region-card {
+    border: 1px solid rgba(126, 157, 176, .2);
+    border-radius: 7px;
+    padding: 10px;
+    background: rgba(8, 17, 28, .65);
+}
+
+.protection-region-heading {
+    margin-bottom: 8px;
+}
+
+.protection-region-enable {
+    flex: 1;
+}
+
+.protection-region-enable input[type="text"] {
+    max-width: 180px;
+    font-weight: 600;
+}
+
+.protection-region-heading select {
+    width: auto;
+    min-width: 74px;
+    padding: 6px 7px;
+    border-color: rgba(0, 209, 193, .38);
+}
+
+.protection-region-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.protection-region-remove {
+    border: 1px solid rgba(239, 101, 112, .28);
+    border-radius: 5px;
+    padding: 5px 7px;
+    background: transparent;
+    color: #e58a91;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.protection-region-remove:hover {
+    border-color: #ef6570;
+    background: rgba(239, 101, 112, .1);
+}
+
+.protection-region-bounds {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.protection-region-bounds input,
+.protection-region-threshold input {
+    padding: 6px;
+}
+
+.protection-region-threshold {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.protection-risk-note {
+    display: grid;
+    gap: 4px;
+    margin-top: 12px;
+    border: 1px solid rgba(239, 83, 94, .28);
+    border-radius: 6px;
+    padding: 9px;
+    background: rgba(127, 29, 29, .11);
+    color: #c2aeb1;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.protection-risk-note b {
+    color: #f09098;
+}
+
+@media (max-width: 520px) {
+    .radar-drawer-body { padding: 16px 14px; }
+    .protection-region-bounds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .protection-pipeline { gap: 4px; }
+    .protection-preview-card { padding-inline: 4px; }
+}
+
+/* Keep every settings card at its content height; the drawer body owns scrolling. */
+.radar-drawer-panel {
+    width: min(560px, 100vw);
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+}
+
+.radar-drawer-header,
+.radar-drawer-footer {
+    flex: 0 0 auto;
+}
+
+.radar-drawer-body {
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+
+.radar-section-card {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.radar-section-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+
+.radar-input-row > *,
+.radar-input-group {
+    min-width: 0;
+}
+
+.radar-input-group input,
+.radar-input-group select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+}
+
+.radar-close-btn:focus-visible,
+.radar-float-trigger-btn:focus-visible,
+.model-radio-card:focus-within,
+.btn-radar-action:focus-visible {
+    outline: 2px solid #67e8f9;
+    outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+    .radar-drawer-panel {
+        width: 100vw;
+        border-left: 0;
+    }
+
+    .radar-drawer-header {
+        padding: 12px 16px;
+    }
+
+    .radar-drawer-body {
+        padding: 12px 14px;
+        gap: 14px;
+    }
+
+    .radar-section-card {
+        padding: 14px;
+    }
+
+    .radar-input-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .radar-drawer-footer {
+        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+        gap: 8px;
+    }
+
+    .btn-radar-action {
+        min-width: 120px;
+        padding: 9px 10px;
+    }
+}
+
+@media (max-height: 700px) {
+    .radar-drawer-body {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        gap: 14px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .radar-drawer-panel,
+    .radar-drawer-overlay,
+    .radar-float-trigger-btn,
+    .radar-float-trigger-btn .radar-icon,
+    .radar-marker-dot {
+        animation: none;
+        transition: none;
+    }
+}
+
+/* Standalone, responsive radar settings workspace. The drawer remains available
+   to legacy pages until their last include has been removed. */
+body.radar-settings-page {
+    min-height: 100vh;
+    background: #edf2f4;
+}
+
+.radar-page-nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.radar-page-nav a {
+    color: #e6f0f3;
+    text-decoration: none;
+    border-bottom: 1px solid #8296a3;
+    padding: 6px 0;
+}
+
+.radar-page-nav a:hover,
+.radar-page-nav a:focus-visible {
+    color: #ffd18a;
+    border-color: #eb7424;
+}
+
+body.radar-settings-page main#radarSettingsMount {
+    width: min(100%, 1600px);
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 18px clamp(14px, 3vw, 42px) 190px;
+}
+
+.radar-page-intro {
+    margin: 0 0 8px;
+    color: #4d6674;
+    font-size: 14px;
+}
+
+.radar-page-notice {
+    margin: 10px 0 14px;
+    padding: 12px 14px;
+    border: 1px solid #bfd9dc;
+    border-left: 4px solid #0c9ca5;
+    border-radius: 6px;
+    background: #f5fbfb;
+    color: #2f5d64;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.radar-page-notice[data-kind="error"] {
+    border-color: #e5c4c1;
+    border-left-color: #be5148;
+    background: #fff7f5;
+    color: #7d3935;
+}
+
+.radar-page-notice[data-kind="success"] {
+    border-color: #bddacb;
+    border-left-color: #268258;
+    background: #f3fbf6;
+    color: #2e6849;
+}
+
+.radar-settings-standalone {
+    position: relative;
+    z-index: auto;
+}
+
+.radar-settings-page .radar-float-trigger-btn,
+.radar-settings-page .radar-drawer-overlay,
+.radar-settings-page .radar-close-btn {
+    display: none !important;
+}
+
+.radar-settings-page .radar-drawer-panel,
+.radar-settings-page .radar-drawer-panel.active {
+    position: static;
+    inset: auto;
+    display: flex;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+    color: #203744;
+    font-family: inherit;
+    transition: none;
+}
+
+.radar-settings-page .radar-drawer-header {
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 92px;
+    padding: 20px clamp(18px, 3vw, 32px);
+    border: 1px solid #214e60;
+    border-bottom: 3px solid #eb7424;
+    border-radius: 10px 10px 0 0;
+    background: #17394a;
+}
+
+.radar-settings-page .radar-drawer-title h3 {
+    color: #f5fafb;
+    font-size: clamp(19px, 2vw, 24px);
+    letter-spacing: 0;
+}
+
+.radar-settings-page .radar-drawer-title small {
+    color: #b9cbd2 !important;
+    font-size: 13px !important;
+}
+
+.radar-settings-page .radar-drawer-body {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+    min-height: 0;
+    padding: 16px 0 20px;
+    overflow: visible;
+    overscroll-behavior: auto;
+}
+
+.radar-settings-page .radar-section-card {
+    grid-column: span 6;
+    min-width: 0;
+    padding: clamp(16px, 2vw, 24px);
+    overflow: visible;
+    border: 1px solid #d1dee3;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(22, 51, 66, .05);
+    color: #203744;
+}
+
+.radar-settings-page .radar-section-card::before {
+    background: #0c9ca5;
+}
+
+.radar-settings-page .radar-section-card:nth-child(3),
+.radar-settings-page .radar-section-card:nth-child(4) {
+    grid-column: 1 / -1;
+}
+
+.radar-settings-page .radar-section-title {
+    margin-bottom: 18px;
+    color: #176578;
+    font-size: 15px;
+    letter-spacing: .01em;
+    text-transform: none;
+}
+
+.radar-settings-page .radar-model-selector {
+    gap: 12px;
+}
+
+.radar-settings-page .model-radio-card {
+    min-height: 98px;
+    padding: 17px 14px;
+    border-color: #d5e0e4;
+    border-radius: 8px;
+    background: #f6f9fa;
+    text-align: left;
+}
+
+.radar-settings-page .model-radio-card.active {
+    border-color: #0c9ca5;
+    background: #eaf7f7;
+    box-shadow: inset 0 0 0 1px #0c9ca5;
+}
+
+.radar-settings-page .model-radio-card .model-title {
+    color: #193d4d;
+    font-size: 16px;
+}
+
+.radar-settings-page .model-radio-card .model-desc {
+    color: #647985;
+    font-size: 12px;
+}
+
+.radar-settings-page .radar-model-confirm {
+    color: #73510e;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.radar-settings-page .radar-input-group label,
+.radar-settings-page .protection-global-grid label,
+.radar-settings-page .protection-region-bounds label,
+.radar-settings-page .protection-region-threshold label {
+    color: #526b77;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.radar-settings-page .radar-input-group input,
+.radar-settings-page .radar-input-group select,
+.radar-settings-page .protection-global-grid input,
+.radar-settings-page .protection-region-card input,
+.radar-settings-page .protection-region-card select {
+    min-height: 42px;
+    border: 1px solid #cbd9de;
+    border-radius: 6px;
+    background: #fff;
+    color: #203744;
+    font-size: 14px;
+    box-shadow: none;
+}
+
+.radar-settings-page .radar-input-group input:focus,
+.radar-settings-page .radar-input-group select:focus,
+.radar-settings-page .protection-global-grid input:focus,
+.radar-settings-page .protection-region-card input:focus,
+.radar-settings-page .protection-region-card select:focus {
+    border-color: #0c9ca5;
+    box-shadow: 0 0 0 3px rgba(12, 156, 165, .15);
+}
+
+.radar-settings-page .protection-mode-label,
+.radar-settings-page .protection-help {
+    color: #607984;
+}
+
+.radar-settings-page .protection-switch,
+.radar-settings-page .protection-region-enable {
+    color: #274553;
+    font-size: 13px;
+}
+
+.radar-settings-page .protection-state-pill {
+    color: #526b77;
+    border-color: #cbd9de;
+}
+
+.radar-settings-page .protection-pipeline {
+    border-color: #d4e0e4;
+    background: #f4f8f9;
+    color: #435f6c;
+}
+
+.radar-settings-page .protection-pipeline b {
+    color: #176578;
+}
+
+.radar-settings-page .protection-regions-heading {
+    color: #274553;
+}
+
+.radar-settings-page .protection-region-card {
+    border-color: #d3dfe3;
+    background: #f7f9fa;
+}
+
+.radar-settings-page .protection-region-enable input[type="text"] {
+    max-width: 260px;
+    color: #203744;
+}
+
+.radar-settings-page .protection-risk-note {
+    border-color: #f0d1d0;
+    background: #fff6f4;
+    color: #725654;
+    font-size: 12px;
+}
+
+.radar-settings-page .protection-risk-note b {
+    color: #a63f41;
+}
+
+.radar-settings-page .radar-diag-item {
+    border: 1px solid #d8e3e6;
+    background: #f5f8f9;
+}
+
+.radar-settings-page .radar-diag-item .label {
+    color: #647985;
+    font-size: 11px;
+}
+
+.radar-settings-page .radar-diag-item .val {
+    color: #176578;
+    font-size: 15px;
+}
+
+.radar-settings-page .radar-drawer-footer {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 4;
+    align-items: center;
+    padding: 14px max(14px, calc((100vw - 1516px) / 2)) max(14px, env(safe-area-inset-bottom));
+    border: 1px solid #cddade;
+    border-radius: 0;
+    background: rgba(247, 250, 251, .97);
+    box-shadow: 0 -6px 22px rgba(29, 58, 72, .12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.radar-settings-page .radar-deployment-status {
+    flex: 1 0 100%;
+    color: #405a66;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.radar-settings-page .btn-radar-action {
+    min-height: 44px;
+    border: 1px solid #c4d2d7;
+    border-radius: 7px;
+    background: #fff;
+    color: #274553;
+    font-size: 14px;
+}
+
+.radar-settings-page .btn-radar-verify {
+    border-color: #0c8790;
+    color: #087983;
+}
+
+.radar-settings-page .btn-radar-save {
+    border-color: #eb7424;
+    background: #eb7424;
+    color: #fff;
+}
+
+.radar-settings-page .btn-radar-save:hover:not(:disabled) {
+    background: #d86016;
+}
+
+.radar-settings-page .btn-radar-action:disabled {
+    opacity: 1;
+    border-color: #d7e0e3;
+    background: #edf1f2;
+    color: #687b84;
+}
+
+.radar-settings-page .btn-radar-action:focus-visible,
+.radar-settings-page .model-radio-card:focus-within,
+.radar-page-nav a:focus-visible {
+    outline: 3px solid rgba(12, 156, 165, .55);
+    outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+    body.radar-settings-page main#radarSettingsMount {
+        padding-bottom: 190px;
+    }
+
+    .radar-settings-page .radar-drawer-body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .radar-settings-page .radar-section-card,
+    .radar-settings-page .radar-section-card:nth-child(3),
+    .radar-settings-page .radar-section-card:nth-child(4) {
+        grid-column: 1;
+    }
+}
+
+@media (max-width: 600px) {
+    .radar-settings-page .masthead {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+        padding: 18px;
+    }
+
+    .radar-page-nav {
+        gap: 16px;
+    }
+
+    .radar-settings-page .radar-drawer-header {
+        min-height: 76px;
+        padding: 14px 16px;
+    }
+
+    .radar-settings-page .radar-section-card {
+        padding: 16px;
+    }
+
+    .radar-settings-page .protection-global-grid,
+    .radar-settings-page .radar-diag-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .radar-settings-page .protection-region-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .radar-settings-page .protection-region-enable input[type="text"] {
+        max-width: 100%;
+    }
+
+    .radar-settings-page .radar-drawer-footer {
+        gap: 8px;
+    }
+
+    .radar-settings-page .btn-radar-action {
+        flex: 1 1 100%;
+    }
+
+    body.radar-settings-page main#radarSettingsMount {
+        padding-bottom: 270px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .radar-settings-page .radar-marker-dot,
+    .radar-settings-page .radar-fov-beam {
+        transition: none;
+    }
+}
+
+.radar-discovery-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.btn-radar-discover {
+    min-height: 38px;
+    padding: 8px 14px;
+    border: 1px solid rgba(56, 189, 248, 0.48);
+    border-radius: 8px;
+    color: #d9f4ff;
+    background: rgba(14, 116, 144, 0.24);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-radar-discover:hover:not(:disabled) {
+    border-color: #38bdf8;
+    background: rgba(14, 116, 144, 0.42);
+}
+
+.btn-radar-discover:disabled {
+    opacity: 0.58;
+    cursor: wait;
+}
+
+.radar-discovery-status {
+    flex: 1 1 260px;
+    color: #a9bacb;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.radar-discovery-choice {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.65fr) minmax(180px, 1fr);
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    color: #d4e4f0;
+    font-size: 12px;
+}
+
+.radar-discovery-choice[hidden] {
+    display: none;
+}
+
+.radar-discovery-choice select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 7px;
+    padding: 8px;
+    color: #e2e8f0;
+    background: #0f172a;
+    font: inherit;
+}
+
+@media (max-width: 520px) {
+    .radar-discovery-choice {
+        grid-template-columns: 1fr;
+    }
+}
