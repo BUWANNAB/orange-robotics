@@ -2,8 +2,11 @@ import socket
 import struct
 import unittest
 import zlib
+from unittest.mock import Mock, patch
 
 from app.services.lidar_discovery import (
+    DETECTION_PORT,
+    _bind_discovery_socket,
     build_search_packet,
     parse_search_response,
 )
@@ -27,6 +30,14 @@ def _crc16(data: bytes) -> int:
 
 
 class LidarDiscoveryProtocolTests(unittest.TestCase):
+    def test_discovery_socket_receives_limited_broadcast_on_selected_interface(self):
+        sock = Mock()
+        with patch.object(socket, "SO_BINDTODEVICE", 25, create=True):
+            _bind_discovery_socket(sock, "enp2s0")
+
+        sock.setsockopt.assert_called_once_with(socket.SOL_SOCKET, 25, b"enp2s0\0")
+        sock.bind.assert_called_once_with(("0.0.0.0", DETECTION_PORT))
+
     def test_search_packet_matches_sdk2_empty_search_frame(self):
         self.assertEqual(_crc16(b"123456789"), 0x29B1)
         packet = build_search_packet(73)

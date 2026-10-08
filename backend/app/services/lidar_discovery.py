@@ -89,7 +89,7 @@ def parse_search_response(packet: bytes, source_ip: str,
     }
 
 
-def _local_global_ipv4_addresses() -> set[str]:
+def _local_global_ipv4_interfaces() -> Dict[str, str]:
     ip_tool = shutil.which("ip")
     if not ip_tool:
         raise LidarDiscoveryError("本机缺少 iproute2 的 ip 命令，无法核实雷达网口地址")
@@ -99,13 +99,35 @@ def _local_global_ipv4_addresses() -> set[str]:
         interfaces = json.loads(result.stdout)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
         raise LidarDiscoveryError(f"读取本机网络接口失败：{exc}") from exc
-    addresses = set()
+    addresses: Dict[str, str] = {}
     for interface in interfaces if isinstance(interfaces, list) else []:
+        interface_name = interface.get("ifname")
+        if not isinstance(interface_name, str) or not interface_name:
+            continue
         for info in interface.get("addr_info", []):
             address = info.get("local")
             if info.get("family") == "inet" and address:
-                addresses.add(address)
+                addresses[address] = interface_name
     return addresses
+
+
+def _bind_discovery_socket(sock: socket.socket, interface_name: str) -> None:
+    """Receive Livox's limited-broadcast replies only on the selected NIC."""
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE,
+                        interface_name.encode("utf-8") + b"\0")
+    except OSError as exc:
+        raise LidarDiscoveryError(f"无法绑定雷达网卡 {interface_name}：{exc}") from exc
+    try:
+        # MID-360(S) sends LidarSearch responses to 255.255.255.255:56000.
+        # A socket bound to the host's unicast address does not receive them.
+        sock.bind(("0.0.0.0", DETECTION_PORT))
+    except OSError as exc:
+        if getattr(exc, "errno", None) in {98, 10048}:
+            raise LidarDiscoveryError(
+                "Livox 检测端口 56000 正被占用，可能雷达驱动仍在运行；请先停止雷达驱动后再扫描"
+            ) from exc
+        raise LidarDiscoveryError(f"无法绑定雷达网卡 {interface_name} 的 UDP 56000 接收端口：{exc}") from exc
 
 
 def scan_livox_devices(host_ip: str, timeout_seconds: float = 3.0) -> Dict[str, Any]:
@@ -120,7 +142,8 @@ def scan_livox_devices(host_ip: str, timeout_seconds: float = 3.0) -> Dict[str, 
         raise LidarDiscoveryError("请选择工控机连接雷达网线的局域网 IPv4 地址", 400)
     if not 1.0 <= float(timeout_seconds) <= 6.0:
         raise LidarDiscoveryError("扫描时长必须在 1 到 6 秒之间", 400)
-    if str(address) not in _local_global_ipv4_addresses():
+    interface_name = _local_global_ipv4_interfaces().get(str(address))
+    if not interface_name:
         raise LidarDiscoveryError("该 IP 不是本机已启用网卡地址；请从工控机雷达网口配置中选择", 400)
 
     sequence = int(time.monotonic() * 1000) & 0xFFFF
@@ -134,14 +157,7 @@ def scan_livox_devices(host_ip: str, timeout_seconds: float = 3.0) -> Dict[str, 
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         # Deliberately do not enable SO_REUSEADDR/SO_REUSEPORT: scanning must not
         # compete with a running Livox driver bound to the same SDK discovery port.
-        try:
-            sock.bind((str(address), DETECTION_PORT))
-        except OSError as exc:
-            if getattr(exc, "errno", None) in {98, 10048}:
-                raise LidarDiscoveryError(
-                    "Livox 检测端口 56000 正被占用，可能雷达驱动仍在运行；请先停止雷达驱动后再扫描"
-                ) from exc
-            raise LidarDiscoveryError(f"无法绑定雷达网口 {address}:{DETECTION_PORT}：{exc}") from exc
+        _bind_discovery_socket(sock, interface_name)
 
         while time.monotonic() < deadline:
             now = time.monotonic()
