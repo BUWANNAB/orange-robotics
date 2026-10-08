@@ -6,7 +6,7 @@
     <title>二维修图 · 地图工作台</title>
     <script>if(!new URLSearchParams(location.search).has('embedded'))location.replace('/ui/map-workbench.html'+location.search+'#grid');</script>
     <style>
-        @import url('css/handle_map.css');
+        @import url('css/handle_map.css?v=coordinate-frame-1');
     </style>
     <style>
     body{background:#f2f5f7;color:#172b3a;font-family:'Segoe UI','Microsoft YaHei',sans-serif;padding:16px}
@@ -112,7 +112,8 @@
             <div class="drag-hint" id="dragHint">拖拽模式已激活</div>
             <div class="point-highlight" id="pointHighlight"></div>
             <canvas id="imageCanvas"></canvas>
-            <canvas id="drawCanvas"></canvas>
+            <canvas id="drawCanvas" tabindex="0" aria-label="二维栅格地图编辑画布"></canvas>
+            <canvas id="coordinateCanvas" aria-hidden="true"></canvas>
             <canvas id="overlayCanvas" class="canvas-overlay"></canvas>
             <!-- 任务区域高亮显示容器 -->
             <div id="taskHighlightContainer"></div>
@@ -121,6 +122,25 @@
             <div class="pinch-indicator" id="pinchIndicator"></div>
             <div class="touch-feedback" id="touchFeedback"></div>
         </div>
+
+        <section class="map-coordinate-panel" aria-labelledby="mapCoordinateTitle">
+            <div class="map-coordinate-heading">
+                <div>
+                    <h3 id="mapCoordinateTitle">地图坐标系</h3>
+                    <p id="coordinateFrameSummary" class="coordinate-summary">选择一张地图后显示分辨率和原点。</p>
+                </div>
+                <div class="coordinate-toggles">
+                    <label><input type="checkbox" id="showMetricGrid" checked>米制网格</label>
+                    <label><input type="checkbox" id="showWorldAxes" checked>世界坐标轴</label>
+                </div>
+            </div>
+            <div class="coordinate-readout-row">
+                <output id="mapCursorCoordinates" aria-live="polite">光标坐标：—</output>
+                <output id="coordinateGridSpacing">网格间距：—</output>
+                <button type="button" id="btnFitMap" title="将整张地图居中显示">全图居中</button>
+            </div>
+            <p class="coordinate-notice">坐标轴和读数依据当前地图 YAML 显示（X 向右、Y 向上，角度逆时针为正），只辅助查看，不修改地图或路线。</p>
+        </section>
 
         <div class="tools">
             <button id="btnPen" ><i>✒</i> 钢笔工具</button>
@@ -170,6 +190,7 @@
  <script src="../../../src/api/ApiManager-traditional.js"></script>
  <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
  <script src="../../../src/api/api-simple.js"></script>
-<script src="js/handle_map.js?v=workbench-2"></script>
+<script src="js/map_coordinates.js?v=coordinate-frame-1"></script>
+<script src="js/handle_map.js?v=coordinate-frame-1"></script>
 </body>
 </html>

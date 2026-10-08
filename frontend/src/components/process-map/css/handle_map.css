@@ -10,6 +10,104 @@
     box-shadow: 0 4px 8px rgba(52, 152, 219, 0.4);
 }
 
+#coordinateCanvas {
+    z-index: 10;
+    pointer-events: none;
+}
+
+.map-coordinate-panel {
+    margin: 0 0 20px;
+    padding: 16px 18px;
+    border: 1px solid #d8e1e7;
+    border-left: 4px solid #1688c7;
+    border-radius: 8px;
+    background: #f8fbfd;
+}
+
+.map-coordinate-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.map-coordinate-heading h3 {
+    margin: 0 0 4px;
+    color: #183547;
+    font-size: 16px;
+}
+
+.coordinate-summary,
+.coordinate-notice {
+    margin: 0;
+    color: #647785;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.coordinate-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.coordinate-toggles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    color: #334c5b;
+    font-size: 13px;
+}
+
+.coordinate-toggles input {
+    width: auto;
+    margin: 0;
+    accent-color: #1688c7;
+}
+
+.coordinate-readout-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.coordinate-readout-row output {
+    color: #245875;
+    font: 13px Consolas, "Microsoft YaHei", sans-serif;
+}
+
+.coordinate-readout-row button {
+    min-height: 36px;
+    padding: 8px 11px;
+    border-radius: 5px;
+    background: #183547;
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.coordinate-notice {
+    margin-top: 11px;
+}
+
+@media (max-width: 560px) {
+    .map-coordinate-heading {
+        flex-direction: column;
+    }
+
+    .coordinate-readout-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .coordinate-readout-row button {
+        width: 100%;
+    }
+}
+
 
     /* 顶部按钮展开状态样式 */
     #topMapRoomBtn.expanded {

@@ -2,6 +2,7 @@
 // 获取Canvas元素和上下文
     const imageCanvas = document.getElementById('imageCanvas');
     const drawCanvas = document.getElementById('drawCanvas');
+    const coordinateCanvas = document.getElementById('coordinateCanvas');
     const overlayCanvas = document.getElementById('overlayCanvas');
     const resultContainer = document.getElementById('resultContainer');
     const pgmFileInput = document.getElementById('pgmFile');
@@ -22,7 +23,14 @@
     
     const imageCtx = imageCanvas.getContext('2d');
     const drawCtx = drawCanvas.getContext('2d');
+    const coordinateCtx = coordinateCanvas.getContext('2d');
     const overlayCtx = overlayCanvas.getContext('2d');
+    const coordinateSummary = document.getElementById('coordinateFrameSummary');
+    const coordinateReadout = document.getElementById('mapCursorCoordinates');
+    const coordinateGridSpacing = document.getElementById('coordinateGridSpacing');
+    const showMetricGrid = document.getElementById('showMetricGrid');
+    const showWorldAxes = document.getElementById('showWorldAxes');
+    const fitMapButton = document.getElementById('btnFitMap');
 
     // 状态变量
     let points = []; // 钢笔工具创建的路径点
@@ -34,6 +42,7 @@
     let originalPgmData = null; // 原始PGM图像数据
     let lastCutoutImageData = null; // 上一次生成的抠图数据
     let lastCutoutPGMData = null; // 上一次生成的PGM格式抠图数据
+    let mapCoordinateFrame = null;
 
     // 画笔相关变量
     let currentTool = 'pen'; // 当前工具 ('pen', 'brush', 'drag', 'task', 'hand', 'arrow')
@@ -117,6 +126,8 @@ let isDrawingRect = false; // 是否正在绘制矩形
         imageCanvas.height = height;
         drawCanvas.width = width;
         drawCanvas.height = height;
+        coordinateCanvas.width = width;
+        coordinateCanvas.height = height;
         overlayCanvas.width = width;
         overlayCanvas.height = height;
 
@@ -260,6 +271,153 @@ let isDrawingRect = false; // 是否正在绘制矩形
         arrows.forEach(arrow => {
             drawArrow(arrow.start, arrow.end, true);
         });
+        drawCoordinateOverlay();
+    }
+
+    function setMapCoordinateFrame(asset) {
+        const resolution = Number(asset?.resolution);
+        const origin = asset?.origin;
+        if (!Number.isFinite(resolution) || resolution <= 0 || !Array.isArray(origin)
+            || origin.length !== 3 || !origin.every(value => Number.isFinite(Number(value)))) {
+            mapCoordinateFrame = null;
+            coordinateSummary.textContent = '此地图缺少有效的 resolution / origin，无法显示米制坐标。';
+            coordinateReadout.textContent = '光标坐标：—';
+            coordinateGridSpacing.textContent = '网格间距：—';
+            updateCoordinateOverlay();
+            return;
+        }
+
+        mapCoordinateFrame = { resolution, origin: origin.map(Number) };
+        updateCoordinateFrameUI();
+    }
+
+    function updateCoordinateFrameUI() {
+        if (!mapCoordinateFrame) return;
+        const [x, y, yaw] = mapCoordinateFrame.origin;
+        const fmt = value => (Math.abs(value) < 0.0005 ? 0 : value).toFixed(3);
+        coordinateSummary.textContent = `分辨率 ${mapCoordinateFrame.resolution} m/像素 · 栅格原点 X ${fmt(x)} m，Y ${fmt(y)} m · 朝向 ${fmt(yaw * 180 / Math.PI)}°`;
+        updateCoordinateOverlay();
+    }
+
+    function pixelToCanvas(pixel) {
+        const display = pgmData.displayInfo;
+        const factor = display.containerScale * scale;
+        return { x: display.x + pixel.x * factor, y: display.y + pixel.y * factor };
+    }
+
+    function worldToCanvas(x, y) {
+        return pixelToCanvas(MapCoordinates.worldToPixel(
+            x, y, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin
+        ));
+    }
+
+    function drawCoordinateOverlay() {
+        if (!coordinateCtx) return;
+        coordinateCtx.clearRect(0, 0, coordinateCanvas.width, coordinateCanvas.height);
+        if (!pgmData || !pgmData.displayInfo || !mapCoordinateFrame) {
+            coordinateGridSpacing.textContent = '网格间距：—';
+            return;
+        }
+
+        const display = pgmData.displayInfo;
+        const pixelsPerMeter = display.containerScale * scale / mapCoordinateFrame.resolution;
+        const step = Number.isFinite(pixelsPerMeter) && pixelsPerMeter > 0
+            ? MapCoordinates.gridSpacing(pixelsPerMeter)
+            : null;
+        coordinateGridSpacing.textContent = !showMetricGrid.checked
+            ? '网格间距：已关闭'
+            : step === null
+                ? '网格间距：—'
+                : `网格间距：${Number.isInteger(step) ? step : Number(step.toFixed(3))} m`;
+        const corners = [
+            MapCoordinates.pixelToWorld(0, 0, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin),
+            MapCoordinates.pixelToWorld(pgmData.width, 0, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin),
+            MapCoordinates.pixelToWorld(pgmData.width, pgmData.height, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin),
+            MapCoordinates.pixelToWorld(0, pgmData.height, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin)
+        ];
+        const minX = Math.min(...corners.map(point => point.x));
+        const maxX = Math.max(...corners.map(point => point.x));
+        const minY = Math.min(...corners.map(point => point.y));
+        const maxY = Math.max(...corners.map(point => point.y));
+        const context = coordinateCtx;
+        context.save();
+        context.beginPath();
+        context.rect(display.x, display.y, display.width, display.height);
+        context.clip();
+
+        if (showMetricGrid.checked && step !== null) {
+            context.beginPath();
+            context.strokeStyle = 'rgba(52, 152, 219, 0.24)';
+            context.lineWidth = 1;
+            let count = 0;
+            for (let x = Math.ceil(minX / step) * step; x <= maxX && count < 500; x += step, count++) {
+                const start = worldToCanvas(x, minY);
+                const end = worldToCanvas(x, maxY);
+                context.moveTo(start.x, start.y);
+                context.lineTo(end.x, end.y);
+            }
+            count = 0;
+            for (let y = Math.ceil(minY / step) * step; y <= maxY && count < 500; y += step, count++) {
+                const start = worldToCanvas(minX, y);
+                const end = worldToCanvas(maxX, y);
+                context.moveTo(start.x, start.y);
+                context.lineTo(end.x, end.y);
+            }
+            context.stroke();
+        }
+
+        if (showWorldAxes.checked) {
+            const xStart = worldToCanvas(minX, 0);
+            const xEnd = worldToCanvas(maxX, 0);
+            context.beginPath();
+            context.strokeStyle = '#1688c7';
+            context.lineWidth = 2;
+            context.moveTo(xStart.x, xStart.y);
+            context.lineTo(xEnd.x, xEnd.y);
+            context.stroke();
+            context.fillStyle = '#0872aa';
+            context.font = '600 13px Segoe UI, Microsoft YaHei, sans-serif';
+            context.fillText('+X', Math.max(display.x + 6, Math.min(display.x + display.width - 28, xEnd.x - 24)), xEnd.y - 7);
+
+            const yStart = worldToCanvas(0, minY);
+            const yEnd = worldToCanvas(0, maxY);
+            context.beginPath();
+            context.strokeStyle = '#2b9b75';
+            context.lineWidth = 2;
+            context.moveTo(yStart.x, yStart.y);
+            context.lineTo(yEnd.x, yEnd.y);
+            context.stroke();
+            context.fillStyle = '#187c5b';
+            context.fillText('+Y', yEnd.x + 7, Math.max(display.y + 16, Math.min(display.y + display.height - 6, yEnd.y + 16)));
+
+            if (minX <= 0 && maxX >= 0 && minY <= 0 && maxY >= 0) {
+                const zero = worldToCanvas(0, 0);
+                context.beginPath();
+                context.fillStyle = '#e56b2f';
+                context.arc(zero.x, zero.y, 5, 0, Math.PI * 2);
+                context.fill();
+                context.fillStyle = '#9c431b';
+                context.fillText('0,0', zero.x + 7, zero.y - 7);
+            }
+        }
+        context.restore();
+    }
+
+    function updateCoordinateReadout(x, y) {
+        if (!pgmData || !pgmData.displayInfo || !mapCoordinateFrame) {
+            coordinateReadout.textContent = '光标坐标：—';
+            return;
+        }
+        const display = pgmData.displayInfo;
+        const factor = display.containerScale * scale;
+        const pixelX = (x - display.x) / factor;
+        const pixelY = (y - display.y) / factor;
+        if (pixelX < 0 || pixelY < 0 || pixelX > pgmData.width || pixelY > pgmData.height) {
+            coordinateReadout.textContent = '光标坐标：地图外';
+            return;
+        }
+        const world = MapCoordinates.pixelToWorld(pixelX, pixelY, pgmData.width, pgmData.height, mapCoordinateFrame.resolution, mapCoordinateFrame.origin);
+        coordinateReadout.textContent = `光标：X ${world.x.toFixed(2)} m · Y ${world.y.toFixed(2)} m`;
     }
 
     /**
@@ -351,7 +509,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
         e.preventDefault();
         const touchEndTime = Date.now();
         const touchDuration = touchEndTime - touchState.touchStartTime;
-        
+
         if (e.touches.length === 0) {
             // 所有手指都离开屏幕
             if (touchState.isPinching) {
@@ -545,6 +703,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
      */
     function handleSingleTouchMove(e) {
         const touchPos = getTouchPos(e);
+        updateCoordinateReadout(touchPos.x, touchPos.y);
         const deltaX = touchPos.x - touchState.lastPos.x;
         const deltaY = touchPos.y - touchState.lastPos.y;
         const distance = getDistance(touchPos, touchState.startPos);
@@ -1636,6 +1795,21 @@ let isDrawingRect = false; // 是否正在绘制矩形
     drawCanvas.addEventListener('mousemove', handleMouseMove);
     drawCanvas.addEventListener('mouseup', handleMouseUp);
     drawCanvas.addEventListener('mouseout', handleMouseUp);
+    drawCanvas.addEventListener('mouseleave', () => {
+        coordinateReadout.textContent = '光标坐标：—';
+    });
+    showMetricGrid.addEventListener('change', drawCoordinateOverlay);
+    showWorldAxes.addEventListener('change', drawCoordinateOverlay);
+    fitMapButton.addEventListener('click', () => {
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        zoomDisplay.textContent = '100%';
+        if (pgmData) {
+            drawPGM();
+            redrawAll();
+        }
+    });
 
     // 触摸事件处理
     drawCanvas.addEventListener('touchstart', handleTouchStart, { passive: false });
@@ -1865,6 +2039,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
         const rect = drawCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
+        updateCoordinateReadout(x, y);
 
         // 拖拽图像
         if (isDraggingImage) {
@@ -2475,7 +2650,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
             mapNameToSave = mapSelector.value;
             console.log(`保存主地图: ${mapNameToSave}`);
         }
-        
+
         formData.append('mapName', mapNameToSave);
        
         
@@ -2861,7 +3036,9 @@ let isDrawingRect = false; // 是否正在绘制矩形
             
             // 从后端获取PGM和YAML文件
             const before = await fetch('/api/map-workbench/assets', {headers:mapAuth()}).then(r=>r.json());
-            const version = before.data?.find(row=>row.id===mapName)?.revision;
+            const selectedAsset = before.data?.find(row=>row.id===mapName);
+            const version = selectedAsset?.revision;
+            setMapCoordinateFrame(selectedAsset);
             const responsepgm = await fetch(`/api/map-workbench/file/pgm/${encodeURIComponent(mapName)}`, {headers:mapAuth()});
             const responseyaml = await fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapName)}`, {headers:mapAuth()});
     
@@ -3465,7 +3642,6 @@ let isDrawingRect = false; // 是否正在绘制矩形
             statusMessage.textContent = "地图名称不能为空";
             return;
         }
-
         // 其余保存逻辑保持不变...
         statusMessage.style.display = 'block';
         statusMessage.textContent = "正在保存PGM文件...";
