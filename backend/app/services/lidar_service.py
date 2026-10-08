@@ -23,6 +23,10 @@ logger = logging.getLogger("orange_agv.lidar_service")
 _config_lock = asyncio.Lock()
 _MODELS = {"MID-360": ("MID360", "MID360_config.json"),
            "MID-360S": ("Mid360s", "MID360s_config.json")}
+_LIO_SAM_MAPPING_NODES = {
+    "lio_sam_imuPreintegration", "lio_sam_imageProjection",
+    "lio_sam_featureExtraction", "lio_sam_mapOptimization",
+}
 _NAV_WS = Path(os.getenv("ROBOT_NAV_WS", str(WORKSPACE_ROOT / "ros" / "orange_nav_ws"))).expanduser()
 _TEMPLATES = _NAV_WS / "src" / "drivers" / "livox_ros_driver2" / "config"
 _OBSTACLE_DEFAULT_PATH = _NAV_WS / "src" / "runtime" / "orange_runtime" / "config" / "obstacle_protection.json"
@@ -224,10 +228,15 @@ class LidarService:
             if core["state"] == "active":
                 ros2_service.require_ros()
                 try:
-                    running_navigation_nodes = set(ros_runtime.graph()) & set(
-                        ros_runtime.SERVICES["navigation"]["nodes"])
+                    live_nodes = set(ros_runtime.graph())
                 except Exception as exc:
-                    raise ValueError("无法读取 ROS 节点图，不能确认定位与导航已停止") from exc
+                    raise ValueError("无法读取 ROS 节点图，不能确认建图和定位导航已停止") from exc
+                running_mapping_nodes = live_nodes & _LIO_SAM_MAPPING_NODES
+                if running_mapping_nodes:
+                    raise ValueError("建图节点仍在运行，不能暂存雷达配置：" +
+                                     ", ".join(sorted(running_mapping_nodes)))
+                running_navigation_nodes = live_nodes & set(
+                    ros_runtime.SERVICES["navigation"]["nodes"])
                 if running_navigation_nodes:
                     raise ValueError("定位与导航节点仍在运行，不能暂存雷达配置：" +
                                      ", ".join(sorted(running_navigation_nodes)))
