@@ -17,9 +17,10 @@
       const card=text('article','','service'),heading=text('div','','service-heading');heading.append(text('h2',service.name),text('span',service.load==='not-found'?'未安装':names[service.state]||service.state,'badge'));
       card.append(heading,text('p',service.description),text('code',service.unit),text('p','服务反馈：'+service.detail,'muted'),text('p','节点反馈：'+(service.observed_nodes.join('、')||'尚未发现预期节点'),'muted'));
       const actions=text('div','','service-actions');
-      for(const action of service.actions){const button=text('button',verbs[action]);button.disabled=busy||data.busy||!data.control_enabled||service.load!=='loaded'||(action==='start'&&service.state==='active');button.onclick=()=>{
+      for(const action of service.actions){const button=text('button',verbs[action]);button.disabled=busy||data.busy||!data.control_enabled||service.load!=='loaded'||(action==='start'&&service.state==='active')||(action==='start'&&service.start_allowed===false);button.onclick=()=>{
         selected={service,action};$('action-title').textContent=verbs[action]+service.name;
-        $('action-detail').textContent=action==='start'?'只启动预设服务，不发送行驶命令。启动后请核实各项反馈是否就绪。':'将先核实停车并锁定导航。定位服务维护后需要重新定位；建图采集中不能执行此操作。';$('plc-confirm-wrap').hidden=true;$('plc-confirm').required=false;$('reason').value='';$('confirm').showModal();};actions.append(button);}
+        $('action-detail').textContent=service.id==='plc'?'启动 PLC 通信后会周期读写寄存器；仅在协议已核实、车辆物理禁动时启动。页面不提供停止/重启，避免中断控制通信。':action==='start'?'只启动预设服务，不发送行驶命令。启动后请核实各项反馈是否就绪。':'将先核实停车并锁定导航。定位服务维护后需要重新定位；建图采集中不能执行此操作。';$('plc-confirm-wrap').hidden=true;$('plc-confirm').required=false;$('reason').value='';$('confirm').showModal();};actions.append(button);}
+      if(service.start_block_reason)card.append(text('p','启动条件：'+service.start_block_reason,'muted'));
       const logs=text('button','查看日志');logs.onclick=async()=>{try{$('log-title').textContent=service.name+' · 最近日志';$('logs').textContent='读取中…';$('logs').textContent=(await api.get(base+'/services/'+service.id+'/logs')).text;}catch(e){$('logs').textContent=e.message;}};actions.append(logs);card.append(actions);return card;
     }));
     $('nodes').textContent=data.graph_error||data.nodes.join('\n')||'未发现真实 ROS 节点；请先核实运行环境。';

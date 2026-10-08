@@ -20,7 +20,7 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
 ## 软件准备（Ubuntu 22.04 / ROS 2 Humble）
 
-1. 安装 ROS 2 Humble、colcon、rosdep 及导航包所需系统依赖。先执行 `ros/orange_nav_ws/scripts/check-dependencies.sh`；缺少 Livox-SDK2/GTSAM 时，在具备安装权限的环境中运行 `ros/orange_nav_ws/scripts/install-vendored-dependencies.sh`，然后运行 `ros/orange_nav_ws/scripts/build-workspace.sh`。确认 `orange_runtime`、定位、导航、建图、Livox 和 `ros2plc` 包均能在同一工作区加载。将实际雷达配置保存为 `MID360_CONFIG_FILE`，核对雷达 IP、坐标系及 ROS_DOMAIN_ID；必须把**经现场确认的 PLC 地址**写入 `ROBOT_PLC_HOST`。只有验证现有底盘使用“0 起始地址、连续写 8 个寄存器、读 20 个输入寄存器”的 `legacy_8_register` 协议后，才能把 `ROBOT_PLC_PROTOCOL` 从 `UNVERIFIED` 改为 `legacy_8_register`；否则核心 ROS 单元拒绝启动。核心 ROS 单元不能凭软件测试视为硬件就绪。
+1. 安装 ROS 2 Humble、colcon、rosdep 及导航包所需系统依赖。先执行 `ros/orange_nav_ws/scripts/check-dependencies.sh`；缺少 Livox-SDK2/GTSAM 时，在具备安装权限的环境中运行 `ros/orange_nav_ws/scripts/install-vendored-dependencies.sh`，然后运行 `ros/orange_nav_ws/scripts/build-workspace.sh`。确认 `orange_runtime`、定位、导航、建图、Livox 和 `ros2plc` 包均能在同一工作区加载。将实际雷达配置保存为 `MID360_CONFIG_FILE`，核对雷达 IP、坐标系及 ROS_DOMAIN_ID；PLC 服务使用的地址写入 `ROBOT_PLC_HOST`。只有验证现有底盘协议后，才把 `ROBOT_PLC_PROTOCOL` 从 `UNVERIFIED` 改为 `legacy_8_register` 并单独启动 PLC 服务；否则 PLC 和依赖它的 navigation 拒绝启动。雷达 core 与 mapping 不依赖 PLC 协议，可以独立开展建图。核心 ROS 单元不能凭软件测试视为硬件就绪。
 
    **Mid-360S 是独立新型号，不表示多雷达。** 它使用 `Mid360s` 设备段及列表形式的 `host_net_info`；旧 Mid-360 使用 `MID360` 设备段及对象形式的 `host_net_info`。仓库内置驱动已更新为 Livox ROS Driver 2 **1.2.6**（官方 tag `13eb05e`），配套 Livox-SDK2 **1.3.1**（官方 tag `f5d9375`），两者源码均包含 Mid-360S 支持。模板中的 IP 只是示例。先在目标机安装新 SDK 并重编驱动，确认进程加载新库。
 
@@ -85,5 +85,5 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 - 软件测试无法证明雷达、定位收敛、PLC 使能和底盘制动。首次接车按静止状态逐项确认地图坐标、实时位姿、停止回执、速度反馈、路线跟踪与断线锁定；未经现场确认不执行载人/自主行驶。
 - ROS 维护页提供“请求 PLC 启动”和“停车并锁定”：均需要权限、确认词和审计原因。启动先确认停车再发布 `/plc_start=1`；停车并锁定等待导航停止回执并确认静止。界面始终把物理使能显示为“未知”，不会把软件锁定冒充 PLC 断使能。`ros2plc` 仅定义了启动脉冲，没有经过确认的物理停用命令或使能状态回读；需取得实际寄存器协议并在现场验证后才能完成硬件使能切换。启动脉冲在 Modbus 写入失败时保留等待重试，但写入成功仍不等于 PLC 已使能。
 - 新增 `/plc_link_status`，仅表示最近 500 毫秒有成功的 Modbus 输入寄存器读取；Web 停车判断还要求该反馈在最近 1 秒内有效，并同时检查导航状态和速度。此连接信号**不是**物理使能回读，也不能代替安全回路。必须重新编译并部署更新后的 `ros2plc` 节点。
-- 用户提供的《Modbus Tcp 接口文档》V1.0 是通用接口说明：附录列出 40501“示例：启动命令”、40502“停止命令”、40503“完成状态”，但没有写入值、状态位含义、实际设备型号或与当前底盘协议的一致性证据。其 0x03/0x10 报文仅为示例，不能据此改写当前底盘寄存器。默认 `ROBOT_PLC_PROTOCOL=UNVERIFIED`，核心 ROS 服务和 Web PLC 启动请求拒绝发送旧协议命令；取得专用寄存器表并在受控环境验证后再解锁。
+- 用户提供的《Modbus Tcp 接口文档》V1.0 是通用接口说明：附录列出 40501“示例：启动命令”、40502“停止命令”、40503“完成状态”，但没有写入值、状态位含义、实际设备型号或与当前底盘协议的一致性证据。其 0x03/0x10 报文仅为示例，不能据此改写当前底盘寄存器。默认 `ROBOT_PLC_PROTOCOL=UNVERIFIED`，PLC 服务和 Web PLC 启动请求拒绝发送旧协议命令；取得专用寄存器表并在受控环境验证后再解锁。雷达 core 和 mapping 不再受这个 PLC 协议门禁阻断。
 - 尚未在目标 Linux/ROS 2 与真实硬件上完成安装及实车联调。只有用户提供测试机/机器人连接后，才能确认此部署说明的命令和环境参数适用于该机器。

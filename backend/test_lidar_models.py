@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from app.services.lidar_service import LidarService, get_mid360_config_path, _write_json
+from app.services.obstacle_protection import DEFAULT_OBSTACLE_CONFIG
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +91,44 @@ class LidarModelTests(unittest.TestCase):
                 self.assertFalse(Path(str(path) + ".pending.json").exists())
                 with self.assertRaisesRegex(ValueError, "不允许修改"):
                     asyncio.run(LidarService.update_config({"filter": {"scandis_min": 0.2}}, None))
+
+    def test_unconfirmed_mount_does_not_write_active_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sensor.json"
+            path.write_bytes((CONFIGS / "MID360s_config.json").read_bytes())
+            original = path.read_bytes()
+            with patch.dict(os.environ, {"MID360_CONFIG_FILE": str(path),
+                                         "ORANGE_OBSTACLE_CONFIG_FILE": ""}):
+                with self.assertRaisesRegex(ValueError, "确认现场测量值"):
+                    asyncio.run(LidarService.update_config({
+                        "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
+                        "extrinsics": MEASURED_MOUNT, "mount_confirmed": False,
+                    }, None))
+                self.assertEqual(path.read_bytes(), original)
+                self.assertFalse(Path(str(path) + ".pending.json").exists())
+
+    def test_mount_saves_without_obstacle_path_when_obstacle_settings_are_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sensor.json"
+            path.write_bytes((CONFIGS / "MID360s_config.json").read_bytes())
+            with patch.dict(os.environ, {"MID360_CONFIG_FILE": str(path),
+                                         "ORANGE_OBSTACLE_CONFIG_FILE": ""}):
+                asyncio.run(LidarService.update_config({
+                    "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
+                    "extrinsics": MEASURED_MOUNT, "mount_confirmed": True,
+                }, None))
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(saved["robot_mount"]["x"], 100)
+                self.assertTrue(Path(str(path) + ".pending.json").is_file())
+
+                before = path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "ORANGE_OBSTACLE_CONFIG_FILE"):
+                    asyncio.run(LidarService.update_config({
+                        "extrinsics": {**MEASURED_MOUNT, "x_mm": 200},
+                        "mount_confirmed": True,
+                        "obstacle_protection": json.loads(json.dumps(DEFAULT_OBSTACLE_CONFIG)),
+                    }, None))
+                self.assertEqual(path.read_bytes(), before)
 
     def test_verification_requires_restart_and_live_cloud(self):
         with tempfile.TemporaryDirectory() as tmp:

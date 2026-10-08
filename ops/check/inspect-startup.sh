@@ -3,7 +3,7 @@
 set -o pipefail
 
 printf '\n== System services ==\n'
-for unit in orange-web.service orange-ros-core.service orange-ros-navigation.service orange-ros-mapping.service mysql.service; do
+for unit in orange-web.service orange-ros-core.service orange-ros-plc.service orange-ros-navigation.service orange-ros-mapping.service mysql.service; do
     printf '\n[%s]\n' "$unit"
     systemctl show "$unit" --no-pager \
         --property=LoadState,ActiveState,SubState,UnitFileState,FragmentPath,User,Group,WorkingDirectory,MainPID,ExecStart \
@@ -11,7 +11,7 @@ for unit in orange-web.service orange-ros-core.service orange-ros-navigation.ser
 done
 
 printf '\n== User services ==\n'
-for unit in orange-web.service orange-ros-core.service orange-ros-navigation.service orange-ros-mapping.service; do
+for unit in orange-web.service orange-ros-core.service orange-ros-plc.service orange-ros-navigation.service orange-ros-mapping.service; do
     printf '\n[%s]\n' "$unit"
     systemctl --user show "$unit" --no-pager \
         --property=LoadState,ActiveState,SubState,UnitFileState,FragmentPath,MainPID,ExecStart \

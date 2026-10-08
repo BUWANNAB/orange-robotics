@@ -9,8 +9,9 @@ from app.services import mapping_control, map_assets
 from app.services.operations_common import redact
 
 SERVICES = {
-    'core': {'name':'雷达与底盘','unit':'orange-ros-core.service','nodes':['livox_lidar_publisher','livox_cloud_converter','ros2plc'], 'actions':['start'], 'dependencies':[], 'description':'常驻服务；网页不提供停止或重启，避免中断底盘和雷达。'},
-    'navigation': {'name':'定位与导航','unit':'orange-ros-navigation.service','nodes':['lidar_localization','vehicle_navigation_node'], 'actions':['start','stop','restart'], 'dependencies':['core'], 'description':'启动后仍需地图定位就绪，维护操作后保持停止锁定。'},
+    'core': {'name':'雷达与点云','unit':'orange-ros-core.service','nodes':['livox_lidar_publisher','livox_cloud_converter'], 'actions':['start'], 'dependencies':[], 'description':'常驻传感器服务，不启动 PLC 或底盘通信；网页不提供停止或重启。'},
+    'plc': {'name':'PLC 底盘通信','unit':'orange-ros-plc.service','nodes':['ros2plc'], 'actions':['start'], 'dependencies':[], 'description':'独立服务；仅在 PLC 协议确认后启动，运行时会周期读写寄存器。'},
+    'navigation': {'name':'定位与导航','unit':'orange-ros-navigation.service','nodes':['lidar_localization','vehicle_navigation_node'], 'actions':['start','stop','restart'], 'dependencies':['core','plc'], 'description':'依赖雷达核心与 PLC 通信；启动后仍需地图定位就绪，维护操作后保持停止锁定。'},
     'mapping': {'name':'建图控制器','unit':'orange-ros-mapping.service','nodes':['build_map_manager'], 'actions':['start','stop','restart'], 'dependencies':['core'], 'description':'控制器常驻，SLAM 仅在地图工作台开始采集时启动。'},
 }
 lock=asyncio.Lock()
@@ -67,7 +68,10 @@ async def snapshot():
     rows=[]
     states=await asyncio.gather(*(unit_state(key) for key in SERVICES))
     for (key,spec),state in zip(SERVICES.items(),states):
-        rows.append({'id':key,**spec,**state,'observed_nodes':[name for name in spec['nodes'] if name in nodes]})
+        start_allowed,start_reason=(plc_protocol_ready() if key=='plc' else (True,''))
+        rows.append({'id':key,**spec,**state,'start_allowed':start_allowed,
+                     'start_block_reason':start_reason,
+                     'observed_nodes':[name for name in spec['nodes'] if name in nodes]})
     pose=bridge.snapshot()
     fresh_lidar=bool(not bridge.is_simulation and bridge.lidar_received and time.monotonic()-bridge.lidar_received<2)
     checks=[{'name':'ROS 桥接','ready':bool(bridge.node and not bridge.is_simulation),'detail':'真实 ROS 节点连接' if bridge.node and not bridge.is_simulation else '未连接真实 ROS'},
@@ -86,6 +90,12 @@ async def operate(key,action):
         if not enabled:raise RuntimeError(reason)
         spec=SERVICES[key]
         if action not in spec['actions']:raise RuntimeError('常驻核心服务禁止从网页停止或重启')
+        if key=='plc' and action=='start':
+            protocol_ready,protocol_reason=plc_protocol_ready()
+            if not protocol_ready:raise RuntimeError(protocol_reason)
+        if key=='navigation' and action=='start':
+            protocol_ready,protocol_reason=plc_protocol_ready()
+            if not protocol_ready:raise RuntimeError(protocol_reason)
         if mapping_control.active or mapping_control.lock.locked():raise RuntimeError('请先在地图工作台保存并结束建图')
         if bridge.switch.get('status') in {'pending','loading','loaded','localizing'}:raise RuntimeError('正在切换定位地图，请等待完成')
         bridge.require_ros()
@@ -95,6 +105,8 @@ async def operate(key,action):
         if action=='start' and state['state']=='active':return {'message':'服务已经运行；业务就绪状态请查看检查项'}
         for dependency in spec['dependencies']:
             if (await unit_state(dependency))['state']!='active':raise RuntimeError('请先启动依赖：'+SERVICES[dependency]['name'])
+        if key=='plc' and action=='start' and (await unit_state('navigation'))['state']=='active':
+            raise RuntimeError('定位与导航正在运行；请先按现场流程停车并停止导航，再启动 PLC 通信服务')
         if action in {'stop','restart'}:
             bridge.require_stationary()
             await bridge.stop_route()

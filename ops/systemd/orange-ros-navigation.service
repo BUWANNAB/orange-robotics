@@ -1,7 +1,7 @@
 [Unit]
 Description=Orange localization and navigation
-BindsTo=orange-ros-core.service
-After=orange-ros-core.service
+BindsTo=orange-ros-core.service orange-ros-plc.service
+After=orange-ros-core.service orange-ros-plc.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
 

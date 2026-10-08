@@ -1,8 +1,13 @@
 """Service-control contract tests; no systemd units or hardware are started."""
 import asyncio
 import importlib.util
+import json
+import os
 import struct
+import sys
+import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,7 +29,7 @@ class RuntimeTests(unittest.TestCase):
             response=self.client.get('/api/ros-runtime/status',headers=self.headers)
             self.assertEqual(response.status_code,200)
             self.assertFalse(response.json()['data']['control_enabled'])
-            self.assertEqual(len(response.json()['data']['services']),3)
+            self.assertEqual(len(response.json()['data']['services']),4)
             denied=self.client.post('/api/ros-runtime/services/core/action',headers=self.headers,json={'action':'start','reason':'测试启动'})
             self.assertEqual(denied.status_code,409)
 
@@ -49,6 +54,7 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(self.client.post(path,headers=self.headers,json=body).status_code,409)
         with (patch.object(runtime,'availability',return_value=(True,'')),
               patch.dict('os.environ',{'ROBOT_PLC_PROTOCOL':'legacy_8_register'}),
+              patch.object(runtime,'unit_state',new=AsyncMock(return_value={'load':'loaded','state':'active'})),
               patch.object(runtime.mapping_control,'active',False),
               patch.object(runtime.bridge,'require_stationary') as stationary,
               patch.object(runtime.bridge,'stop_route',new=AsyncMock()) as stop,
@@ -117,6 +123,52 @@ class RuntimeTests(unittest.TestCase):
                 command.assert_not_called()
         asyncio.run(check())
 
+    def test_mapping_only_needs_lidar_core_and_plc_start_is_gated(self):
+        self.assertNotIn('ros2plc',runtime.SERVICES['core']['nodes'])
+        self.assertEqual(runtime.SERVICES['mapping']['dependencies'],['core'])
+        self.assertEqual(runtime.SERVICES['navigation']['dependencies'],['core','plc'])
+        async def check():
+            with (patch.object(runtime,'availability',return_value=(True,'')),
+                  patch.dict('os.environ',{'ROBOT_PLC_PROTOCOL':'UNVERIFIED'}),
+                  patch.object(runtime,'command',new=AsyncMock()) as command):
+                for service in ('plc','navigation'):
+                    with self.subTest(service=service), self.assertRaisesRegex(RuntimeError,'协议未确认'):
+                        await runtime.operate(service,'start')
+                command.assert_not_called()
+        asyncio.run(check())
+
+    def test_core_launch_is_independent_of_plc_protocol_and_plc_launch_keeps_gate(self):
+        launch = types.ModuleType('launch')
+        launch.LaunchDescription = lambda actions: actions
+        launch_ros = types.ModuleType('launch_ros')
+        launch_actions = types.ModuleType('launch_ros.actions')
+        launch_actions.Node = lambda **kwargs: types.SimpleNamespace(**kwargs)
+        launch_ros.actions = launch_actions
+        modules = {'launch':launch,'launch_ros':launch_ros,'launch_ros.actions':launch_actions}
+        root=Path(__file__).resolve().parents[1]/'ros/orange_nav_ws/src/runtime/orange_runtime/launch'
+        with tempfile.TemporaryDirectory() as tmp:
+            config=Path(tmp)/'active.json'
+            config.write_text(json.dumps({
+                'Mid360s':{},'lidar_configs':[{'extrinsic_parameter':{
+                    'x':0,'y':0,'z':0,'roll':0,'pitch':0,'yaw':0}}],
+                'robot_mount':{'x':0,'y':0,'z':500,'roll':0,'pitch':0,'yaw':0}
+            }),encoding='utf-8')
+            with patch.dict(sys.modules,modules),patch.dict(os.environ,{
+                    'MID360_CONFIG_FILE':str(config),'ROBOT_PLC_PROTOCOL':'UNVERIFIED'}):
+                core_spec=importlib.util.spec_from_file_location('core_launch_under_test',root/'core.launch.py')
+                core=importlib.util.module_from_spec(core_spec);core_spec.loader.exec_module(core)
+                core_nodes=core.generate_launch_description()
+                self.assertNotIn('ros2plc',[node.package for node in core_nodes])
+
+                plc_spec=importlib.util.spec_from_file_location('plc_launch_under_test',root/'plc.launch.py')
+                plc=importlib.util.module_from_spec(plc_spec);plc_spec.loader.exec_module(plc)
+                with self.assertRaisesRegex(RuntimeError,'not verified'):
+                    plc.generate_launch_description()
+            with patch.dict(sys.modules,modules),patch.dict(os.environ,{
+                    'ROBOT_PLC_PROTOCOL':'legacy_8_register','ROBOT_PLC_HOST':'192.168.8.30','ROBOT_PLC_PORT':'502'}):
+                plc_nodes=plc.generate_launch_description()
+                self.assertEqual([node.package for node in plc_nodes],['ros2plc'])
+
     def test_stop_without_stationary_feedback_never_calls_systemctl(self):
         async def check():
             with patch.object(runtime,'availability',return_value=(True,'')),patch.object(runtime.mapping_control,'active',False),patch.object(runtime.bridge,'switch',{'status':'idle'}),patch.object(runtime.bridge,'require_ros'),patch.object(runtime.bridge,'require_stationary',side_effect=RuntimeError('缺少停车反馈')),patch.object(runtime,'unit_state',new=AsyncMock(return_value={'load':'loaded','state':'active'})),patch.object(runtime,'command',new=AsyncMock()) as command:
@@ -126,8 +178,8 @@ class RuntimeTests(unittest.TestCase):
 
     def test_owned_start_fixed_argv_and_wait_job(self):
         async def check():
-            states=[{'load':'loaded','state':'inactive'},{'state':'active'},{'state':'active'}]
-            with patch.object(runtime,'availability',return_value=(True,'')),patch.object(runtime.mapping_control,'active',False),patch.object(runtime.bridge,'switch',{'status':'idle'}),patch.object(runtime.bridge,'inhibited',False),patch.object(runtime.bridge,'require_ros'),patch.object(runtime,'graph',return_value=[]),patch.object(runtime,'unit_state',new=AsyncMock(side_effect=states)),patch.object(runtime,'command',new=AsyncMock(side_effect=['','0 /'])) as command:
+            states=[{'load':'loaded','state':'inactive'},{'load':'loaded','state':'active'},{'load':'loaded','state':'active'},{'state':'active'},{'state':'active'}]
+            with patch.object(runtime,'availability',return_value=(True,'')),patch.dict('os.environ',{'ROBOT_PLC_PROTOCOL':'legacy_8_register'}),patch.object(runtime.mapping_control,'active',False),patch.object(runtime.bridge,'switch',{'status':'idle'}),patch.object(runtime.bridge,'inhibited',False),patch.object(runtime.bridge,'require_ros'),patch.object(runtime,'graph',return_value=[]),patch.object(runtime,'unit_state',new=AsyncMock(side_effect=states)),patch.object(runtime,'command',new=AsyncMock(side_effect=['','0 /'])) as command:
                 result=await runtime.operate('navigation','start')
                 self.assertEqual(result['state'],'active');self.assertTrue(runtime.bridge.inhibited)
                 self.assertEqual(command.await_args_list[0].args,('systemctl','--user','--no-block','start','orange-ros-navigation.service'))

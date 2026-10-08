@@ -199,11 +199,12 @@
                     </div>
 
                     <!-- 4. 点云分区与计算量控制 -->
-                    <div class="radar-section-card">
+                    <div class="radar-section-card" id="radarProtectionCard">
                         <div class="radar-section-title">
                             <span>4. 点云防护区域</span>
                             <span class="protection-mode-label">Humble · PCL · Nav2</span>
                         </div>
+                        <p id="radarProtectionUnavailable" class="radar-discovery-status" hidden>避障共享运行配置路径未设置，本区暂不可编辑或保存；雷达安装外参仍可单独保存。</p>
                         <div class="protection-switch-row">
                             <label class="protection-switch"><input type="checkbox" id="protectionEnabled"><span>启用自动导航分区防护</span></label>
                             <span class="protection-state-pill" id="protectionStatePill">未启用</span>
@@ -486,11 +487,22 @@
         document.getElementById("radarDrawerPanel").classList.remove("active");
     }
 
+    function setProtectionEditable(enabled) {
+        const card = document.getElementById("radarProtectionCard");
+        if (!card) return;
+        card.querySelectorAll("input, select, button").forEach(control => {
+            control.disabled = !enabled;
+        });
+        const notice = document.getElementById("radarProtectionUnavailable");
+        if (notice) notice.hidden = enabled;
+    }
+
     // 从后端拉取配置
     async function loadConfig() {
         currentConfig = null;
         document.getElementById("btnRadarSave").disabled = true;
         document.getElementById("btnRadarVerify").disabled = true;
+        setProtectionEditable(false);
         try {
             const res = await fetch(`${API_BASE}/api/v1/lidar/config`, {
                 headers: { "Authorization": localStorage.getItem("token") || "" }
@@ -546,6 +558,7 @@
         }
 
         applyProtectionConfig(cfg.obstacle_protection || DEFAULT_PROTECTION_CONFIG);
+        setProtectionEditable(cfg.deployment?.protection_shared_configured === true);
 
         // 诊断数据
         document.getElementById("diagStatus").innerText = cfg.status?.online === true ? "在线" : "未检测";
@@ -796,20 +809,32 @@
             return;
         }
 
+        const extrinsics = {
+            x_mm: Number(document.getElementById("radarExtX").value),
+            y_mm: Number(document.getElementById("radarExtY").value),
+            z_mm: Number(document.getElementById("radarExtZ").value),
+            yaw: Number(document.getElementById("radarExtYaw").value),
+            pitch: Number(document.getElementById("radarExtPitch").value),
+            roll: Number(document.getElementById("radarExtRoll").value)
+        };
+        const oldExtrinsics = currentConfig?.lidars?.[0]?.extrinsics || {};
+        const mountChanged = currentConfig?.deployment?.mount_configured !== true ||
+            Object.entries(extrinsics).some(([key, value]) => Number(oldExtrinsics[key]) !== value);
+        if (mountChanged && !document.getElementById("radarMountConfirmed").checked) {
+            showNotification("外参尚未写入：请勾选“已按车体 base_link 坐标系测量并核对本次安装外参”", "error");
+            btnSave.disabled = false;
+            btnSave.innerText = "💾 保存配置";
+            document.getElementById("radarMountConfirmed").focus();
+            return;
+        }
+
         const payload = {
             lidar_model: model,
             model_change_confirmed: document.getElementById("radarModelConfirmed").checked,
             mount_confirmed: document.getElementById("radarMountConfirmed").checked,
             host_ip: document.getElementById("radarHostIp").value.trim(),
             device_ip: document.getElementById("radarDeviceIp").value.trim(),
-            extrinsics: {
-                x_mm: Number(document.getElementById("radarExtX").value),
-                y_mm: Number(document.getElementById("radarExtY").value),
-                z_mm: Number(document.getElementById("radarExtZ").value),
-                yaw: Number(document.getElementById("radarExtYaw").value),
-                pitch: Number(document.getElementById("radarExtPitch").value),
-                roll: Number(document.getElementById("radarExtRoll").value)
-            }
+            extrinsics
         };
         const obstacleProtection = collectProtectionConfig();
         if (!validateProtectionConfig(obstacleProtection)) {

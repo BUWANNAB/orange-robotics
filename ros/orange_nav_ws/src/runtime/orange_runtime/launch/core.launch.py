@@ -26,13 +26,6 @@ def generate_launch_description():
     cy,sy=math.cos(yaw/2),math.sin(yaw/2)
     quaternion=(sr*cp*cy-cr*sp*sy,cr*sp*cy+sr*cp*sy,
                 cr*cp*sy-sr*sp*cy,cr*cp*cy+sr*sp*sy)
-    plc_host=os.environ.get('ROBOT_PLC_HOST','').strip()
-    if not plc_host or plc_host.startswith('CHANGE_'):
-        raise RuntimeError('ROBOT_PLC_HOST must be set to the verified chassis PLC address')
-    if os.environ.get('ROBOT_PLC_PROTOCOL','')!='legacy_8_register':
-        raise RuntimeError('ROBOT_PLC_PROTOCOL must match the verified legacy_8_register chassis protocol')
-    plc_port=int(os.environ.get('ROBOT_PLC_PORT','502'))
-    if not 1<=plc_port<=65535:raise RuntimeError('ROBOT_PLC_PORT must be between 1 and 65535')
     return LaunchDescription([
         Node(package='tf2_ros',executable='static_transform_publisher',name='livox_mount_tf',
              arguments=[*(str(v) for v in (x,y,z,*quaternion)),'base_link','livox_frame']),
@@ -41,6 +34,4 @@ def generate_launch_description():
                           'frame_id':'livox_frame','user_config_path':config,'cmdline_input_bd_code':'livox0000000001'}],
              remappings=[('/livox/lidar','/livox/lidar_custom')]),
         Node(package='orange_runtime',executable='livox_cloud_converter',name='livox_cloud_converter',output='screen'),
-        Node(package='ros2plc',executable='ros2plc',name='ros2plc',output='screen',
-             parameters=[{'server_ip':plc_host,'server_port':plc_port}]),
     ])

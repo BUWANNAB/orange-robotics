@@ -37,6 +37,8 @@ async def plc_start_request(body:PlcStartRequest,actor=Depends(require('ros:main
         if not enabled:raise HTTPException(409,reason)
         protocol_ready,protocol_reason=runtime.plc_protocol_ready()
         if not protocol_ready:raise HTTPException(409,protocol_reason)
+        if (await runtime.unit_state('plc'))['state']!='active':
+            raise HTTPException(409,'PLC 通信服务尚未启动；请先在 ROS 维护页启动已验证的 PLC 服务')
         if map_assets.tasks or runtime.mapping_control.active:
             raise HTTPException(409,'地图任务或建图正在进行，禁止请求 PLC 启动')
         runtime.bridge.require_stationary()
@@ -75,7 +77,7 @@ async def plc_stop_request(body:PlcStopRequest,actor=Depends(require('ros:mainta
                    'message':'停车回执已确认、软件锁定已保持；现有 PLC 协议没有物理停用命令及使能回读，请现场核实'})
 
 @router.post('/services/{key}/action')
-async def action(key:Literal['core','navigation','mapping'],body:Action,actor=Depends(require('ros:maintain')),db=Depends(get_db)):
+async def action(key:Literal['core','plc','navigation','mapping'],body:Action,actor=Depends(require('ros:maintain')),db=Depends(get_db)):
     enabled,reason=runtime.availability()
     if not enabled:raise HTTPException(409,reason)
     if body.action not in runtime.SERVICES[key]['actions']:raise HTTPException(409,'网页不允许停止或重启常驻核心服务')
@@ -92,6 +94,6 @@ async def job(key:str,actor=Depends(require('ros:view'))):
     except (ValueError,FileNotFoundError) as exc:raise HTTPException(404,str(exc)) from exc
 
 @router.get('/services/{key}/logs')
-async def logs(key:Literal['core','navigation','mapping'],actor=Depends(require('ros:maintain'))):
+async def logs(key:Literal['core','plc','navigation','mapping'],actor=Depends(require('ros:maintain'))):
     try:return ok({'text':await runtime.logs(key)})
     except (RuntimeError,OSError,TimeoutError) as exc:raise HTTPException(503,str(exc)) from exc
