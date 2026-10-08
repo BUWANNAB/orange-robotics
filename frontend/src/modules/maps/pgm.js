@@ -1,5 +1,6 @@
 /* P5 raster decoder, shared by localization and its format tests. */
 (function(root){
+  const occupied=[31,48,64],free=[248,250,252];
   function decode(buffer){
     const bytes=new Uint8Array(buffer);let offset=0;
     const whitespace=v=>v===32||v===9||v===10||v===13;
@@ -18,6 +19,25 @@
     for(let i=0;i<pixels.length;i++)pixels[i]=bytes[offset+i]*255/max;
     return {width,height,pixels};
   }
-  root.MapRaster={decode};
-  if(typeof module!=='undefined')module.exports={decode};
+  function colorizeValue(value,rgba,offset){
+    if(value===205){rgba[offset]=rgba[offset+1]=rgba[offset+2]=rgba[offset+3]=0;return;}
+    const ratio=value/255;
+    for(let channel=0;channel<3;channel++)rgba[offset+channel]=Math.round(occupied[channel]+(free[channel]-occupied[channel])*ratio);
+    rgba[offset+3]=255;
+  }
+  function colorizeInto(pixels,rgba){
+    if(rgba.length<pixels.length*4)throw Error('RGBA 缓冲区太小');
+    for(let i=0;i<pixels.length;i++)colorizeValue(pixels[i],rgba,i*4);
+    return rgba;
+  }
+  function colorize(pixels){return colorizeInto(pixels,new Uint8ClampedArray(pixels.length*4));}
+  function colorizeImageData(imageData){
+    const data=imageData.data;
+    for(let offset=0;offset<data.length;offset+=4){
+      if(data[offset+3]&&data[offset]===data[offset+1]&&data[offset+1]===data[offset+2])colorizeValue(data[offset],data,offset);
+    }
+    return imageData;
+  }
+  root.MapRaster={decode,colorize,colorizeInto,colorizeImageData};
+  if(typeof module!=='undefined')module.exports={decode,colorize,colorizeInto,colorizeImageData};
 })(typeof window==='undefined'?globalThis:window);

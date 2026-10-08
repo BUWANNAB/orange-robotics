@@ -2,7 +2,7 @@
   const $ = id => document.getElementById(id), api = window.OpsAPI;
   const canvas = $('pose-map'), ctx = canvas.getContext('2d');
   let socket, retry, closed = false, lastMessage = 0, frame, trail = [], maps = [], documentMap, background, imageURL;
-  let following = true, activeKey, selectedKey, mapGeneration = 0;
+  let following = true, activeKey, selectedKey, mapGeneration = 0, viewRotation = 0;
   let picking=false, gesture=null, candidate=null, view=null, submitting=false;
   function confirmedMap(key){
     const entry=maps.find(m=>m.key===key),active=frame?.switch;
@@ -17,16 +17,21 @@
     const p=map && !confirmedMap(selectedKey) ? null : frame?.position;
     const cx=following&&p?p.LocalX:map?(map.center_x??map.origin_x+map.width/2):0;
     const cy=following&&p?p.LocalY:map?(map.center_y??map.origin_y+map.height/2):0;
-    const scale=following?Math.min(w,h)/25:map?Math.min(w/(map.extent_x||map.width),h/(map.extent_y||map.height))*.9:20;
-    view={w,h,cx,cy,scale};
+    const rotation=viewRotation*Math.PI/180,cos=Math.abs(Math.cos(rotation)),sin=Math.abs(Math.sin(rotation));
+    const extentX=map?(map.extent_x||map.width):25,extentY=map?(map.extent_y||map.height):25;
+    const rotatedWidth=cos*extentX+sin*extentY,rotatedHeight=sin*extentX+cos*extentY;
+    const scale=following?Math.min(w,h)/25:map?Math.min(w/rotatedWidth,h/rotatedHeight)*.9:20;
+    view={w,h,cx,cy,scale,rotation};
     $('pick-pose').disabled=!map||!selectedKey;
     const xy=(x,y)=>[w/2+(x-cx)*scale,h/2-(y-cy)*scale];
-    ctx.strokeStyle='#dce4eb';ctx.lineWidth=1;
     const step=Math.max(1,Math.ceil(35/scale));
-    for(let x=Math.floor((cx-w/2/scale)/step)*step;x<cx+w/2/scale;x+=step){const a=xy(x,0);ctx.beginPath();ctx.moveTo(a[0],0);ctx.lineTo(a[0],h);ctx.stroke();}
-    for(let y=Math.floor((cy-h/2/scale)/step)*step;y<cy+h/2/scale;y+=step){const a=xy(0,y);ctx.beginPath();ctx.moveTo(0,a[1]);ctx.lineTo(w,a[1]);ctx.stroke();}
+    const rangeX=(cos*w+sin*h)/(2*scale),rangeY=(sin*w+cos*h)/(2*scale);
+    ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotation);ctx.translate(-w/2,-h/2);
+    if(map&&background){ctx.save();ctx.translate(...xy(map.origin_x,map.origin_y));ctx.rotate(-(map.yaw||0));ctx.drawImage(background,0,-map.height*scale,map.width*scale,map.height*scale);ctx.restore();}
+    ctx.strokeStyle='#dfe8ee';ctx.lineWidth=1;
+    for(let x=Math.floor((cx-rangeX)/step)*step;x<=cx+rangeX;x+=step){const a=xy(x,cy-rangeY),b=xy(x,cy+rangeY);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
+    for(let y=Math.floor((cy-rangeY)/step)*step;y<=cy+rangeY;y+=step){const a=xy(cx-rangeX,y),b=xy(cx+rangeX,y);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();}
     if(map){
-      if(background){ctx.save();ctx.translate(...xy(map.origin_x,map.origin_y));ctx.rotate(-(map.yaw||0));ctx.drawImage(background,0,-map.height*scale,map.width*scale,map.height*scale);ctx.restore();}
       const pts=Object.fromEntries(map.points.map(v=>[v.code,v]));
       ctx.strokeStyle='#8095a8';ctx.lineWidth=2;
       for(const edge of map.paths){const a=pts[edge.start],b=pts[edge.end];if(!a||!b)continue;ctx.beginPath();ctx.moveTo(...xy(a.x,a.y));ctx.lineTo(...xy(b.x,b.y));ctx.stroke();}
@@ -40,7 +45,13 @@
       ctx.beginPath();ctx.arc(0,0,6,0,2*Math.PI);ctx.stroke();ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(55,0);ctx.lineTo(43,-7);ctx.moveTo(55,0);ctx.lineTo(43,7);ctx.stroke();ctx.restore();
       ctx.fillStyle='#84239f';ctx.fillText('待确认初始位姿',a[0]+12,a[1]+22);
     }
-    ctx.fillStyle='#45586c';ctx.fillText(`网格 ${step} m · +X 向右 / +Y 向上`,12,h-12);
+    ctx.restore();
+    const directions={0:'ROS +X 向右 / +Y 向上',90:'ROS +X 向下 / +Y 向右',180:'ROS +X 向左 / +Y 向下',270:'ROS +X 向上 / +Y 向左'};
+    ctx.fillStyle='#62778a';ctx.font='12px Microsoft YaHei, sans-serif';ctx.fillText(`网格 ${step} m · ${directions[viewRotation]}`,12,h-12);
+  }
+  function setViewRotation(degrees){
+    if(gesture||picking)cancelPick();
+    viewRotation=(degrees+360)%360;$('map-rotation').textContent=`${viewRotation}°`;draw();
   }
   function apply(value){
     frame=value;lastMessage=Date.now();
@@ -73,7 +84,7 @@
     socket.onerror=()=>socket.close();socket.onclose=()=>{if(!closed)retry=setTimeout(connect,2000);};
   }
   async function loadMap(key){
-    const generation=++mapGeneration;selectedKey=key;documentMap=null;background=null;
+    const generation=++mapGeneration;selectedKey=key;documentMap=null;background=null;viewRotation=0;$('map-rotation').textContent='0°';
     cancelPick();
     if(imageURL)URL.revokeObjectURL(imageURL);
     const entry=maps.find(m=>m.key===key);draw();
@@ -92,7 +103,7 @@
         documentMap={width,height,origin_x:x,origin_y:y,yaw,center_x:x+c*width/2-s*height/2,center_y:y+s*width/2+c*height/2,extent_x:Math.abs(c*width)+Math.abs(s*height),extent_y:Math.abs(s*width)+Math.abs(c*height),points:[],paths:[]};
         background=document.createElement('canvas');background.width=raster.width;background.height=raster.height;
         const image=background.getContext('2d').createImageData(raster.width,raster.height);
-        for(let i=0;i<raster.pixels.length;i++){image.data[i*4]=image.data[i*4+1]=image.data[i*4+2]=raster.pixels[i];image.data[i*4+3]=255;}
+        window.MapRaster.colorizeInto(raster.pixels,image.data);
         background.getContext('2d').putImageData(image,0,0);following=false;
         $('map-caption').textContent=`${asset.id} · ${resolution} m/像素${!confirmedMap(key)?' · 底图预览，尚未确认定位地图；隐藏车辆叠加':''}`;draw();
       }catch(error){$('message').textContent=error.message;}
@@ -104,7 +115,7 @@
       documentMap=versions.find(v=>v.version===entry.version)?.document;
       if(!documentMap)throw Error('绑定地图版本不存在');
       following=false;$('map-caption').textContent=`${entry.key} · RDS 地图 #${entry.map_id} v${entry.version}${!confirmedMap(key)?" · 预览，尚未确认加载此版本；隐藏车辆叠加":""}`;
-      if(documentMap.image){const blob=await api.download(`/api/maps/${entry.map_id}/image/${documentMap.image}`);if(generation!==mapGeneration)return;imageURL=URL.createObjectURL(blob);background=new Image();background.onload=draw;background.src=imageURL;}
+      if(documentMap.image){const blob=await api.download(`/api/maps/${entry.map_id}/image/${documentMap.image}`);if(generation!==mapGeneration)return;imageURL=URL.createObjectURL(blob);const source=new Image();source.onload=()=>{if(generation!==mapGeneration)return;background=document.createElement('canvas');background.width=source.naturalWidth;background.height=source.naturalHeight;const context=background.getContext('2d');context.drawImage(source,0,0);const raster=context.getImageData(0,0,background.width,background.height);window.MapRaster.colorizeImageData(raster);context.putImageData(raster,0,0);draw();};source.onerror=()=>{$('message').textContent='地图底图图片解码失败';};source.src=imageURL;}
       draw();
     }catch(error){$('message').textContent=error.message;}
   }
@@ -149,6 +160,9 @@
   $('stop-button').onclick=()=>action('/api/localization/stop');$('release-button').onclick=()=>action('/api/localization/release');
   $('use-pose').onclick=()=>{cancelPick();if(frame?.localization.fresh){$('pose-x').value=frame.position.LocalX;$('pose-y').value=frame.position.LocalY;$('pose-yaw').value=frame.position.Heading;}};
   $('map-key').onchange=()=>{trail=[];loadMap($('map-key').value);};
+  $('rotate-view-left').onclick=()=>setViewRotation(viewRotation-90);
+  $('rotate-view-right').onclick=()=>setViewRotation(viewRotation+90);
+  $('reset-view-rotation').onclick=()=>setViewRotation(0);
   $('follow').onclick=()=>{cancelPick();following=!following;draw();};$('clear-trail').onclick=()=>{trail=[];draw();};
   window.addEventListener('resize',()=>{if(gesture)cancelPick();else draw();});
   const watchdog=setInterval(()=>{if(Date.now()-lastMessage>2000){$('pose-status').textContent='连接断流，位置仅为最后已知值';$('pose-status').className='state';$('switch-button').disabled=true;$('release-button').disabled=true;$('auto-pose').disabled=true;}},500);
