@@ -1,0 +1,10 @@
+.map-existing-picker{display:grid;grid-template-columns:minmax(220px,1fr) minmax(360px,1.25fr);gap:22px;align-items:center;margin:0 0 16px;padding:18px 20px;border:1px solid #dfe7e7;border-left:4px solid #8faea8;border-radius:10px;background:linear-gradient(110deg,#f7faf8,#fff 58%)}
+.map-picker-copy h2{margin:0 0 6px;font-size:16px;color:#29434a}
+.map-picker-copy p{margin:0;color:#71818a;font-size:12px;line-height:1.7}
+.map-picker-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+.map-picker-controls label{grid-column:1/-1;color:#536971;font-size:12px;font-weight:600}
+.map-picker-controls select{width:100%;min-height:42px;color:#344b52}
+.map-picker-controls button{min-height:42px;padding-inline:18px;white-space:nowrap}
+.map-picker-controls .map-picker-readonly{grid-column:1/-1;color:#7b8990;font-size:12px}
+.map-picker-controls button:focus-visible,.map-picker-controls select:focus-visible{outline:3px solid #8fb8af;outline-offset:2px}
+@media(max-width:760px){.map-existing-picker{grid-template-columns:1fr;gap:14px;padding:15px}.map-picker-controls{grid-template-columns:minmax(0,1fr)}.map-picker-controls label{grid-column:auto}.map-picker-controls button{width:100%}}

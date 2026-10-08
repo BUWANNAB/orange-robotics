@@ -8,7 +8,7 @@
     ['alarms','报警中心','alarm:view'],['tasks','任务历史','task:view'],['logs','日志中心','log:view'],
     ['maps','实时地图 / 线路编辑','map:view'],['integration','WMS 对接','integration:manage'],['firmware','固件库','firmware:view'],['upgrades','升级任务','firmware:view']
   ];
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -64,7 +64,10 @@
         $('log-next').onclick=()=>{state.logStack.push(state.logBefore);state.logBefore=data.next;load();};$('log-prev').onclick=()=>{state.logBefore=state.logStack.pop();load();};
       }else if(tab==='maps'){
         data=await api.get('/api/maps',params);
-        html=table(['地图名称','草稿修订','发布版本','点位 / 路径 / 区域','更新人','操作'],data.list.map(r=>[escape(r.name),r.revision,r.published_version||'未发布',`${r.draft.points.length} / ${r.draft.paths.length} / ${r.draft.areas.length}`,escape(r.operator),button('打开编辑器','edit-map',r.id,'map:edit')+button('版本','map-versions',r.id,'map:view')+button('导出','export-map',r.id,'map:view')+button('删除','delete-map',r.id,'map:edit','danger')]));
+        const choices=await api.get('/api/maps',{pageNo:1,pageSize:100});
+        state.mapChoices=choices.list||[];
+        if(!state.mapChoices.some(map=>String(map.id)===String(state.selectedMapId)))state.selectedMapId='';
+        html=window.OperationsMapPicker.render(state.mapChoices,can('map:edit'),state.selectedMapId)+table(['地图名称','草稿修订','发布版本','点位 / 路径 / 区域','更新人','操作'],data.list.map(r=>[escape(r.name),r.revision,r.published_version||'未发布',`${r.draft.points.length} / ${r.draft.paths.length} / ${r.draft.areas.length}`,escape(r.operator),button('打开编辑器','edit-map',r.id,'map:edit')+button('版本','map-versions',r.id,'map:view')+button('导出','export-map',r.id,'map:view')+button('删除','delete-map',r.id,'map:edit','danger')]));
       }else if(tab==='integration'){
         data=await api.get('/api/integration/apps');
         html=table(['应用编号','名称','状态','IP 白名单','回调地址','操作'],data.list.map(r=>[escape(r.code),escape(r.name),badge(r.enabled?'idle':'disabled'),escape(r.ips.join(', ')),escape(r.callback_url||'未配置'),button(r.enabled?'停用':'启用','toggle-app',r.id,'integration:manage')+button('重置密钥','rotate-secret',r.id,'integration:manage')]));
@@ -78,6 +81,13 @@
       if(loadId!==state.loadId||tab!==state.tab)return;
       if(data?.list)state.rows=data.list;
       $('content').innerHTML=html;
+      if(tab==='maps'){
+        const picker=$('existing-map-picker'),open=$('open-selected-map');
+        if(picker&&open){
+          picker.onchange=()=>{state.selectedMapId=picker.value;open.dataset.id=picker.value;open.disabled=!picker.value;};
+          open.dataset.id=picker.value;open.disabled=!picker.value;
+        }
+      }
       if(data?.total!==undefined&&['robots','battery','alarms','tasks','maps'].includes(tab))paginate(data.total);
       $('updated').textContent='更新于 '+new Date().toLocaleTimeString('zh-CN');
     }catch(error){if(loadId===state.loadId)notify(error.message,true);}
@@ -206,6 +216,10 @@
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
     if(name==='export-logs'){const params=filterParams();params.level=params.state;saveBlob(await api.download('/api/logs/export',params),'运行日志.csv');return;}
     if(name==='add-map')return dialog('新建地图',`<div class="form-grid">${field('name','地图名称','','text','required')}${field('width','宽度（米）',100,'number','min="1" required')}${field('height','高度（米）',100,'number','min="1" required')}${field('resolution','分辨率（米/像素）',.05,'number','min="0.001" step="0.001"')}</div>`,form=>api.post('/api/maps',{name:form.get('name'),document:{width:Number(form.get('width')),height:Number(form.get('height')),resolution:Number(form.get('resolution')),points:[],paths:[],areas:[]}}));
+    if(name==='open-selected-map'){
+      if(!id)throw new Error('请先从已有地图列表中选择一张地图。');
+      return openMap(await api.get(`/api/maps/${id}`));
+    }
     if(name==='edit-map')return openMap(row);
     if(name==='leave-map'){if(leaveMap())return load();return;}
     if(name.startsWith('tool-')){state.map.tool=name.slice(5);document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(tool=>tool.classList.toggle('map-tool-active',tool.dataset.action===name));notify({select:'拖动站点可调整坐标；点击路径或区域可编辑',point:'点击画布添加站点',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域顶点，双击闭合；新区域类型可在工具栏选择',pan:'拖动画布平移'}[state.map.tool]);return;}

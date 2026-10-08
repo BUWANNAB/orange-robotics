@@ -6,17 +6,40 @@
     <title>二维修图 · 地图工作台</title>
     <script>if(!new URLSearchParams(location.search).has('embedded'))location.replace('/ui/map-workbench.html'+location.search+'#grid');</script>
     <style>
-        @import url('css/handle_map.css?v=coordinate-frame-1');
+        @import url('css/handle_map.css?v=20261008-comfortable-editor');
     </style>
     <style>
     body{background:#f2f5f7;color:#172b3a;font-family:'Segoe UI','Microsoft YaHei',sans-serif;padding:16px}
     .container{padding:0;box-shadow:none;border-radius:0;background:transparent}
-    button{border-radius:6px!important;background:#183547;font:inherit;box-shadow:none!important}
-    button:hover{background:#294c62}.tools button i{display:none}button.active{background:#eb7424!important}
+    button{border-radius:6px!important;background:#536f78;font:inherit;box-shadow:none!important}
+    button:hover{background:#45616a}.tools button i{display:none}button.active{background:#d77b43!important}
     input,select,#mapSelector{border:1px solid #d8e1e7!important;border-radius:6px;padding:8px;background:#fff!important;color:#172b3a!important}
     .panel{border:1px solid #d8e1e7;box-shadow:none!important;border-radius:8px}
     #recordMap,#topMapRoomBtn,#mapRoomDropdown,#deleteMapBtn{display:none!important}
     h2,h3{font-size:18px;color:#172b3a!important}#btnDownPGM,#btnDownPNG{background:#eb7424}
+    .drawing-mode-hint{gap:12px;padding:10px 14px;background:#f7f4ee;border:1px solid #e9e1d5;border-left:3px solid #bf8057;border-radius:8px;color:#52616b;font-size:14px;line-height:1.6}
+    .drawing-mode-hint i{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:#bf8057;color:#fff;font-size:12px;font-style:normal;font-weight:700}
+    .status-message{background:#f7f4ee!important;color:#52616b!important;border:1px solid #e9e1d5!important;border-left:3px solid #bf8057!important;border-radius:8px!important}
+    .panel:hover{box-shadow:none!important}
+    .tool-mode-selector{background:#f1f5f3!important;border:1px solid #e0e8e4!important}
+    .tool-mode-btn{background:#e8efec!important;border:1px solid #cddbd5!important;color:#47625c!important}
+    .tool-mode-btn.active{background:#607e78!important;border-color:#607e78!important;color:#fff!important}
+    button.secondary,button.drag-mode,button.task-mode,button.hand-mode,button.arrow-mode{background:#607e78!important;color:#fff!important}
+    button.secondary:hover,button.drag-mode:hover,button.task-mode:hover,button.hand-mode:hover,button.arrow-mode:hover{background:#4f6f69!important}
+    button.warning{background:#bf8057!important;color:#fff!important}
+    .task-queue-count,.task-number{background:#607e78!important}
+    .task-item.selected{background:rgba(191,128,87,.09)!important;border-left-color:#bf8057!important}
+    .color-btn.active{border-color:#bf8057!important}
+    .insert-indicator{background:#bf8057!important}
+    .sub-file-item:hover{background:#f3f5f3!important}
+    .sub-file-item.selected{background:#edf3ef!important}
+    .zoom-controls{gap:6px;padding:7px 9px;background:rgba(247,248,246,.96);border:1px solid #dfe5e1;border-radius:14px;box-shadow:0 4px 14px rgba(31,48,54,.14);backdrop-filter:blur(6px)}
+    .zoom-controls button{min-width:42px;min-height:40px;padding:7px 11px!important;border:1px solid #c8d7d2!important;border-radius:8px!important;background:#607e78!important;color:#fff!important;font-weight:600}
+    .zoom-controls button:hover{background:#4f6f69!important}
+    .zoom-controls #btnResetZoom{background:#e8efeb!important;color:#405a55!important}
+    .zoom-controls #btnResetZoom:hover{background:#dbe7e1!important}
+    .zoom-display{min-width:54px;color:#485b60;font-size:13px}
+    button:focus-visible,select:focus-visible{outline:3px solid rgba(191,128,87,.42);outline-offset:2px}
     </style>
 </head>
 <body>
@@ -98,15 +121,15 @@
         <div class="hand-mode-preview" id="handModePreview" style="display: none;">
             当前顺序: <span id="sequencePreview">未选择</span>
         </div>
-        <div class="drawing-mode-hint">
-            <i>💡</i>
+        <div class="drawing-mode-hint" role="status" aria-live="polite">
+            <i aria-hidden="true">i</i>
             <span id="toolHint">提示：在钢笔模式下，点击添加多边形点，双击闭合路径；或拖拽绘制矩形选区</span>
         </div>
         <div class="canvas-container">
             <div class="zoom-controls">
-                <button id="btnZoomOut" title="缩小">➖</button>
+                <button id="btnZoomOut" title="缩小">−</button>
                 <button id="btnResetZoom" title="重置缩放">100%</button>
-                <button id="btnZoomIn" title="放大">➕</button>
+                <button id="btnZoomIn" title="放大">+</button>
                 <div class="zoom-display" id="zoomDisplay">100%</div>
             </div>
             <div class="drag-hint" id="dragHint">拖拽模式已激活</div>
