@@ -3033,6 +3033,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
         try {
             statusMessage.style.display = 'block';
             statusMessage.textContent = `正在加载地图: ${mapName}...`;
+            statusMessage.className = 'status-message';
             
             // 从后端获取PGM和YAML文件
             const before = await fetch('/api/map-workbench/assets', {headers:mapAuth()}).then(r=>r.json());
@@ -3074,10 +3075,12 @@ let isDrawingRect = false; // 是否正在绘制矩形
             drawPGM();
             draw();
 
+            statusMessage.className = 'status-message success';
             statusMessage.textContent = `地图 ${mapName} 加载成功！`;
             setTimeout(() => statusMessage.style.display = 'none', 2000);
         } catch (error) {
             statusMessage.style.display = 'block';
+            statusMessage.className = 'status-message error';
             statusMessage.textContent = `加载地图失败: ${error.message}`;
         }
     }

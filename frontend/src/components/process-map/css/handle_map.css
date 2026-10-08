@@ -378,13 +378,32 @@
         }
         .status-message {
             padding: 15px;
-            background: #ffeb3b;
-            color: #333;
-            border-radius: 6px;
+            background: #f7f4ee;
+            color: #52616b;
+            border: 1px solid #e9e1d5;
+            border-radius: 8px;
             margin-top: 15px;
             display: none;
             font-weight: 500;
-            border-left: 4px solid #f1c40f;
+            border-left: 3px solid #bf8057;
+        }
+        .status-message.success {
+            background: #edf4f0;
+            color: #476158;
+            border-color: #d7e5dc;
+            border-left-color: #789a8b;
+        }
+        .status-message.error {
+            background: #fbf0ed;
+            color: #805447;
+            border-color: #ead9d3;
+            border-left-color: #bf7059;
+        }
+        .status-message.warning {
+            background: #f6f1e8;
+            color: #756249;
+            border-color: #e8dfcf;
+            border-left-color: #b69762;
         }
         .action-feedback {
             position: absolute;
@@ -495,28 +514,35 @@
             display: flex;
             gap: 8px;
             z-index: 50;
-            background: rgba(30, 30, 46, 0.85);
+            background: rgba(247, 248, 246, 0.96);
+            border: 1px solid #dfe5e1;
             padding: 8px 12px;
             border-radius: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 14px rgba(31,48,54,0.14);
+            backdrop-filter: blur(6px);
         }
         .zoom-controls button {
-            padding: 6px 12px;
-            background: #3498db;
+            min-width: 42px;
+            min-height: 40px;
+            padding: 7px 11px;
+            background: #607e78;
             color: white;
-            border: none;
-            border-radius: 20px;
+            border: 1px solid #c8d7d2;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.9rem;
             display: flex;
             align-items: center;
             justify-content: center;
         }
+        .zoom-controls button:hover { background: #4f6f69; }
+        .zoom-controls #btnResetZoom { background: #e8efeb; color: #405a55; }
+        .zoom-controls #btnResetZoom:hover { background: #dbe7e1; }
         .zoom-display {
             min-width: 60px;
             text-align: center;
             font-weight: 600;
-            color: #f0f0f0;
+            color: #485b60;
             display: flex;
             align-items: center;
             justify-content: center;

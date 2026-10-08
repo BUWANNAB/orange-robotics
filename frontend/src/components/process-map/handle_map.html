@@ -6,7 +6,7 @@
     <title>二维修图 · 地图工作台</title>
     <script>if(!new URLSearchParams(location.search).has('embedded'))location.replace('/ui/map-workbench.html'+location.search+'#grid');</script>
     <style>
-        @import url('css/handle_map.css?v=20261008-comfortable-editor');
+        @import url('css/handle_map.css?v=20261008-status-calm');
     </style>
     <style>
     body{background:#f2f5f7;color:#172b3a;font-family:'Segoe UI','Microsoft YaHei',sans-serif;padding:16px}
@@ -19,7 +19,9 @@
     h2,h3{font-size:18px;color:#172b3a!important}#btnDownPGM,#btnDownPNG{background:#eb7424}
     .drawing-mode-hint{gap:12px;padding:10px 14px;background:#f7f4ee;border:1px solid #e9e1d5;border-left:3px solid #bf8057;border-radius:8px;color:#52616b;font-size:14px;line-height:1.6}
     .drawing-mode-hint i{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:#bf8057;color:#fff;font-size:12px;font-style:normal;font-weight:700}
-    .status-message{background:#f7f4ee!important;color:#52616b!important;border:1px solid #e9e1d5!important;border-left:3px solid #bf8057!important;border-radius:8px!important}
+    #statusMessage,.status-message{background:#f7f4ee!important;color:#52616b!important;border:1px solid #e9e1d5!important;border-left:3px solid #bf8057!important;border-radius:8px!important}
+    #statusMessage.success,.status-message.success{background:#edf4f0!important;color:#476158!important;border-color:#d7e5dc!important;border-left-color:#789a8b!important}
+    #statusMessage.error,.status-message.error{background:#fbf0ed!important;color:#805447!important;border-color:#ead9d3!important;border-left-color:#bf7059!important}
     .panel:hover{box-shadow:none!important}
     .tool-mode-selector{background:#f1f5f3!important;border:1px solid #e0e8e4!important}
     .tool-mode-btn{background:#e8efec!important;border:1px solid #cddbd5!important;color:#47625c!important}
@@ -33,7 +35,7 @@
     .insert-indicator{background:#bf8057!important}
     .sub-file-item:hover{background:#f3f5f3!important}
     .sub-file-item.selected{background:#edf3ef!important}
-    .zoom-controls{gap:6px;padding:7px 9px;background:rgba(247,248,246,.96);border:1px solid #dfe5e1;border-radius:14px;box-shadow:0 4px 14px rgba(31,48,54,.14);backdrop-filter:blur(6px)}
+    .zoom-controls{gap:6px;padding:7px 9px!important;background:rgba(247,248,246,.96)!important;border:1px solid #dfe5e1!important;border-radius:14px!important;box-shadow:0 4px 14px rgba(31,48,54,.14)!important;backdrop-filter:blur(6px)}
     .zoom-controls button{min-width:42px;min-height:40px;padding:7px 11px!important;border:1px solid #c8d7d2!important;border-radius:8px!important;background:#607e78!important;color:#fff!important;font-weight:600}
     .zoom-controls button:hover{background:#4f6f69!important}
     .zoom-controls #btnResetZoom{background:#e8efeb!important;color:#405a55!important}
@@ -214,6 +216,6 @@
  <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
  <script src="../../../src/api/api-simple.js"></script>
 <script src="js/map_coordinates.js?v=coordinate-frame-1"></script>
-<script src="js/handle_map.js?v=coordinate-frame-1"></script>
+<script src="js/handle_map.js?v=20261008-status-calm"></script>
 </body>
 </html>
