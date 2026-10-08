@@ -136,7 +136,8 @@ private:
     int RemoteCtrlAutomaticSwitch = 1;//是否为遥控状态
     struct imu_data imu_data_;    //IMU数据
     struct velocity_data vel_data_rev_;    //接收机器人的速度
-    struct velocity_data vel_data_send_;    //发送机器人的速度
+    // Never write indeterminate velocity values to PLC registers on startup.
+    struct velocity_data vel_data_send_{};  //发送机器人的速度
     struct imu_orientation_data orient_data_;  //IMU四元数姿态数据
     struct pose_data pos_data_;    //机器人的位置
     struct remote_ctrl remote_ctrl_;//遥控数据
@@ -150,7 +151,7 @@ private:
     std::atomic<bool> is_connected_{false}; // 连接状态标志
     std::atomic<int64_t> last_plc_read_ms_{0}; // 最近一次成功读取寄存器的稳态时钟时间
     rclcpp::TimerBase::SharedPtr data_timeout_timer_; // 数据超时定时器
-    bool timer_active_; // 定时器激活状态标志
+    bool timer_active_{false}; // 定时器激活状态标志
     
     // 异步 Modbus I/O 线程与线程安全保护
     std::thread worker_thread_;
