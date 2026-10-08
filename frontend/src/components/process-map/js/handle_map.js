@@ -283,7 +283,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
             coordinateSummary.textContent = '此地图缺少有效的 resolution / origin，无法显示米制坐标。';
             coordinateReadout.textContent = '光标坐标：—';
             coordinateGridSpacing.textContent = '网格间距：—';
-            updateCoordinateOverlay();
+            drawCoordinateOverlay();
             return;
         }
 
@@ -296,7 +296,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
         const [x, y, yaw] = mapCoordinateFrame.origin;
         const fmt = value => (Math.abs(value) < 0.0005 ? 0 : value).toFixed(3);
         coordinateSummary.textContent = `分辨率 ${mapCoordinateFrame.resolution} m/像素 · 栅格原点 X ${fmt(x)} m，Y ${fmt(y)} m · 朝向 ${fmt(yaw * 180 / Math.PI)}°`;
-        updateCoordinateOverlay();
+        drawCoordinateOverlay();
     }
 
     function pixelToCanvas(pixel) {

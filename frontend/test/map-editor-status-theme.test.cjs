@@ -20,7 +20,7 @@ test('zoom controls use the softened palette and the embedded editor cache key i
   const zoomRule = css.match(/\.zoom-controls button\s*\{([^}]+)\}/)?.[1] || '';
   assert.match(zoomRule, /background:\s*#607e78/i);
   assert.doesNotMatch(zoomRule, /#3498db/i);
-  assert.match(editor, /handle_map\.js\?v=20261008-status-calm/);
+  assert.match(editor, /handle_map\.js\?v=20261008-coordinate-overlay-fix/);
   assert.match(editor, /handle_map\.css\?v=20261008-status-calm/);
-  assert.match(workbench, /ui=20261008-status-calm/);
+  assert.match(workbench, /ui=20261008-coordinate-overlay-fix/);
 });
