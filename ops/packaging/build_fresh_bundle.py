@@ -24,6 +24,7 @@ ROOTS = (
     "frontend/localization.html",
     "frontend/map-workbench.html",
     "frontend/map-bindings.html",
+    "frontend/radar-settings.html",
     "frontend/ros-maintenance.html",
     "ros/orange_nav_ws/src",
     "ros/orange_nav_ws/scripts",
