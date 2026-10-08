@@ -130,6 +130,84 @@ class LidarModelTests(unittest.TestCase):
                     }, None))
                 self.assertEqual(path.read_bytes(), before)
 
+    def test_production_mount_save_does_not_require_plc_stationary_feedback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sensor.json"
+            path.write_bytes((CONFIGS / "MID360s_config.json").read_bytes())
+            from app.services.ros2_service import ros2_service
+            async def unit_state(name):
+                return {"state": "active" if name == "core" else "inactive",
+                        "load": "loaded"}
+
+            with patch.dict(os.environ, {"MID360_CONFIG_FILE": str(path),
+                                         "ORANGE_OBSTACLE_CONFIG_FILE": "",
+                                         "ENVIRONMENT": "production"}), \
+                 patch("app.services.lidar_service.platform.system", return_value="Linux"), \
+                 patch("app.services.ros_runtime.unit_state", new_callable=AsyncMock,
+                       side_effect=unit_state), \
+                 patch("app.services.ros_runtime.graph", return_value=[]), \
+                 patch("app.services.mapping_control.active", False), \
+                 patch.object(ros2_service, "require_ros"), \
+                 patch.object(ros2_service, "require_stationary",
+                              side_effect=RuntimeError("PLC 连接反馈缺失或过期")) as stationary:
+                asyncio.run(LidarService.update_config({
+                    "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
+                    "extrinsics": MEASURED_MOUNT, "mount_confirmed": True,
+                }, None))
+
+            stationary.assert_not_called()
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["robot_mount"]["x"], 100)
+            self.assertTrue(Path(str(path) + ".pending.json").is_file())
+
+    def test_production_mount_save_is_blocked_while_navigation_is_active(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sensor.json"
+            path.write_bytes((CONFIGS / "MID360s_config.json").read_bytes())
+            original = path.read_bytes()
+            async def unit_state(name):
+                return {"state": "active" if name in {"core", "navigation"} else "inactive",
+                        "load": "loaded"}
+
+            with patch.dict(os.environ, {"MID360_CONFIG_FILE": str(path),
+                                         "ENVIRONMENT": "production"}), \
+                 patch("app.services.lidar_service.platform.system", return_value="Linux"), \
+                 patch("app.services.ros_runtime.unit_state", new_callable=AsyncMock,
+                       side_effect=unit_state), \
+                 patch("app.services.mapping_control.active", False):
+                with self.assertRaisesRegex(ValueError, "定位与导航服务必须已停止"):
+                    asyncio.run(LidarService.update_config({
+                        "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
+                        "extrinsics": MEASURED_MOUNT, "mount_confirmed": True,
+                    }, None))
+
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(Path(str(path) + ".pending.json").exists())
+
+    def test_production_mount_save_is_blocked_during_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sensor.json"
+            path.write_bytes((CONFIGS / "MID360s_config.json").read_bytes())
+            original = path.read_bytes()
+            async def unit_state(name):
+                return {"state": "active" if name == "core" else "inactive",
+                        "load": "loaded"}
+
+            with patch.dict(os.environ, {"MID360_CONFIG_FILE": str(path),
+                                         "ENVIRONMENT": "production"}), \
+                 patch("app.services.lidar_service.platform.system", return_value="Linux"), \
+                 patch("app.services.ros_runtime.unit_state", new_callable=AsyncMock,
+                       side_effect=unit_state), \
+                 patch("app.services.mapping_control.active", True):
+                with self.assertRaisesRegex(ValueError, "建图尚未结束"):
+                    asyncio.run(LidarService.update_config({
+                        "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
+                        "extrinsics": MEASURED_MOUNT, "mount_confirmed": True,
+                    }, None))
+
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(Path(str(path) + ".pending.json").exists())
+
     def test_verification_requires_restart_and_live_cloud(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "sensor.json"

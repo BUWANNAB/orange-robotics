@@ -858,7 +858,7 @@
                 showNotification("配置已保存；按配置变化停车后重启 ROS 核心/导航服务，再点“验证生效”", "success");
                 await loadConfig();
             } else {
-                showNotification("保存失败: " + (json.message || json.detail || res.status), "error");
+                showNotification(json.message || json.detail || `保存失败: ${res.status}`, "error");
             }
         } catch (e) {
             showNotification("请求出错: " + e.message, "error");

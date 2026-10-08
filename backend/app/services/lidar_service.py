@@ -211,15 +211,26 @@ class LidarService:
         if Path(configured).is_symlink() or cfg_path.is_symlink():
             raise ValueError("雷达配置文件不能是符号链接")
         if os.getenv("ENVIRONMENT", "development") == "production" and platform.system() == "Linux":
-            from app.services import ros_runtime
+            from app.services import mapping_control, ros_runtime
             from app.services.ros2_service import ros2_service
             core = await ros_runtime.unit_state("core")
             if core["state"] not in {"active", "inactive", "failed"}:
                 raise ValueError("无法确认 ROS 核心服务状态，禁止修改运行配置")
+            if mapping_control.active:
+                raise ValueError("建图尚未结束；请先保存并结束采集，再修改雷达配置")
+            navigation = await ros_runtime.unit_state("navigation")
+            if navigation["state"] != "inactive":
+                raise ValueError("定位与导航服务必须已停止，才能暂存雷达配置")
             if core["state"] == "active":
-                ros2_service.require_stationary()
-                if ros2_service.navigation.get("status") in {"sending", "running"}:
-                    raise ValueError("任务尚未结束，禁止修改雷达配置")
+                ros2_service.require_ros()
+                try:
+                    running_navigation_nodes = set(ros_runtime.graph()) & set(
+                        ros_runtime.SERVICES["navigation"]["nodes"])
+                except Exception as exc:
+                    raise ValueError("无法读取 ROS 节点图，不能确认定位与导航已停止") from exc
+                if running_navigation_nodes:
+                    raise ValueError("定位与导航节点仍在运行，不能暂存雷达配置：" +
+                                     ", ".join(sorted(running_navigation_nodes)))
 
         async with _config_lock:
             original = json.loads(cfg_path.read_text(encoding="utf-8"))

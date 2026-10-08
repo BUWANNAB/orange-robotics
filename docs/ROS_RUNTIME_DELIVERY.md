@@ -28,6 +28,7 @@
 - 新模式关闭 LIO-SAM 的 RViz 和重复 robot_state_publisher。核心服务从共享雷达 JSON 的 `robot_mount` 发布唯一的 `base_link → livox_frame` 静态 TF；Livox 驱动外参必须保持零，防止点云重复变换。首次复制型号模板后，先在 Web 页面填入现场实测安装外参，才能启动核心服务。定位启动链不再重复发布该 TF。
 - 人工推车建图前，Web 检查 navigation systemd 服务已加载且 inactive、ROS 图中无导航节点、近 2 秒收到 `/livox/lidar` 点云且 `/buildmap` 至少有一个建图控制器订阅者；无需 `/vehicle_run_status`、`/odom_topic` 或 PLC 回读。页面要求操作者现场确认底盘厂家允许的手动/自由轮状态。建图开始与结束不会发布底盘路线/停止/启动脉冲，也不依赖定位 lifecycle 服务。建图期间导航服务保持停止，保存 PCD 后由操作者检查结果，再按需启动 navigation 并重新定位。软件无法验证物理牵引使能。
 - 安装外参写在雷达 JSON 顶层 `robot_mount`，位置用毫米、姿态用度；`lidar_configs[0].extrinsic_parameter` 保持为零是预期行为，不代表外参没保存。配置页读取不会写文件；保存时六个实测值、现场确认框和共享文件路径必须通过校验。
+- 暂存雷达型号、IP、安装外参和点云防护参数时，必须确认建图已结束、定位与导航服务及其 ROS 节点均已停止。此操作只写共享配置与待验证标记，不控制 PLC 或底盘，因此不要求 PLC 停车回读；配置需按维护流程重启相关 ROS 服务后才会生效。
 - 新服务入口要求显式初始位姿；首次无可用地图时，定位节点等待地图和初始位姿，不对空点云建立匹配目标。
 - 自动导航防护链为 PointCloud2 → `orange_pointcloud_filter`（TF 到 `base_link`、CropBox、近远距离裁剪、VoxelGrid）→ Nav2 Humble `collision_monitor` → 新鲜度看门狗 → `/cmd_vel`。区域默认关闭，启用时必须至少有一个停车区；碰撞区顶点按 Humble 参数格式传为扁平数值数组。点云或监测速度过期时，看门狗持续输出零速度。
 - 分区保护只覆盖 `vehicle_navigation` 的自动路线速度；Web 遥控走 PLC 的独立通道，不经过此链路。它不负责规划绕行，也不是安全认证的急停设备。上线前须在现场校准检测区、点数阈值、体素大小、雷达外参和制动距离。
