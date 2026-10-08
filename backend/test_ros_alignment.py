@@ -302,5 +302,33 @@ class ROSAlignmentTests(unittest.IsolatedAsyncioTestCase):
             document['areas']=[{'type':'forbidden','polygon':[(.5,-1),(1.5,-1),(1.5,1),(.5,1)],'speed':.1}]
             with self.assertRaises(ValueError):plan(document,'C')
 
+    async def test_smooth_map_route_is_sampled_for_ros_and_checked_against_zones(self):
+        from app.services.local_robot import plan
+        from app.services.map_editor import MapData, path_polyline, validate_map
+        raw={'width':10,'height':10,'points':[{'code':'A','type':'charger','x':1,'y':5},
+            {'code':'B','x':9,'y':5}], 'paths':[{'start':'A','end':'B','curve_mode':'smooth','curve_offset':2}]}
+        document=MapData.model_validate(raw).model_dump()
+        curve=document['paths'][0]
+        sampled=path_polyline(curve,(1,5),(9,5))
+        self.assertGreater(max(point[1] for point in sampled),6.9)
+        self.assertEqual(path_polyline(curve,(1,5),(9,5),reverse=True),list(reversed(sampled)))
+        self.state.x,self.state.y=1,5
+        with patch('app.services.local_robot.state',self.state):
+            payload=plan(document,'B')
+        self.assertGreater(len(payload),18)
+        self.assertEqual(payload[-9:-7],[9,5])
+        self.assertGreater(max(payload[index+1] for index in range(9,len(payload),9)),6.9)
+        self.state.x,self.state.y=9,5
+        with patch('app.services.local_robot.state',self.state):
+            reverse_payload=plan(document,'A',start='B')
+        self.assertEqual(reverse_payload[:2],[9,5])
+        self.assertEqual(reverse_payload[-9:-7],[1,5])
+        self.assertGreater(max(reverse_payload[index+1] for index in range(9,len(reverse_payload),9)),6.9)
+        document['areas']=[{'name':'cut-through','type':'forbidden','polygon':[[4,6.2],[6,6.2],[6,7.3],[4,7.3]],'speed':.3}]
+        self.assertIn('路径穿越禁行区',[issue['message'] for issue in validate_map(document)])
+        document['areas']=[]
+        document['paths'][0]['curve_offset']=6
+        self.assertIn('路径中心线超出地图边界',[issue['message'] for issue in validate_map(document)])
+
 
 if __name__=='__main__':unittest.main()

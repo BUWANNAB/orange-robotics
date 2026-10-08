@@ -1,0 +1,13 @@
+.map-tools .map-tool-active{background:#21374a;color:#fff;border-color:#21374a}
+.localization-result{display:grid;gap:4px;margin:12px 0;padding:16px 18px;border:1px solid #d8e2e8;border-left:5px solid #91a2af;border-radius:9px;background:#f7f9fb;color:#42596c}
+.localization-result strong{font-size:16px}
+.localization-result span{font-size:13px;line-height:1.6}
+.localization-result.success{border-color:#b8dec8;border-left-color:#28855b;background:#eaf7ef;color:#1e6846}
+.localization-result.warning{border-color:#f0d9a8;border-left-color:#ce901f;background:#fff8e7;color:#805b16}
+.localization-result.error{border-color:#efc0c0;border-left-color:#c94a4a;background:#fff0f0;color:#9d3030}
+.localization-result.pending{border-color:#d3e1e8;border-left-color:#4986a1;background:#edf5f8;color:#355d70}
+.localization-result.neutral{border-color:#dce2e8;border-left-color:#8294a2;background:#f2f4f6;color:#536675}
+.live-done-swatch,.live-active-swatch,.live-unknown-swatch,.trail-swatch{width:22px;height:0;border-top:3px solid #23996d}
+.live-active-swatch{border-color:#ed8b25}
+.live-unknown-swatch{border-color:#8974ae;border-top-style:dashed}
+.trail-swatch{border-color:#168aab;border-top-width:2px}

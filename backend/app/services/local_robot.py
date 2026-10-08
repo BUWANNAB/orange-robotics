@@ -1,6 +1,7 @@
 """Bind one fleet robot to this process' ROS domain (opt-in by robot ID)."""
 import asyncio
 import heapq
+import itertools
 import math
 import logging
 import os
@@ -10,7 +11,7 @@ from app.database import AsyncSessionLocal
 from app.models.operations import Robot, Command, BatterySample, TaskRun
 from app.services.operations_common import now
 from app.services.fleet_service import finish_command, raise_alarm
-from app.services.map_editor import published_map, inside, intersects
+from app.services.map_editor import published_map, inside, intersects, path_polyline
 from app.services.ros2_service import ros2_service as bridge
 from app.services.vehicle_state import vehicle_state as state
 
@@ -30,32 +31,56 @@ def plan(document, target, start=None):
         a, b = edge["start"], edge["end"]
         pa, pb = points[a], points[b]
         av, bv = (pa["x"], pa["y"]), (pb["x"], pb["y"])
+        centerline = path_polyline(edge, av, bv)
         speed = min(edge["speed"], float(os.getenv("ROS_MAX_ROUTE_SPEED", "0.3")))
         blocked = False
         for area in document["areas"]:
             poly = area["polygon"]
-            touches = inside(av, poly) or inside(bv, poly) or any(intersects(av, bv, c, d) for c,d in zip(poly, poly[1:]+poly[:1]))
+            touches = any(inside(point, poly) for point in centerline) or any(
+                intersects(start_point, end_point, c, d)
+                for start_point, end_point in zip(centerline, centerline[1:])
+                for c, d in zip(poly, poly[1:] + poly[:1]))
             if touches and area["type"] == "forbidden": blocked = True
             if touches and area["type"] == "slow": speed = min(speed, area["speed"])
         if blocked: continue
-        length = math.dist(av, bv)
-        graph[a].append((b, length, speed))
-        if edge["bidirectional"]: graph[b].append((a, length, speed))
-    queue, best = [(0, start, [])], {}
+        length = sum(math.dist(p, q) for p, q in zip(centerline, centerline[1:]))
+        graph[a].append((b, length, speed, edge, False))
+        if edge["bidirectional"]: graph[b].append((a, length, speed, edge, True))
+    serial = itertools.count()
+    queue, best = [(0, next(serial), start, [])], {}
     while queue:
-        distance, code, chain = heapq.heappop(queue)
+        distance, _, code, chain = heapq.heappop(queue)
         if code in best: continue
         best[code] = distance
         if code == target:
             if not chain: raise ValueError("已在目标点，不生成零长度行驶任务")
-            route = [(start, chain[0][1])] + chain
+            route = [(points[start], chain[0][2])]
+            for _, destination, speed, edge, reverse in chain:
+                a, b = points[edge["start"]], points[edge["end"]]
+                centerline = path_polyline(edge, (a["x"], a["y"]), (b["x"], b["y"]), reverse=reverse)
+                if reverse:
+                    from_point, to_point = points[edge["end"]], points[edge["start"]]
+                else:
+                    from_point, to_point = points[edge["start"]], points[edge["end"]]
+                if from_point["code"] != route[-1][0]["code"]:
+                    raise ValueError("路线图存在不连续边")
+                for index, (x, y) in enumerate(centerline[1:], start=1):
+                    if index == len(centerline) - 1:
+                        theta = to_point.get("theta", 0)
+                    else:
+                        before, after = centerline[index - 1], centerline[index + 1]
+                        theta = math.atan2(after[1] - before[1], after[0] - before[0])
+                    route.append(({"code": destination if index == len(centerline) - 1 else f"{edge['start']}:{edge['end']}:{index}",
+                                   "x": x, "y": y, "theta": theta}, speed))
             payload = []
-            for index, (key, speed) in enumerate(route):
-                p = points[key]
+            for index, (p, speed) in enumerate(route):
                 payload.extend([p["x"], p["y"], p["theta"], float(index+1), speed, 0., 0., 0., 0.])
+            if len(payload) > 9000:
+                raise ValueError("平滑路线超过 ROS 路径 1000 点上限，请简化路线")
             return payload
-        for nxt, length, speed in graph[code]:
-            heapq.heappush(queue, (distance+length, nxt, chain+[(nxt, speed)]))
+        for nxt, length, speed, edge, reverse in graph[code]:
+            heapq.heappush(queue, (distance + length, next(serial), nxt,
+                                   chain + [(code, nxt, speed, edge, reverse)]))
     raise ValueError("目标不可达，未找到避开禁行区域的连通路径")
 
 

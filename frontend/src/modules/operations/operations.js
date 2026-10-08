@@ -98,19 +98,20 @@
   async function openMap(row){
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
     $('filters').hidden=true;$('pagination').innerHTML='';
-    $('content').innerHTML=`<div class="map-tools">${button('返回列表','leave-map','')}${['select','point','path','area','pan'].map((a,i)=>button(['选择 / 拖动','添加点位','连接路径','绘制禁行区','平移'][i],'tool-'+a,'')).join('')}${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('删除选中','map-remove','')}${button('适应窗口','map-fit','')}${button('保存草稿','map-save','')}${button('校验','map-validate','')}${button('发布','map-publish',row.id,'map:publish')}${button('导入 JSON','map-import','')}${button('上传底图','map-image','')}</div><p id="map-live-status" class="help" role="status">正在连接实时定位…</p><p class="help">灰色：编辑草稿 · 绿色：已通过路段 · 橙色：当前及剩余路段 · 紫色虚线：进度未确认/已结束 · 蓝色：实测轨迹。编辑草稿不会改变正在执行的路线。</p><div class="map-layout"><canvas id="map-canvas" aria-label="地图编辑画布"></canvas><aside class="map-properties"><h3>${escape(row.name)}</h3><p id="map-save-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version}</p><p class="help">滚轮缩放；中键平移；连接路径需依次点击两个点位；双击闭合禁行区。修改后 10 秒自动保存。</p><div id="point-properties">选择点位后修改属性</div><div class="map-issues" id="map-issues"></div></aside></div>`;
+    $('content').innerHTML=`<div class="map-editor" id="map-editor"><div class="map-tools">${button('返回列表','leave-map','')}${button('选择 / 拖动','tool-select','')}${button('添加站点','tool-point','')}${button('直线路径','tool-path','')}${button('平滑曲线','tool-curve','')}${button('绘制作业区','tool-area','')}<label class="map-toolbar-select">新区域类型<select id="map-area-kind"><option value="forbidden">禁行区</option><option value="slow">减速区</option><option value="work">作业区</option><option value="charge">充电区</option></select></label>${button('平移','tool-pan','')}${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('删除选中','map-remove','')}${button('适应窗口','map-fit','')}${button('大图显示','map-fullscreen','')}${button('保存草稿','map-save','')}${button('校验','map-validate','')}${button('发布','map-publish',row.id,'map:publish')}${button('导入 JSON','map-import','')}${button('上传底图','map-image','')}</div><p id="map-live-status" class="help" role="status">正在连接实时定位…</p><div class="map-editor-help"><span>点位拖动可微调坐标；滚轮缩放，中键拖动平移。直线或曲线路径：依次点击两个站点。</span><span>作业区依次点边界顶点，双击闭合；禁行区与减速区会参与路线校验。</span></div><div class="map-legend"><span><i class="path-swatch"></i>草稿路线</span><span><i class="live-done-swatch"></i>已行驶路段</span><span><i class="live-active-swatch"></i>当前路段</span><span><i class="live-unknown-swatch"></i>进度未确认</span><span><i class="trail-swatch"></i>实测轨迹</span><span><i class="station-swatch"></i>站点</span><span><i class="zone-swatch forbidden"></i>禁行</span><span><i class="zone-swatch slow"></i>减速</span><span><i class="zone-swatch work"></i>作业</span><span><i class="zone-swatch charge"></i>充电</span></div><div class="map-layout" id="map-layout"><canvas id="map-canvas" aria-label="地图、运行路线、站点与作业区编辑画布"></canvas><aside class="map-properties"><h3>${escape(row.name)}</h3><p id="map-save-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version}</p><p class="help">编辑草稿不会改变正在执行的路线。平滑曲线会保存并以下发路线点形式传给 ROS；实车平顺度仍需现场验证。</p><div id="point-properties">选择站点、路径或区域以编辑详细属性</div><div class="map-issues" id="map-issues"></div></aside></div></div>`;
     state.map=new window.OperationsMapCanvas($('map-canvas'),row.draft,()=>{
       state.dirty=true;$('map-save-state').textContent='有未保存修改';clearTimeout(state.saveTimer);
       state.saveTimer=setTimeout(()=>saveMap().catch(error=>notify(error.message,true)),10000);
     },point=>{
       if(point?.kind==='paths'){
-        $('point-properties').innerHTML=`<p>${escape(point.start)} → ${escape(point.end)}</p>${field('shape-speed','速度（米/秒）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','宽度（米）',point.width,'number','min="0.01" step="0.01"')}${selectField('shape-direction','方向',[['true','双向'],['false','单向']],String(point.bidirectional))}${button('应用路径属性','map-shape-apply','paths')}`;return;
+        $('point-properties').innerHTML=`<p class="inspector-title">${escape(point.start)} → ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','速度上限（米/秒）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">曲线会保存为三次贝塞尔中心线，并以采样路线点发送给 ROS。发布校验会检查曲线越界和穿越禁行区；通道宽度目前仅作配置参考。</p>${button('应用路径设置','map-shape-apply','paths')}`;return;
       }
       if(point?.kind==='areas'){
-        $('point-properties').innerHTML=`${field('shape-name','区域名称',point.name)}${selectField('shape-type','区域类型',[['forbidden','禁行区'],['slow','减速区'],['work','工作区'],['charge','充电区']],point.type)}${field('shape-speed','限速（米/秒）',point.speed,'number','min="0.01" max="3" step="0.01"')}${button('应用区域属性','map-shape-apply','areas')}`;return;
+        $('point-properties').innerHTML=`${field('shape-name','区域名称',point.name)}${selectField('shape-type','区域用途',[['forbidden','禁行区'],['slow','减速区'],['work','作业区'],['charge','充电区']],point.type)}${field('shape-speed','限速（米/秒，仅减速区生效）',point.speed,'number','min="0.01" max="3" step="0.01"')}<label class="map-polygon-editor">边界顶点（JSON 坐标数组）<textarea name="shape-polygon" rows="6" spellcheck="false">${escape(JSON.stringify(point.polygon))}</textarea></label><p class="help">坐标格式：[[x1,y1],[x2,y2],[x3,y3]]。禁行区会阻止发布/路线规划，减速区限制路线速度；作业/充电区用于区域标识。</p>${button('应用区域设置','map-shape-apply','areas')}`;return;
       }
-      $('point-properties').innerHTML=point?`${field('point-code','编号',point.code)}${selectField('point-type','类型',[['station','站点'],['charger','充电点'],['shelf','货架'],['waiting','等候点'],['elevator','电梯']],point.type)}${field('point-theta','朝向（弧度）',point.theta,'number','step="0.01"')}${button('应用属性','map-point-apply','')}`:'未选择点位';
+      $('point-properties').innerHTML=point?`<p class="inspector-title">站点 ${escape(point.code)}</p>${field('point-code','编号',point.code)}${field('point-name','站点名称',point.name||'')}${selectField('point-type','站点用途',[['station','普通站点'],['charger','充电点'],['shelf','货架点'],['waiting','等候点'],['elevator','电梯点']],point.type)}${field('point-theta','目标朝向（弧度）',point.theta,'number','step="0.01"')}${button('应用站点设置','map-point-apply','')}`:'未选择站点；可在画布上添加站点，然后拖动到精确位置。';
     });
+    $('map-area-kind').onchange=()=>state.map?.setAreaType($('map-area-kind').value);
     state.map.liveController=new window.LiveMap(state.map,row.id,$('map-live-status'));
     if(row.draft.image) await loadMapImage();
     state.lockTimer=setInterval(()=>api.post(`/api/maps/${row.id}/lock`).catch(error=>notify(error.message,true)),60000);
@@ -124,7 +125,7 @@
     state.dirty=JSON.stringify(draft)!==JSON.stringify(state.map.document);
     $('map-save-state').textContent=`草稿 r${result.revision} 已保存`;
   }
-  function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;clearTimeout(state.saveTimer);clearInterval(state.lockTimer);state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
+  function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;if(document.fullscreenElement===$('map-editor'))document.exitFullscreen().catch(()=>{});clearTimeout(state.saveTimer);clearInterval(state.lockTimer);state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
   async function loadMapImage(){
     const blob=await api.download(`/api/maps/${state.mapRow.id}/image/${state.map.document.image}`);
     const url=URL.createObjectURL(blob),image=new Image();
@@ -207,13 +208,24 @@
     if(name==='add-map')return dialog('新建地图',`<div class="form-grid">${field('name','地图名称','','text','required')}${field('width','宽度（米）',100,'number','min="1" required')}${field('height','高度（米）',100,'number','min="1" required')}${field('resolution','分辨率（米/像素）',.05,'number','min="0.001" step="0.001"')}</div>`,form=>api.post('/api/maps',{name:form.get('name'),document:{width:Number(form.get('width')),height:Number(form.get('height')),resolution:Number(form.get('resolution')),points:[],paths:[],areas:[]}}));
     if(name==='edit-map')return openMap(row);
     if(name==='leave-map'){if(leaveMap())return load();return;}
-    if(name.startsWith('tool-')){state.map.tool=name.slice(5);notify({select:'拖动点位可调整坐标',point:'点击画布添加站点',path:'依次点击两个点位连接双向路径',area:'依次点击区域顶点，双击闭合',pan:'拖动画布平移'}[state.map.tool]);return;}
+    if(name.startsWith('tool-')){state.map.tool=name.slice(5);document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(tool=>tool.classList.toggle('map-tool-active',tool.dataset.action===name));notify({select:'拖动站点可调整坐标；点击路径或区域可编辑',point:'点击画布添加站点',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域顶点，双击闭合；新区域类型可在工具栏选择',pan:'拖动画布平移'}[state.map.tool]);return;}
     if(name==='map-undo')return state.map.undo();if(name==='map-redo')return state.map.redo();if(name==='map-remove')return state.map.remove();if(name==='map-fit')return state.map.fit();if(name==='map-save')return saveMap();
     if(name==='map-shape-apply'){
-      const box=$('point-properties'),value=name=>box.querySelector(`[name="${name}"]`).value;
-      state.map.updateShape(id==='paths'?{speed:Number(value('shape-speed')),width:Number(value('shape-width')),bidirectional:value('shape-direction')==='true'}:{name:value('shape-name'),type:value('shape-type'),speed:Number(value('shape-speed'))});return;
+      const box=$('point-properties'),value=key=>box.querySelector(`[name="${key}"]`).value;
+      if(id==='paths'){
+        const curveMode=value('shape-curve-mode'),path=state.map.document.paths[state.map.shape.index],points=new Map(state.map.document.points.map(point=>[point.code,point]));
+        let curveOffset=Number(value('shape-curve-offset'));
+        if(curveMode==='smooth'&&Math.abs(curveOffset)<1e-6){const a=points.get(path.start),b=points.get(path.end);curveOffset=Math.min(5,Math.hypot(b.x-a.x,b.y-a.y)*.18);}
+        state.map.updateShape({curve_mode:curveMode,curve_offset:curveOffset,speed:Number(value('shape-speed')),width:Number(value('shape-width')),bidirectional:value('shape-direction')==='true'});
+      }
+      else{
+        let polygon;try{polygon=JSON.parse(value('shape-polygon'));}catch{throw new Error('区域顶点格式无效，请使用 [[x1,y1],[x2,y2],[x3,y3]]');}
+        if(!Array.isArray(polygon)||polygon.length<3||polygon.length>200||polygon.some(point=>!Array.isArray(point)||point.length!==2||point.some(coordinate=>!Number.isFinite(Number(coordinate)))))throw new Error('区域至少需要 3 组有效的 [X,Y] 坐标');
+        state.map.updateShape({name:value('shape-name'),type:value('shape-type'),speed:Number(value('shape-speed')),polygon:polygon.map(point=>point.map(Number))});
+      }return;
     }
-    if(name==='map-point-apply'){const box=$('point-properties');state.map.updatePoint({code:box.querySelector('[name="point-code"]').value,type:box.querySelector('[name="point-type"]').value,theta:Number(box.querySelector('[name="point-theta"]').value)});return;}
+    if(name==='map-point-apply'){const box=$('point-properties');state.map.updatePoint({code:box.querySelector('[name="point-code"]').value,name:box.querySelector('[name="point-name"]').value,type:box.querySelector('[name="point-type"]').value,theta:Number(box.querySelector('[name="point-theta"]').value)});return;}
+    if(name==='map-fullscreen'){const target=$('map-editor');if(document.fullscreenElement===target)await document.exitFullscreen();else if(target.requestFullscreen)await target.requestFullscreen();else throw new Error('当前浏览器不支持大图显示');return;}
     if(name==='map-validate'){await saveMap();const issues=await api.post(`/api/maps/${state.mapRow.id}/validate`);$('map-issues').textContent=issues.length?issues.map(e=>`${e.element} ${e.message}`).join('\n'):'校验通过';return;}
     if(name==='map-publish'){await saveMap();const map=state.mapRow;return confirmation('发布地图',map.name,'发布前将校验连通性、禁行区与占用情况。设备从发布版本接口拉取地图。',async confirmation=>{await api.post(`/api/maps/${map.id}/publish`,{revision:map.revision,confirmation});state.mapRow=await api.get(`/api/maps/${map.id}`);notify('地图已发布，设备加载结果需由设备侧确认。');});}
     if(name==='map-import')return dialog('导入地图 JSON',`${field('file','地图文件','','file','accept="application/json,.json" required')}`,async form=>{const file=form.get('file');if(file.size>5*1024*1024)throw new Error('地图文件不能超过 5MB');const doc=JSON.parse(await file.text());const result=await api.post(`/api/maps/${state.mapRow.id}/draft/save`,{revision:state.mapRow.revision,document:doc});state.mapRow=result;state.map.checkpoint();state.map.document=structuredClone(result.draft);state.map.changed();state.dirty=false;clearTimeout(state.saveTimer);state.map.fit();});
@@ -270,6 +282,7 @@
     }
   }
   $('nav').onclick=event=>{const button=event.target.closest('[data-tab]');if(button)selectTab(button.dataset.tab);};
+  document.addEventListener('fullscreenchange',()=>{const button=document.querySelector('#map-editor [data-action="map-fullscreen"]');if(button)button.textContent=document.fullscreenElement===document.getElementById('map-editor')?'退出大图':'大图显示';if(state.map)state.map.fit();});
   document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=false;}});
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();
   $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notify(e.message,true));};

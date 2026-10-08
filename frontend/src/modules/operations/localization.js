@@ -9,6 +9,7 @@
     return !!entry&&active?.status==='ready'&&active.key===key&&(active.map_id??null)===(entry.map_id??null)&&(active.version??null)===(entry.version??null);
   }
   function cancelPick(){picking=false;gesture=null;candidate=null;canvas.style.cursor='';$('pick-pose').setAttribute('aria-pressed','false');$('pick-hint').textContent='点击“拖拽重定位”，在地图上按下选位置，拖动箭头选朝向。';draw();}
+  function showFeedback(feedback){const panel=$('localization-result');if(!panel)return;panel.className=`localization-result ${feedback.kind}`;const title=panel.querySelector('strong'),detail=panel.querySelector('span');if(title.textContent!==feedback.title)title.textContent=feedback.title;if(detail.textContent!==feedback.detail)detail.textContent=feedback.detail;}
   const names = {idle:'未切换',pending:'等待处理',loading:'加载地图',loaded:'地图已加载',localizing:'等待定位收敛',ready:'新地图定位已收敛',failed:'切换失败',timeout:'超时'};
   function draw() {
     const box = canvas.getBoundingClientRect(), dpr = devicePixelRatio || 1;
@@ -56,6 +57,7 @@
   function apply(value){
     frame=value;lastMessage=Date.now();
     const loc=value.localization,p=value.position;
+    showFeedback(window.LocalizationFeedback.from(value));
     $('source').textContent={ros:'真实 ROS',simulation:'仿真演示',disconnected:'ROS 未连接'}[loc.source]||'未知来源';
     $('pose-status').textContent=loc.source==='simulation'?'仿真轨迹，不是真实定位':loc.valid?'实时定位有效':loc.fresh?'位姿已到达，定位质量未通过':'定位无数据或已过期';
     $('pose-status').className='state'+(loc.valid&&loc.source==='ros'?' good':'');
@@ -165,7 +167,7 @@
   $('reset-view-rotation').onclick=()=>setViewRotation(0);
   $('follow').onclick=()=>{cancelPick();following=!following;draw();};$('clear-trail').onclick=()=>{trail=[];draw();};
   window.addEventListener('resize',()=>{if(gesture)cancelPick();else draw();});
-  const watchdog=setInterval(()=>{if(Date.now()-lastMessage>2000){$('pose-status').textContent='连接断流，位置仅为最后已知值';$('pose-status').className='state';$('switch-button').disabled=true;$('release-button').disabled=true;$('auto-pose').disabled=true;}},500);
+  const watchdog=setInterval(()=>{if(Date.now()-lastMessage>2000){$('pose-status').textContent='连接断流，位置仅为最后已知值';$('pose-status').className='state';showFeedback(window.LocalizationFeedback.disconnected());$('switch-button').disabled=true;$('release-button').disabled=true;$('auto-pose').disabled=true;}},500);
   window.addEventListener('pagehide',()=>{closed=true;clearTimeout(retry);clearInterval(watchdog);socket?.close();if(imageURL)URL.revokeObjectURL(imageURL);});
   api.get('/api/localization/maps').then(rows=>{maps=rows;$('map-key').replaceChildren(...[new Option(rows.length?'请选择地图':'未发现 PCD 地图',''),...rows.map(m=>new Option(m.asset_id||m.key,m.key))]);const asset=new URLSearchParams(location.search).get('asset');const match=asset&&rows.find(m=>m.asset_id===asset);if(asset)$('map-key').disabled=true;if(match){$('map-key').value=match.key;loadMap(match.key);}}).catch(error=>{$('message').textContent=error.message;});
   connect();draw();

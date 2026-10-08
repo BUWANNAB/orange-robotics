@@ -26,6 +26,8 @@ class Path(BaseModel):
     bidirectional: bool = True
     speed: float = Field(default=0.5, gt=0, le=3)
     width: float = Field(default=1, gt=0, le=20)
+    curve_mode: Literal["straight", "smooth"] = "straight"
+    curve_offset: float = Field(default=0, ge=-1000, le=1000)
 
 
 class Area(BaseModel):
@@ -57,6 +59,38 @@ def intersects(a, b, c, d):
     if max(a[0], b[0]) < min(c[0], d[0]) or max(c[0], d[0]) < min(a[0], b[0]): return False
     if max(a[1], b[1]) < min(c[1], d[1]) or max(c[1], d[1]) < min(a[1], b[1]): return False
     return cross(a, b, c)*cross(a, b, d) <= 0 and cross(c, d, a)*cross(c, d, b) <= 0
+
+
+def path_sample_count(start, end):
+    return max(8, min(24, math.ceil(math.dist(start, end) / 0.35)))
+
+
+def path_polyline(path, start, end, samples=None, reverse=False):
+    """Return the same cubic route centerline used by the editor and executor."""
+    curve_mode = path.curve_mode if isinstance(path, Path) else path.get("curve_mode", "straight")
+    curve_offset = path.curve_offset if isinstance(path, Path) else path.get("curve_offset", 0)
+    if curve_mode != "smooth" or abs(curve_offset) < 1e-9:
+        points = [start, end]
+    else:
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length < 1e-9:
+            points = [start, end]
+        else:
+            normal = (-dy / length, dx / length)
+            control_offset = curve_offset * (4 / 3)
+            c1 = (start[0] + dx / 3 + normal[0] * control_offset,
+                  start[1] + dy / 3 + normal[1] * control_offset)
+            c2 = (start[0] + 2 * dx / 3 + normal[0] * control_offset,
+                  start[1] + 2 * dy / 3 + normal[1] * control_offset)
+            steps = samples or path_sample_count(start, end)
+            points = []
+            for index in range(steps + 1):
+                t = index / steps
+                u = 1 - t
+                points.append((u**3 * start[0] + 3*u*u*t*c1[0] + 3*u*t*t*c2[0] + t**3*end[0],
+                               u**3 * start[1] + 3*u*u*t*c1[1] + 3*u*t*t*c2[1] + t**3*end[1]))
+    return list(reversed(points)) if reverse else points
 
 
 def inside(point, polygon):
@@ -108,9 +142,15 @@ def validate_map(data):
         if path.start == path.end: error("路径不能连接同一端点", str(i))
         a, b = points[path.start], points[path.end]
         pa, pb = (a.x,a.y), (b.x,b.y)
-        for poly in forbidden:
-            if inside(pa, poly) or inside(pb, poly) or any(intersects(pa,pb,c,d) for c,d in zip(poly,poly[1:]+poly[:1])):
-                error("路径穿越禁行区", str(i))
+        centerline = path_polyline(path, pa, pb, samples=max(32, path_sample_count(pa, pb)))
+        if any(not in_bounds(x, y) for x, y in centerline):
+            error("路径中心线超出地图边界", str(i))
+        crosses_forbidden = any(
+            inside(segment_start, poly) or inside(segment_end, poly)
+            or any(intersects(segment_start, segment_end, c, d) for c, d in zip(poly, poly[1:] + poly[:1]))
+            for segment_start, segment_end in zip(centerline, centerline[1:])
+            for poly in forbidden)
+        if crosses_forbidden: error("路径穿越禁行区", str(i))
         reverse[path.end].add(path.start)
         if path.bidirectional: reverse[path.start].add(path.end)
     chargers = {p.code for p in points.values() if p.type == "charger"}

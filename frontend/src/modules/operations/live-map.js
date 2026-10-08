@@ -36,7 +36,7 @@
     ctx.save();
     for(let i=1;i<points.length;i++){
       const completed=live.progress&&(live.route.status==='success'||i<live.route.target_index);
-      line(points[i-1],points[i],completed?'#23996d':live.progress?'#ed8b25':'#8974ae',5,live.progress?[]:[7,5]);
+      line(points[i-1],points[i],completed?'#23996d':live.progress?'#ed8b25':'#8974ae',3,live.progress?[]:[7,5]);
     }
     for(let i=1;i<live.trail.length;i++)line(live.trail[i-1],live.trail[i],'#168aab',2);
     ctx.setLineDash([]);
