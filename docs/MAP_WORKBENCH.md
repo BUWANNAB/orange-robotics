@@ -31,8 +31,8 @@
 | POST `/grid` | multipart：asset_id、pgm、metadata、revision；另存加 create_only=true |
 | POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase |
 | GET `/jobs/{id}` | queued / running / success / failed，message 与 result |
-| GET `/mapping` | ROS 来源、连接、建图状态 |
-| POST `/mapping/start` | 停车确认、停止导航、停用定位节点、启动建图，等到有点云反馈 |
+| GET `/mapping` | ROS 桥接、近 2 秒雷达点云、建图控制器订阅、定位与导航服务状态、建图状态 |
+| POST `/mapping/start` | `{manual_push_confirmed:true}`；要求定位与导航服务确认停止、实时雷达点云、建图控制器订阅和现场手动/自由轮确认，启动建图并等到点云就绪 |
 | POST `/mapping/save` | `{name}`，64 字符内字母数字横线下划线；保存并结束采集 |
 | POST `/mapping/stop` | 停止采集、恢复雷达和定位生命周期，保持导航锁定 |
 
@@ -48,7 +48,7 @@ Linux ROS 2 Humble 下编译 `pcd2pgm`、`lidar_localization_ros2`、`build_map_
 
 建图控制使用实际 `/buildmap` 与 `/buildmap_status` 契约；生命周期服务默认 `/lidar_localization/get_state`、`change_state`，可用 `ROS_LOCALIZATION_NODE` 修改节点前缀。定位组件停用时不再处理点云、发布定位 TF，避免与 SLAM 同时发布。`build_map_manager` 要配置 `stop_after_save=true`，并与 Web 使用同一个 `ROBOT_PCD_DIR`。保存成功还检查服务端实际出现 `GlobalMap.pcd`。使用一个后端 worker，避免多个进程同时控制同一机器人。
 
-当前建图管理器采用已有 LIO-SAM / Livox 启停链。启动程序并不证明雷达已经可用，需实机验证建图点云、保存落盘、雷达恢复和定位收敛。服务在失败时保持停止锁定，需核实 ROS 状态，再使用停止采集或定位操作恢复；不会自动发出行驶指令。
+当前建图管理器采用已有 LIO-SAM / Livox 启停链。手动推车建图不要求 PLC、底盘速度或导航运行状态反馈；开始前必须确认导航 systemd 服务已停止、ROS 图中无导航节点，并通过实时点云与建图控制器订阅检查。Web 不会向 `/vehicle_run_star`、`/close_route` 或 `/plc_start` 发送消息，也不会在建图前后切换定位生命周期。现场操作者必须按底盘厂家流程确认牵引已释放、车辆可安全手推；网页不能验证物理使能。开始后继续保持导航停止，保存或停止建图后检查 PCD，再按需启动导航并重新定位。实机仍需验证建图点云、保存落盘和雷达恢复。
 
 Windows 已验证：隔离数据库下的接口与资产测试，实际 PCD 浏览与框选，二维加载、统一入口跳转、离线错误提示、定位底图解析。PCL 算法和 ROS 生命周期仍需 Linux 编译与现场验收；本机 WSL 当前报 `HCS/E_ACCESSDENIED`，不能据此承诺接硬件即运行。
 

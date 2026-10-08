@@ -212,6 +212,18 @@ class ROS2BridgeService:
         if state.run_status in {2, 3} or abs(state.linear_velocity) > 0.02 or abs(state.angular_velocity) > 0.02:
             raise RuntimeError("请先停车，再切换地图或下发新路线")
 
+    def require_mapping_ready(self):
+        """Check only the live ROS inputs needed for manual-push mapping."""
+        self.require_ros()
+        from app.services import mapping_control
+        if mapping_control.active:
+            raise RuntimeError("建图已经处于活动状态")
+        if not self.lidar_received or time.monotonic() - self.lidar_received >= 2:
+            raise RuntimeError("没有收到新鲜雷达点云；请检查雷达网络、驱动和 /livox/lidar")
+        publisher = self.publishers.get("/buildmap")
+        if not publisher or publisher.get_subscription_count() < 1:
+            raise RuntimeError("建图控制器未就绪；请在 ROS 维护页启动建图服务")
+
     def publish(self, topic, data):
         self.require_ros()
         pub = self.publishers[topic]

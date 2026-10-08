@@ -116,6 +116,23 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'PLC 连接反馈'):
                 bridge.require_stationary()
 
+    def test_manual_mapping_uses_fresh_lidar_and_controller_not_plc_odom(self):
+        bridge=runtime.bridge
+        now=time.monotonic()
+        controller=SimpleNamespace(get_subscription_count=lambda:1)
+        with (patch.object(bridge,'require_ros'),
+              patch.object(runtime.mapping_control,'active',False),
+              patch.object(bridge,'lidar_received',now),
+              patch.object(bridge,'publishers',{'/buildmap':controller})):
+            bridge.require_mapping_ready()
+            bridge.lidar_received=now-3
+            with self.assertRaisesRegex(RuntimeError,'新鲜雷达点云'):
+                bridge.require_mapping_ready()
+            bridge.lidar_received=now
+            bridge.publishers={}
+            with self.assertRaisesRegex(RuntimeError,'建图控制器未就绪'):
+                bridge.require_mapping_ready()
+
     def test_mapping_interlock(self):
         async def check():
             with patch.object(runtime,'availability',return_value=(True,'')),patch.object(runtime.mapping_control,'active',True),patch.object(runtime,'command',new=AsyncMock()) as command:

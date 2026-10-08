@@ -29,7 +29,7 @@ class MapWorkbenchTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix='map-assets-')
         self.root=Path(self.temp.name)
         self.patches=[patch.object(settings,'MAPS_DIR',self.root/'maps'),patch.object(settings,'PCD_DIR',self.root/'pcd'),
-                      patch.dict('os.environ',{'RCS_DATA_DIR':str(self.root/'jobs')})]
+                      patch.object(settings,'RCS_DATA_DIR',self.root/'jobs')]
         for p in self.patches:p.start()
 
     def tearDown(self):
@@ -172,37 +172,42 @@ class MapWorkbenchTests(unittest.TestCase):
         self.assertEqual((settings.MAPS_DIR/'clean/setting/map.pgm').read_bytes(),PGM)
 
     def test_offline_mapping_rejected(self):
-        with patch.object(mapping.bridge,'require_stationary',side_effect=RuntimeError('ROS 未连接')):
-            response=self.client.post('/api/map-workbench/mapping/start',headers=self.headers)
+        with patch.object(mapping,'require_navigation_stopped',new=AsyncMock()),patch.object(mapping.bridge,'require_mapping_ready',side_effect=RuntimeError('真实 ROS 未连接')):
+            response=self.client.post('/api/map-workbench/mapping/start',headers=self.headers,json={'manual_push_confirmed':True})
         self.assertEqual(response.status_code,409)
-        self.assertEqual(response.json()['message'],'ROS 未连接')
+        self.assertEqual(response.json()['message'],'真实 ROS 未连接')
 
     def test_pending_job_blocks_mapping_mutations(self):
         with patch.dict(assets.tasks,{'busy':object()}):
-            for action,body in [('start',{}),('save',{'name':'new_map'}),('stop',{})]:
+            for action,body in [('start',{'manual_push_confirmed':True}),('save',{'name':'new_map'}),('stop',{})]:
                 response=self.client.post('/api/map-workbench/mapping/'+action,headers=self.headers,json=body)
                 self.assertEqual(response.status_code,409,response.text)
 
-    def test_mapping_start_orders_stop_lifecycle_and_data_ack(self):
+    def test_mapping_start_requires_manual_confirmation_and_stopped_navigation(self):
+        async def check():
+            with self.assertRaisesRegex(RuntimeError,'手动/自由轮'):
+                await mapping.start({},False)
+            with patch('app.services.ros_runtime.unit_state',new=AsyncMock(return_value={'load':'loaded','state':'active'})):
+                with self.assertRaisesRegex(RuntimeError,'必须已安装并确认停止'):
+                    await mapping.require_navigation_stopped()
+            with (patch('app.services.ros_runtime.unit_state',new=AsyncMock(return_value={'load':'loaded','state':'inactive'})),
+                  patch('app.services.ros_runtime.graph',return_value=['vehicle_navigation_node'])):
+                with self.assertRaisesRegex(RuntimeError,'导航节点仍在运行'):
+                    await mapping.require_navigation_stopped()
+        asyncio.run(check())
+
+    def test_mapping_start_only_publishes_buildmap_and_waits_for_data_ack(self):
         calls=[]
-        async def stopped():calls.append('stop')
-        async def lifecycle(activate):calls.append(('lifecycle',activate))
+        async def navigation_stopped():calls.append('navigation-stopped')
         def publish(topic,value):
             calls.append((topic,value));mapping.receive(SimpleNamespace(data='map_data_ready'))
         async def check():
-            with patch.object(mapping,'active',False),patch.object(mapping.bridge,'switch',{}),patch.object(mapping.bridge,'require_stationary'),patch.object(mapping.bridge,'stop_route',side_effect=stopped),patch.object(mapping,'lifecycle',side_effect=lifecycle),patch.object(mapping.bridge,'publish',side_effect=publish):
-                result=await mapping.start({})
+            with patch.object(mapping,'active',False),patch.object(mapping.bridge,'switch',{}),patch.object(mapping.bridge,'require_mapping_ready'),patch.object(mapping,'require_navigation_stopped',side_effect=navigation_stopped),patch.object(mapping.bridge,'stop_route',side_effect=AssertionError('mapping must not send navigation stop commands')),patch.object(mapping.bridge,'publish',side_effect=publish):
+                result=await mapping.start({},True)
                 self.assertEqual(result['status'],'mapping')
                 self.assertTrue(mapping.active)
         asyncio.run(check())
-        self.assertEqual(calls,['stop',('lifecycle',False),('/buildmap','start')])
-
-    def test_lifecycle_failure_does_not_start_slam(self):
-        async def check():
-            with patch.object(mapping,'active',False),patch.object(mapping.bridge,'require_stationary'),patch.object(mapping.bridge,'stop_route',new=AsyncMock()),patch.object(mapping,'lifecycle',new=AsyncMock(side_effect=RuntimeError('定位未就绪'))),patch.object(mapping.bridge,'publish') as publish:
-                with self.assertRaisesRegex(RuntimeError,'定位未就绪'):await mapping.start({})
-                publish.assert_not_called()
-        asyncio.run(check())
+        self.assertEqual(calls,['navigation-stopped',('/buildmap','start')])
 
 
 if __name__=='__main__':unittest.main()

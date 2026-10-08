@@ -1,6 +1,5 @@
-"""Mapping lifecycle coordinated with localization and navigation."""
+"""Manual-push mapping lifecycle coordinated with the ROS sensor stack."""
 import asyncio
-import os
 import time
 from collections import deque
 from app.services.ros2_service import ros2_service as bridge
@@ -32,50 +31,39 @@ async def wait_status(since, predicate, timeout):
     raise TimeoutError('等待建图节点反馈超时，请核实 ROS 状态后重试')
 
 
-async def lifecycle(activate):
-    from lifecycle_msgs.srv import GetState,ChangeState
-    name=os.getenv('ROS_LOCALIZATION_NODE','/lidar_localization').rstrip('/')
-    get=bridge.node.create_client(GetState,name+'/get_state')
-    change=bridge.node.create_client(ChangeState,name+'/change_state')
-    async def call(client,request):
-        deadline=time.monotonic()+5
-        while not client.service_is_ready() and time.monotonic()<deadline: await asyncio.sleep(.1)
-        if not client.service_is_ready(): raise RuntimeError('定位生命周期服务未就绪：'+name)
-        future=client.call_async(request)
-        while not future.done() and time.monotonic()<deadline: await asyncio.sleep(.05)
-        if not future.done(): future.cancel();raise TimeoutError('定位生命周期切换超时')
-        return future.result()
-    try:
-        current=(await call(get,GetState.Request())).current_state.id
-        target=3 if activate else 2
-        if current==target:return
-        if current not in {2,3}:raise RuntimeError('定位节点须先完成 configure，才能切换建图模式')
-        request=ChangeState.Request();request.transition.id=3 if activate else 4
-        if not (await call(change,request)).success:raise RuntimeError('定位节点拒绝生命周期切换')
-    finally:
-        bridge.node.destroy_client(get);bridge.node.destroy_client(change)
+async def require_navigation_stopped():
+    from app.services.ros_runtime import SERVICES,graph,unit_state
+    navigation=await unit_state('navigation')
+    if navigation.get('load')!='loaded' or navigation.get('state')!='inactive':
+        state=navigation.get('state','unknown')
+        raise RuntimeError(f'定位与导航服务必须已安装并确认停止后才能建图（当前：{state}）')
+    try:nodes=sorted(set(graph()) & set(SERVICES['navigation']['nodes']))
+    except Exception as exc:raise RuntimeError('无法读取 ROS 节点图，不能确认定位与导航已停止') from exc
+    if nodes:raise RuntimeError('检测到定位与导航节点仍在运行：'+', '.join(nodes))
 
 
-async def start(job):
+async def start(job,manual_push_confirmed=False):
     global active
     async with lock,bridge.control_lock:
-        bridge.require_stationary()
+        if manual_push_confirmed is not True:
+            raise RuntimeError('请先确认现场底盘处于厂家允许的安全手动/自由轮状态，并可人工推行')
+        await require_navigation_stopped()
+        bridge.require_mapping_ready()
         if active:raise RuntimeError('建图已启动')
-        await bridge.stop_route()
-        await lifecycle(False)
         active=True
+        bridge.inhibited=True
         bridge.switch={'status':'mapping','message':'建图期间禁止定位导航'}
         since=sequence
         bridge.publish('/buildmap','start')
         await wait_status(since,lambda message:message=='map_data_ready',90)
-        return {'status':'mapping','message':'点云已就绪；可使用现场手动控制采集，未自动启动车辆'}
+        return {'status':'mapping','message':'点云已就绪；可在实体确认底盘可手推后人工采集。系统不会发送行驶指令。'}
 
 
 async def finish(job,name=None):
     global active
     async with lock,bridge.control_lock:
         bridge.require_ros()
-        await bridge.stop_route()
+        await require_navigation_stopped()
         if name:
             since=sequence;bridge.publish('/buildmap',name)
             message=await wait_status(since,lambda text:text.startswith('saved:') and text.rstrip('/').split('/')[-1]==name,310)
@@ -86,11 +74,23 @@ async def finish(job,name=None):
         since=sequence;bridge.publish('/buildmap','stop')
         await wait_status(since,lambda text:text in {'rviz_livox_started','mapping_stopped'},60)
         active=False
-        await lifecycle(True)
         bridge.switch={'status':'needs_localization','message':'建图已结束，请选择地图并重新定位'}
-        return {'status':'saved' if name else 'stopped','asset_id':name}
+        bridge.inhibited=True
+        return {'status':'saved' if name else 'stopped','asset_id':name,
+                'message':'建图已结束；导航仍保持停止。请检查地图后，在 ROS 维护页按需启动定位与导航并重新定位。'}
 
 
 def snapshot():
+    publisher=bridge.publishers.get('/buildmap')
+    try:controller_ready=bool(publisher and publisher.get_subscription_count()>0)
+    except Exception:controller_ready=False
+    lidar_ready=bool(bridge.lidar_received and time.monotonic()-bridge.lidar_received<2)
+    connected=bool(not bridge.is_simulation and bridge.node and bridge_source_is_ros())
     return {'active':active,'status':status,'fresh':bool(received and time.monotonic()-received<5),
-            'connected':bridge.snapshot()['connected'],'source':bridge.snapshot()['localization']['source']}
+            'connected':connected,'source':'ros' if connected else 'simulation' if bridge.is_simulation else 'disconnected',
+            'lidar_ready':lidar_ready,'controller_ready':controller_ready}
+
+
+def bridge_source_is_ros():
+    from app.services.vehicle_state import vehicle_state
+    return vehicle_state.source=='ros'

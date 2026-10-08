@@ -15,6 +15,7 @@ router=APIRouter(prefix='/api/map-workbench',tags=['Map workbench'])
 from app.database import get_db
 from app.models.operations import MapDocument, MapVersion
 from app.services import map_bindings
+from app.services import ros_runtime
 from app.services.operations_common import audit
 from sqlalchemy import select
 
@@ -138,19 +139,36 @@ async def job(job_id:str,actor=Depends(require('map:view'))):
 
 
 @router.get('/mapping')
-async def status(actor=Depends(require('map:view'))):return ok(mapping.snapshot())
+async def status(actor=Depends(require('map:view'))):
+    snapshot=mapping.snapshot()
+    snapshot['navigation_state']=(await ros_runtime.unit_state('navigation')).get('state','unknown')
+    try:
+        snapshot['navigation_nodes_active']=sorted(set(ros_runtime.graph()) & set(ros_runtime.SERVICES['navigation']['nodes']))
+        snapshot['navigation_graph_readable']=True
+    except Exception:
+        snapshot['navigation_nodes_active']=[]
+        snapshot['navigation_graph_readable']=False
+    return ok(snapshot)
 
 
 class SaveMapping(BaseModel):
     name:str=Field(min_length=1,max_length=64,pattern=r'^[a-zA-Z0-9_-]+$')
 
 
+class StartMapping(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    manual_push_confirmed:bool
+
+
 @router.post('/mapping/start')
-async def start(actor=Depends(require('map:edit'))):
+async def start(body:StartMapping,actor=Depends(require('map:edit'))):
     if mapping.lock.locked() or any(j for j in assets.tasks):raise HTTPException(409,'已有地图任务正在处理')
-    try:mapping.bridge.require_stationary()
+    if not body.manual_push_confirmed:raise HTTPException(409,'请先确认现场底盘处于厂家允许的安全手动/自由轮状态，并可人工推行')
+    try:
+        await mapping.require_navigation_stopped()
+        mapping.bridge.require_mapping_ready()
     except RuntimeError as exc:raise HTTPException(409,str(exc)) from exc
-    return ok(assets.submit('mapping-start',mapping.start))
+    return ok(assets.submit('mapping-start',lambda job:mapping.start(job,body.manual_push_confirmed)))
 
 
 @router.post('/mapping/save')
