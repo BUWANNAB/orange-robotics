@@ -28,7 +28,6 @@
     proportion: 1.2              # 转向增益系数
     spin_angle_threshold: 60.0   # 原地自转角度阈值 (度)，小于此夹角全程弧线连续通过，绝不停车
 
-    # --- 定位偏移与授权 ---
+    # --- 定位偏移 ---
     pose_offset_x_: 0.0
     pose_offset_y_: 0.0
-    authorized_hardware_id: 'c86dd31a0fc1d8187ebc942407b3dff9'

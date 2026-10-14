@@ -92,15 +92,5 @@ class TestMapParamUser(unittest.TestCase):
         self.assertIn("lidar_model", cfg)
         print(f"[PASS] GET /api/v1/lidar/config: 型号={cfg['lidar_model']}, 雷达数量={cfg['lidar_count']}, 主机IP={cfg['host_ip']}")
 
-    def test_07_license_status(self):
-        """测试授权状态诊断 (已脱机放行)"""
-        res = self.client.get("/api/v1/system/license/status")
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertEqual(data["code"], 0)
-        lic = data["data"]
-        self.assertTrue(lic["is_authorized"])
-        print(f"[PASS] GET /api/v1/system/license/status: 授权状态={lic['license_mode']}, 机器码={lic['hardware_id']}")
-
 if __name__ == "__main__":
     unittest.main()

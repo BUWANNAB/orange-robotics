@@ -279,10 +279,6 @@ app.include_router(task_router, prefix="/api/v1", tags=["Task & Order (v1)"])
 from app.api.system import router as system_router
 app.include_router(system_router, prefix="/api/v1/system", tags=["System Mode"])
 
-# 注册授权状态诊断与激活模块
-from app.api.license import router as license_router
-app.include_router(license_router, prefix="/api/v1/system/license", tags=["License"])
-
 # 挂载前端静态资源（若存在）
 if settings.STATIC_DIR.exists():
     from fastapi.responses import RedirectResponse

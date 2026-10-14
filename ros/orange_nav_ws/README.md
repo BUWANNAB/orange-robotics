@@ -10,7 +10,7 @@ ROS 2 Humble 导航工作区，汇聚现场导航链路的**全部功能包**。
 | 建图 | `src/mapping` | `lio_sam`（LIO-SAM-MID360）、`build_map_manager`、`pcd2pgm`；参数由节点自身 ROS 2 参数和 YAML 提供 |
 | 定位 | `src/localization` | `lidar_localization_ros2`、`ndt_omp_ros2` |
 | 导航 | `src/navigation` | `tf_to_pose`、`vehicle_navigation` |
-| 硬件 | `src/hardware` | `ros2plc`（注：`hardware_bind_lib` 已暂时解耦并移至 `archive/` 归档） |
+| 硬件 | `src/hardware` | `ros2plc` |
 | 第三方依赖 | `third_party` | `gtsam`、`Livox-SDK2`（构建期依赖，非 ROS 包） |
 | 点云防护 | `src/runtime/orange_pointcloud_filter`、`orange_runtime` | C++ PCL TF/CropBox/VoxelGrid 预处理 + Nav2 Collision Monitor（Humble；默认关闭） |
 

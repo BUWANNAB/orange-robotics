@@ -4620,17 +4620,6 @@
 				"isDelete":0
 			},
 			{
-				"id":495,
-				"param_id":"authorized_hardware_id",
-				"name":"秘钥",
-				"value":".da28aa1f977f245db8d2bad7a423338a",
-				"placeholder":"请输入秘钥",
-				"type":"string",
-				"category":"导航与控制",
-				"visible":1,
-				"isDelete":0
-			},
-			{
 				"id":492,
 				"param_id":"proportion",
 				"name":"比例系数",

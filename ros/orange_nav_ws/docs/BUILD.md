@@ -37,7 +37,6 @@ Defaults preserve the current Royalstar robot. Override them on another machine 
 | Variable / ROS parameter | Current default | Purpose |
 |---|---|---|
 | `BLUEANT_MAP_PCD` | （部署时注入，无默认样例）例：`$ROBOT_PCD_DIR/<地图名>/GlobalMap.pcd` | Localization PCD map |
-| `BLUEANT_AUTHORIZED_HARDWARE_ID` | value in `purepursuit_params.yaml` | Authorized navigation computer |
 | `ros2plc.server_ip` | `192.168.8.30` | PLC Modbus TCP address |
 | `ros2plc.server_port` | `502` | PLC Modbus TCP port |
 | `BLUEANT_DB_HOST` | `localhost:3306` | MySQL endpoint |

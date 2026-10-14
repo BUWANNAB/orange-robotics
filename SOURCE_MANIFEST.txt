@@ -10,4 +10,3 @@ ros/orange_nav_ws/src/navigation/vehicle_navigation <- vehicle_navigation
 ros/orange_nav_ws/src/hardware/ros2plc <- ros2plc
 ros/orange_nav_ws/src/mapping/parameter_server <- parameter_server
 ros/orange_nav_ws/src/mapping/pcd2pgm <- pcd2pgm
-archive/hardware_bind_lib <- hardware_bind_lib
