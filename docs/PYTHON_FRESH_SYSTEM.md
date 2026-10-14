@@ -20,7 +20,7 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
 ## 软件准备（Ubuntu 22.04 / ROS 2 Humble）
 
-1. 安装 ROS 2 Humble、colcon、rosdep 及导航包所需系统依赖。先执行 `ros/orange_nav_ws/scripts/check-dependencies.sh`；缺少 Livox-SDK2/GTSAM 时，在具备安装权限的环境中运行 `ros/orange_nav_ws/scripts/install-vendored-dependencies.sh`，然后运行 `ros/orange_nav_ws/scripts/build-workspace.sh`。确认 `orange_runtime`、定位、导航、建图、Livox 和 `ros2plc` 包均能在同一工作区加载。将实际雷达配置保存为 `MID360_CONFIG_FILE`，核对雷达 IP、坐标系及 ROS_DOMAIN_ID；PLC 服务使用的地址写入 `ROBOT_PLC_HOST`。只有验证现有底盘协议后，才把 `ROBOT_PLC_PROTOCOL` 从 `UNVERIFIED` 改为 `legacy_8_register` 并单独启动 PLC 服务；否则 PLC 和依赖它的 navigation 拒绝启动。雷达 core 与 mapping 不依赖 PLC 协议，可以独立开展建图。核心 ROS 单元不能凭软件测试视为硬件就绪。
+1. 安装 ROS 2 Humble、colcon、rosdep 及导航包所需系统依赖。先执行 `ros/orange_nav_ws/scripts/check-dependencies.sh`；缺少 Livox-SDK2/GTSAM 时，在具备安装权限的环境中运行 `ros/orange_nav_ws/scripts/install-vendored-dependencies.sh`，然后运行 `ros/orange_nav_ws/scripts/build-workspace.sh`。确认 `orange_runtime`、定位、导航、建图、Livox 和 `ros2plc` 包均能在同一工作区加载。将实际雷达配置保存为 `MID360_CONFIG_FILE`，核对雷达 IP、坐标系及 ROS_DOMAIN_ID；PLC 服务使用的地址写入 `ROBOT_PLC_HOST`。定位服务只依赖雷达 core，可在 PLC 通信和底盘物理使能之前启动；自动全局重定位还需要 PLC 通信提供新鲜里程计和停车反馈。只有验证现有底盘协议后，才把 `ROBOT_PLC_PROTOCOL` 从 `UNVERIFIED` 改为 `legacy_8_register` 并单独启动 PLC 服务；navigation 运动控制服务还依赖定位服务和 PLC 通信。底盘物理使能通过单独 PLC 请求执行，不是定位启动条件。雷达 core 与 mapping 不依赖 PLC 协议，可以独立开展建图。核心 ROS 单元不能凭软件测试视为硬件就绪。
 
    **Mid-360S 是独立新型号，不表示多雷达。** 它使用 `Mid360s` 设备段及列表形式的 `host_net_info`；旧 Mid-360 使用 `MID360` 设备段及对象形式的 `host_net_info`。仓库内置驱动已更新为 Livox ROS Driver 2 **1.2.6**（官方 tag `13eb05e`），配套 Livox-SDK2 **1.3.1**（官方 tag `f5d9375`），两者源码均包含 Mid-360S 支持。模板中的 IP 只是示例。先在目标机安装新 SDK 并重编驱动，确认进程加载新库。
 

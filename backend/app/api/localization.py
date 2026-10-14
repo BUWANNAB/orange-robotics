@@ -82,6 +82,13 @@ async def perform_auto(entry):
     except (RuntimeError,TimeoutError):pass  # Failure is retained in the live snapshot.
 
 
+async def require_localization_service():
+    from app.services import ros_runtime
+    service = await ros_runtime.unit_state('localization')
+    if service.get('state') != 'active':
+        raise RuntimeError('雷达定位服务未运行，请先在 ROS 维护页启动定位服务')
+
+
 @router.post('/auto')
 async def automatic(body:AutoInput,actor=Depends(require('map:edit'))):
     global switch_task
@@ -89,8 +96,9 @@ async def automatic(body:AutoInput,actor=Depends(require('map:edit'))):
     entry=next((r for r in catalog() if r['key']==body.key),None)
     if not entry:raise HTTPException(404,'请选择有效定位点云')
     try:
+        await require_localization_service()
         bridge.require_stationary()
-        if not bridge.snapshot()['auto_available']:raise RuntimeError('自动重定位节点未连接，请先启动 navigation 服务')
+        if not bridge.snapshot()['auto_available']:raise RuntimeError('自动重定位节点尚未连接；请检查定位服务启动状态')
     except RuntimeError as exc:raise HTTPException(409,str(exc)) from exc
     bridge.relocalization={'status':'pending','message':'自动重定位已排队'}
     switch_task=asyncio.create_task(perform_auto(entry))
@@ -137,6 +145,7 @@ async def switch(body: SwitchInput, actor=Depends(require("map:edit"))):
     if not entry:
         raise HTTPException(404, "地图不在本机 PCD 目录或已配置目录中")
     try:
+        await require_localization_service()
         bridge.require_stationary()
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc

@@ -141,12 +141,17 @@ async def job(job_id:str,actor=Depends(require('map:view'))):
 @router.get('/mapping')
 async def status(actor=Depends(require('map:view'))):
     snapshot=mapping.snapshot()
+    snapshot['localization_state']=(await ros_runtime.unit_state('localization')).get('state','unknown')
     snapshot['navigation_state']=(await ros_runtime.unit_state('navigation')).get('state','unknown')
     try:
+        snapshot['localization_nodes_active']=sorted(set(ros_runtime.graph()) & set(ros_runtime.SERVICES['localization']['nodes']))
         snapshot['navigation_nodes_active']=sorted(set(ros_runtime.graph()) & set(ros_runtime.SERVICES['navigation']['nodes']))
+        snapshot['localization_graph_readable']=True
         snapshot['navigation_graph_readable']=True
     except Exception:
+        snapshot['localization_nodes_active']=[]
         snapshot['navigation_nodes_active']=[]
+        snapshot['localization_graph_readable']=False
         snapshot['navigation_graph_readable']=False
     return ok(snapshot)
 
@@ -165,7 +170,7 @@ async def start(body:StartMapping,actor=Depends(require('map:edit'))):
     if mapping.lock.locked() or any(j for j in assets.tasks):raise HTTPException(409,'已有地图任务正在处理')
     if not body.manual_push_confirmed:raise HTTPException(409,'请先确认现场底盘处于厂家允许的安全手动/自由轮状态，并可人工推行')
     try:
-        await mapping.require_navigation_stopped()
+        await mapping.require_localization_and_motion_stopped()
         mapping.bridge.require_mapping_ready()
     except RuntimeError as exc:raise HTTPException(409,str(exc)) from exc
     return ok(assets.submit('mapping-start',lambda job:mapping.start(job,body.manual_push_confirmed)))

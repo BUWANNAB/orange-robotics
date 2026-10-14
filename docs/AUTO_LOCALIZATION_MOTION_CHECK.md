@@ -32,7 +32,7 @@ colcon test-result --verbose
 
 如缺少 ROS 依赖，先按现有工作区部署流程安装 `sensor_msgs_py`、`tf2_ros_py`、`nav_msgs`、`rosbag2_py` 等。Windows 的验证环境已安装 Open3D 0.19.0；上述 Linux 安装和 ROS 编译本次尚未执行。Python 包必须能被生成的 ROS 可执行脚本所用解释器导入。
 
-新启动链 `ros2 launch orange_runtime navigation.launch.py` 会同时启动自动重定位节点。已部署 systemd 用户服务时按既有运行维护页面启动 navigation；不要重复手动启动。必须配置 ROBOT_PCD_DIR，并确保 Web 和节点读取同一目录、同一 ROS_DOMAIN_ID。
+定位与运动控制现由独立 ROS 服务启动。先通过维护页启动 localization（只依赖 core，不启动 PLC 通信或底盘使能），再在 PLC 协议已核实后启动 PLC 通信并确认新鲜 `/odom_topic`，这是自动全局重定位需要的里程计及停车反馈。定位服务负责自动重定位和 `tf_to_pose`；navigation launch 只启动运动控制与可选点云防护链，启动该服务本身不发送底盘使能脉冲。必须配置 ROBOT_PCD_DIR，并确保 Web 和节点读取同一目录、同一 ROS_DOMAIN_ID。
 
 ## 明天先验自动重定位
 

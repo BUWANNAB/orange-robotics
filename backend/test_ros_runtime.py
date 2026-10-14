@@ -143,7 +143,8 @@ class RuntimeTests(unittest.TestCase):
     def test_mapping_only_needs_lidar_core_and_plc_start_is_gated(self):
         self.assertNotIn('ros2plc',runtime.SERVICES['core']['nodes'])
         self.assertEqual(runtime.SERVICES['mapping']['dependencies'],['core'])
-        self.assertEqual(runtime.SERVICES['navigation']['dependencies'],['core','plc'])
+        self.assertEqual(runtime.SERVICES['localization']['dependencies'],['core'])
+        self.assertEqual(runtime.SERVICES['navigation']['dependencies'],['core','localization','plc'])
         async def check():
             with (patch.object(runtime,'availability',return_value=(True,'')),
                   patch.dict('os.environ',{'ROBOT_PLC_PROTOCOL':'UNVERIFIED'}),

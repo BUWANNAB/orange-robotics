@@ -31,10 +31,10 @@
 | POST `/grid` | multipart：asset_id、pgm、metadata、revision；另存加 create_only=true |
 | POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase |
 | GET `/jobs/{id}` | queued / running / success / failed，message 与 result |
-| GET `/mapping` | ROS 桥接、近 2 秒雷达点云、建图控制器订阅、定位与导航服务状态、建图状态 |
-| POST `/mapping/start` | `{manual_push_confirmed:true}`；要求定位与导航服务确认停止、实时雷达点云、建图控制器订阅和现场手动/自由轮确认，启动建图并等到点云就绪 |
+| GET `/mapping` | ROS 桥接、近 2 秒雷达点云、建图控制器订阅、定位与运动控制服务状态、建图状态 |
+| POST `/mapping/start` | `{manual_push_confirmed:true}`；要求定位与运动控制服务确认停止、实时雷达点云、建图控制器订阅和现场手动/自由轮确认，启动建图并等到点云就绪 |
 | POST `/mapping/save` | `{name}`，64 字符内字母数字横线下划线；保存并结束采集 |
-| POST `/mapping/stop` | 停止采集、恢复雷达和定位生命周期，保持导航锁定 |
+| POST `/mapping/stop` | 停止采集、恢复雷达，保持定位与运动控制停止锁定 |
 
 `crop` 为可选的 `{x_min,x_max,y_min,y_max}`，`erase` 为同结构数组，最多 100 个。异步任务持久化到 `RCS_DATA_DIR/map-jobs`；刷新页面继续查询最后任务。退出码不为零、超时或服务中断均失败，不以定时器推断成功。错误日志在任务目录的 `processor.log`。
 

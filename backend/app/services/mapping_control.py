@@ -31,15 +31,18 @@ async def wait_status(since, predicate, timeout):
     raise TimeoutError('等待建图节点反馈超时，请核实 ROS 状态后重试')
 
 
-async def require_navigation_stopped():
+async def require_localization_and_motion_stopped():
     from app.services.ros_runtime import SERVICES,graph,unit_state
-    navigation=await unit_state('navigation')
-    if navigation.get('load')!='loaded' or navigation.get('state')!='inactive':
-        state=navigation.get('state','unknown')
-        raise RuntimeError(f'定位与导航服务必须已安装并确认停止后才能建图（当前：{state}）')
-    try:nodes=sorted(set(graph()) & set(SERVICES['navigation']['nodes']))
-    except Exception as exc:raise RuntimeError('无法读取 ROS 节点图，不能确认定位与导航已停止') from exc
-    if nodes:raise RuntimeError('检测到定位与导航节点仍在运行：'+', '.join(nodes))
+    for key in ('localization','navigation'):
+        state=await unit_state(key)
+        if state.get('load')!='loaded' or state.get('state')!='inactive':
+            active_state=state.get('state','unknown')
+            raise RuntimeError(f'{SERVICES[key]["name"]}服务必须已安装并确认停止后才能建图（当前：{active_state}）')
+    try:
+        expected_nodes=set(SERVICES['localization']['nodes']) | set(SERVICES['navigation']['nodes'])
+        nodes=sorted(set(graph()) & expected_nodes)
+    except Exception as exc:raise RuntimeError('无法读取 ROS 节点图，不能确认定位与运动控制已停止') from exc
+    if nodes:raise RuntimeError('检测到定位或运动控制节点仍在运行：'+', '.join(nodes))
 
 
 async def start(job,manual_push_confirmed=False):
@@ -47,12 +50,12 @@ async def start(job,manual_push_confirmed=False):
     async with lock,bridge.control_lock:
         if manual_push_confirmed is not True:
             raise RuntimeError('请先确认现场底盘处于厂家允许的安全手动/自由轮状态，并可人工推行')
-        await require_navigation_stopped()
+        await require_localization_and_motion_stopped()
         bridge.require_mapping_ready()
         if active:raise RuntimeError('建图已启动')
         active=True
         bridge.inhibited=True
-        bridge.switch={'status':'mapping','message':'建图期间禁止定位导航'}
+        bridge.switch={'status':'mapping','message':'建图期间禁止定位和运动控制'}
         since=sequence
         bridge.publish('/buildmap','start')
         await wait_status(since,lambda message:message=='map_data_ready',90)
@@ -63,7 +66,7 @@ async def finish(job,name=None):
     global active
     async with lock,bridge.control_lock:
         bridge.require_ros()
-        await require_navigation_stopped()
+        await require_localization_and_motion_stopped()
         if name:
             since=sequence;bridge.publish('/buildmap',name)
             message=await wait_status(since,lambda text:text.startswith('saved:') and text.rstrip('/').split('/')[-1]==name,310)
@@ -77,7 +80,7 @@ async def finish(job,name=None):
         bridge.switch={'status':'needs_localization','message':'建图已结束，请选择地图并重新定位'}
         bridge.inhibited=True
         return {'status':'saved' if name else 'stopped','asset_id':name,
-                'message':'建图已结束；导航仍保持停止。请检查地图后，在 ROS 维护页按需启动定位与导航并重新定位。'}
+                'message':'建图已结束；定位与运动控制服务保持停止。请检查地图后，在 ROS 维护页按需启动定位、完成重新定位，再启动运动控制。'}
 
 
 def snapshot():

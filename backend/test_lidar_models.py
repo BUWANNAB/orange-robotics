@@ -175,7 +175,7 @@ class LidarModelTests(unittest.TestCase):
                  patch("app.services.ros_runtime.unit_state", new_callable=AsyncMock,
                        side_effect=unit_state), \
                  patch("app.services.mapping_control.active", False):
-                with self.assertRaisesRegex(ValueError, "定位与导航服务必须已停止"):
+                with self.assertRaisesRegex(ValueError, "运动控制服务必须已停止"):
                     asyncio.run(LidarService.update_config({
                         "host_ip": "192.168.2.5", "device_ip": "192.168.2.181",
                         "extrinsics": MEASURED_MOUNT, "mount_confirmed": True,

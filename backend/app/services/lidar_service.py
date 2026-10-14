@@ -222,9 +222,10 @@ class LidarService:
                 raise ValueError("无法确认 ROS 核心服务状态，禁止修改运行配置")
             if mapping_control.active:
                 raise ValueError("建图尚未结束；请先保存并结束采集，再修改雷达配置")
-            navigation = await ros_runtime.unit_state("navigation")
-            if navigation["state"] != "inactive":
-                raise ValueError("定位与导航服务必须已停止，才能暂存雷达配置")
+            for service_key in ("localization", "navigation"):
+                service_state = await ros_runtime.unit_state(service_key)
+                if service_state["state"] != "inactive":
+                    raise ValueError(ros_runtime.SERVICES[service_key]["name"] + "服务必须已停止，才能暂存雷达配置")
             if core["state"] == "active":
                 ros2_service.require_ros()
                 try:
@@ -235,11 +236,12 @@ class LidarService:
                 if running_mapping_nodes:
                     raise ValueError("建图节点仍在运行，不能暂存雷达配置：" +
                                      ", ".join(sorted(running_mapping_nodes)))
-                running_navigation_nodes = live_nodes & set(
-                    ros_runtime.SERVICES["navigation"]["nodes"])
-                if running_navigation_nodes:
-                    raise ValueError("定位与导航节点仍在运行，不能暂存雷达配置：" +
-                                     ", ".join(sorted(running_navigation_nodes)))
+                for service_key in ("localization", "navigation"):
+                    active_nodes = live_nodes & set(ros_runtime.SERVICES[service_key]["nodes"])
+                    if active_nodes:
+                        raise ValueError(ros_runtime.SERVICES[service_key]["name"] +
+                                         "节点仍在运行，不能暂存雷达配置：" +
+                                         ", ".join(sorted(active_nodes)))
 
         async with _config_lock:
             original = json.loads(cfg_path.read_text(encoding="utf-8"))

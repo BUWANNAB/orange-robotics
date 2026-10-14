@@ -172,7 +172,7 @@ class MapWorkbenchTests(unittest.TestCase):
         self.assertEqual((settings.MAPS_DIR/'clean/setting/map.pgm').read_bytes(),PGM)
 
     def test_offline_mapping_rejected(self):
-        with patch.object(mapping,'require_navigation_stopped',new=AsyncMock()),patch.object(mapping.bridge,'require_mapping_ready',side_effect=RuntimeError('真实 ROS 未连接')):
+        with patch.object(mapping,'require_localization_and_motion_stopped',new=AsyncMock()),patch.object(mapping.bridge,'require_mapping_ready',side_effect=RuntimeError('真实 ROS 未连接')):
             response=self.client.post('/api/map-workbench/mapping/start',headers=self.headers,json={'manual_push_confirmed':True})
         self.assertEqual(response.status_code,409)
         self.assertEqual(response.json()['message'],'真实 ROS 未连接')
@@ -189,11 +189,11 @@ class MapWorkbenchTests(unittest.TestCase):
                 await mapping.start({},False)
             with patch('app.services.ros_runtime.unit_state',new=AsyncMock(return_value={'load':'loaded','state':'active'})):
                 with self.assertRaisesRegex(RuntimeError,'必须已安装并确认停止'):
-                    await mapping.require_navigation_stopped()
+                    await mapping.require_localization_and_motion_stopped()
             with (patch('app.services.ros_runtime.unit_state',new=AsyncMock(return_value={'load':'loaded','state':'inactive'})),
                   patch('app.services.ros_runtime.graph',return_value=['vehicle_navigation_node'])):
-                with self.assertRaisesRegex(RuntimeError,'导航节点仍在运行'):
-                    await mapping.require_navigation_stopped()
+                with self.assertRaisesRegex(RuntimeError,'运动控制节点仍在运行'):
+                    await mapping.require_localization_and_motion_stopped()
         asyncio.run(check())
 
     def test_mapping_start_only_publishes_buildmap_and_waits_for_data_ack(self):
@@ -202,7 +202,7 @@ class MapWorkbenchTests(unittest.TestCase):
         def publish(topic,value):
             calls.append((topic,value));mapping.receive(SimpleNamespace(data='map_data_ready'))
         async def check():
-            with patch.object(mapping,'active',False),patch.object(mapping.bridge,'switch',{}),patch.object(mapping.bridge,'require_mapping_ready'),patch.object(mapping,'require_navigation_stopped',side_effect=navigation_stopped),patch.object(mapping.bridge,'stop_route',side_effect=AssertionError('mapping must not send navigation stop commands')),patch.object(mapping.bridge,'publish',side_effect=publish):
+            with patch.object(mapping,'active',False),patch.object(mapping.bridge,'switch',{}),patch.object(mapping.bridge,'require_mapping_ready'),patch.object(mapping,'require_localization_and_motion_stopped',side_effect=navigation_stopped),patch.object(mapping.bridge,'stop_route',side_effect=AssertionError('mapping must not send navigation stop commands')),patch.object(mapping.bridge,'publish',side_effect=publish):
                 result=await mapping.start({},True)
                 self.assertEqual(result['status'],'mapping')
                 self.assertTrue(mapping.active)

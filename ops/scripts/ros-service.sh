@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Called only by the three fixed systemd user units.
+# Called only by the five fixed systemd user units.
 set -eo pipefail
 [[ $# == 1 ]] || exit 2
 case "$1" in
   core) launch_file=core.launch.py ;;
   plc) launch_file=plc.launch.py ;;
+  localization) launch_file=localization.launch.py ;;
   navigation) launch_file=navigation.launch.py ;;
   mapping) launch_file=mapping.launch.py ;;
   *) echo 'Unknown service' >&2; exit 2 ;;
