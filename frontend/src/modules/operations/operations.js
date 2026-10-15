@@ -4,10 +4,23 @@
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const labels = {idle:'空闲',busy:'任务中',charging:'充电中',offline:'离线',disabled:'停用',maintenance:'维护',emergency:'急停',locked:'锁定',open:'未确认',acknowledged:'已确认',closed:'已关闭',queued:'排队',dispatched:'已下发',running:'执行中',stop_requested:'请求停止',success:'成功',failed:'失败',cancelled:'已取消',timeout:'超时',pending:'待执行',paused:'已暂停',completed:'已完成',partial_failed:'部分失败',uploading:'上传中',review:'待审核',released:'已发布',waiting:'等待',skipped:'跳过',retry:'等待重试',dead:'重试耗尽',sending:'发送中',rolled_back:'已回滚',rolling_back:'回滚中',downloading:'下载中',verifying:'校验中',flashing:'刷写中',rebooting:'重启中',critical:'严重',warning:'警告',info:'提示'};
   const modules = [
-    ['dashboard','运营看板','dashboard:view'],['robots','机器人管理','robot:view'],['battery','电量监控','battery:view'],
-    ['alarms','报警中心','alarm:view'],['tasks','任务历史','task:view'],['logs','日志中心','log:view'],
-    ['maps','实时地图 / 线路编辑','map:view'],['integration','WMS 对接','integration:manage'],['firmware','固件库','firmware:view'],['upgrades','升级任务','firmware:view']
+    ['dashboard','运营看板','dashboard:view','dashboard'],['robots','机器人管理','robot:view','robot'],['battery','电量监控','battery:view','battery'],
+    ['alarms','报警中心','alarm:view','alert'],['tasks','任务历史','task:view','tasks'],['logs','日志中心','log:view','logs'],
+    ['maps','实时地图 / 线路编辑','map:view','route'],['integration','WMS 对接','integration:manage','integration'],['firmware','固件库','firmware:view','package'],['upgrades','升级任务','firmware:view','upgrade']
   ];
+  const navIcons = {
+    dashboard:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+    robot:'<rect x="5" y="7" width="14" height="13" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/>',
+    battery:'<rect x="3" y="7" width="17" height="10" rx="2"/><path d="M22 10v4M7 10v4M11 10v4M15 10v4"/>',
+    alert:'<path d="m12 3 9 16H3L12 3Z"/><path d="M12 9v4M12 16h.01"/>',
+    tasks:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 10h6M9 14h6M9 18h3"/>',
+    logs:'<path d="M8 5h13M8 10h13M8 15h13M8 20h13"/><circle cx="4" cy="5" r=".6"/><circle cx="4" cy="10" r=".6"/><circle cx="4" cy="15" r=".6"/><circle cx="4" cy="20" r=".6"/>',
+    route:'<path d="M5 19c0-4 5-4 5-8s-5-3-5-7M19 5c0 4-5 4-5 8s5 3 5 7"/><circle cx="5" cy="4" r="1.5"/><circle cx="19" cy="20" r="1.5"/>',
+    integration:'<path d="M9 7V4M15 7V4M7 7h10v5a5 5 0 0 1-10 0V7ZM12 17v3M9 20h6"/>',
+    package:'<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="M3 8v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/>',
+    upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
+  };
+  const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
   const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
@@ -267,14 +280,14 @@
     $('state').innerHTML='<option value="">全部状态</option>'+(states[tab]||[]).map(v=>`<option value="${v}">${tab==='firmware'&&v==='offline'?'已下架':labels[v]||v}</option>`).join('');
     for(const key of ['start','end'])$(key).parentElement.hidden=!['alarms','tasks','logs'].includes(tab);
     $('state').hidden=!(states[tab]?.length);
-    $('filters').hidden=tab==='dashboard';document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+    $('filters').hidden=tab==='dashboard';document.querySelectorAll('#nav button').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     location.hash=tab;load();
   }
   async function init(){
     try{
       const me=await api.get('/api/operations/me');state.permissions=me.permissions;
       $('eyebrow').textContent=me.worker_enabled?'OPERATIONS CENTER':'OPERATIONS CENTER / 自动调度已暂停';
-      $('nav').innerHTML=modules.filter(m=>can(m[2])).map((m,i)=>`<button data-tab="${m[0]}"><span>${String(i+1).padStart(2,'0')}</span>${m[1]}</button>`).join('');
+      $('nav').innerHTML=modules.filter(m=>can(m[2])).map(m=>`<button class="rail-item" type="button" data-tab="${m[0]}"><span class="rail-icon">${navIcon(m[3])}</span><span class="rail-item-label">${escape(m[1])}</span><span class="rail-item-mark" aria-hidden="true"></span></button>`).join('');
       state.monitor=new window.OperationsMonitor(api,data=>{
         state.robots=data.robots||[];
         if(['robots','battery'].includes(state.tab))for(const robot of state.robots){

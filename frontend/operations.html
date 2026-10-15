@@ -1,9 +1,26 @@
 <!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RCS / RDS 运营管理</title><link rel="stylesheet" href="src/modules/operations/operations.css?v=map-editor-large-1"><link rel="stylesheet" href="src/modules/operations/map-enhancements.css?v=route-curves-1"><link rel="stylesheet" href="src/modules/operations/map-picker.css?v=20261008-existing-map-picker"></head>
+<title>RCS / RDS 运营管理</title><link rel="stylesheet" href="src/modules/operations/operations.css?v=20261015-rail-nav-1"><link rel="stylesheet" href="src/modules/operations/map-enhancements.css?v=route-curves-1"><link rel="stylesheet" href="src/modules/operations/map-picker.css?v=20261008-existing-map-picker"></head>
 <body>
-<aside class="rail"><div class="brand">ORANGE<span>RCS / RDS 运营管理</span></div><a class="back" href="map-workbench.html">地图工作台 / 建图与修图</a><a class="back" href="map-bindings.html">地图绑定</a><a class="back" href="localization.html">实时定位 / 地图热切换</a><a class="back" href="ros-maintenance.html">ROS 运行维护</a><nav id="nav" aria-label="运营管理模块"></nav></aside>
+<aside class="rail" aria-label="Orange 机器人控制台导航">
+  <div class="brand"><span class="brand-name">ORANGE</span><span class="brand-caption"><i aria-hidden="true"></i> RCS / RDS 运营管理</span></div>
+  <div class="rail-scroll">
+    <section class="rail-group" aria-labelledby="workspace-nav-title">
+      <div class="rail-section-head"><h2 id="workspace-nav-title" class="rail-section-title">工作台</h2><span class="rail-section-kicker">FIELD TOOLS</span></div>
+      <nav class="rail-nav rail-links" aria-label="工作台">
+        <a class="rail-item rail-link" href="map-workbench.html" title="地图建图与修图"><span class="rail-icon"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="m3.5 6.5 5.5-2.5 6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20V6.5Z"/><path d="M9 4v13.5M15 6.5V20"/></svg></span><span class="rail-item-copy"><strong>地图工作台</strong><small>建图与修图</small></span></a>
+        <a class="rail-item rail-link" href="map-bindings.html" title="地图与设备绑定"><span class="rail-icon"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></span><span class="rail-item-copy"><strong>地图绑定</strong><small>地图与设备</small></span></a>
+        <a class="rail-item rail-link" href="localization.html" title="定位与地图热切换"><span class="rail-icon"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg></span><span class="rail-item-copy"><strong>实时定位</strong><small>定位与地图切换</small></span></a>
+        <a class="rail-item rail-link" href="ros-maintenance.html" title="ROS 运行维护"><span class="rail-icon"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="2.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12"/></svg></span><span class="rail-item-copy"><strong>ROS 运行维护</strong><small>雷达与服务状态</small></span></a>
+      </nav>
+    </section>
+    <section class="rail-group" aria-labelledby="operations-nav-title">
+      <div class="rail-section-head"><h2 id="operations-nav-title" class="rail-section-title">运营管理</h2><span class="rail-section-kicker">OPERATIONS</span></div>
+      <nav id="nav" class="rail-nav" aria-label="运营管理模块"></nav>
+    </section>
+  </div>
+</aside>
 <main>
   <header><div><small id="eyebrow">OPERATIONS CENTER</small><h1 id="title">运营看板</h1></div><div class="header-tools"><span id="connection" class="badge">连接中</span><span id="updated">等待数据</span><button id="refresh">刷新</button><button id="fullscreen">全屏</button><button id="logout">退出登录</button></div></header>
   <div id="notice" role="status" hidden></div><div id="low-banner" hidden></div>
@@ -12,5 +29,5 @@
   <footer id="pagination"></footer>
 </main>
 <dialog id="dialog"><form id="dialog-form"><div class="dialog-head"><h2 id="dialog-title"></h2><button type="button" id="dialog-close" aria-label="关闭">×</button></div><div id="dialog-body"></div><p id="dialog-error" role="alert"></p><div class="dialog-footer"><button type="button" id="dialog-cancel">取消</button><button id="dialog-submit" class="primary">保存</button></div></form></dialog>
-<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script src="src/modules/operations/monitor.js"></script><script src="src/modules/operations/live-map.js?v=thin-live-route-1"></script><script src="src/modules/operations/map-canvas.js?v=curve-path-1"></script><script src="src/modules/operations/map-picker.js?v=20261008-existing-map-picker"></script><script src="src/modules/operations/operations.js?v=20261008-existing-map-picker"></script>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script src="src/modules/operations/monitor.js"></script><script src="src/modules/operations/live-map.js?v=thin-live-route-1"></script><script src="src/modules/operations/map-canvas.js?v=curve-path-1"></script><script src="src/modules/operations/map-picker.js?v=20261008-existing-map-picker"></script><script src="src/modules/operations/operations.js?v=20261015-rail-nav-1"></script>
 </body></html>
