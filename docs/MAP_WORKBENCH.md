@@ -1,6 +1,6 @@
 # 地图工作台
 
-入口：`/ui/map-workbench.html`。原二维编辑页与旧点云页跳转到工作台；运营管理增加工作台入口。采用同一深蓝、橙色和浅灰样式，按实际顺序分为采集建图、点云处理、二维修图、定位应用。切换步骤保留当前地图和未提交选区；更换地图会重新加载。
+入口：`/ui/map-workbench.html`。原二维编辑页与旧点云页跳转到工作台；运营管理增加工作台入口。工作台采用深蓝、橙色和浅灰的 RCS 操作布局，按“建图采集、点云与原点、二维地图、路线编辑、地图绑定、定位与重定位”组织。路线编辑器、绑定表单和定位画布在同一工作页内嵌打开，继续使用各自已有的业务接口和安全校验；切换步骤保留当前地图与未提交选区，更换地图会重新加载相关数据。
 
 ## 地图资产与坐标
 
@@ -14,7 +14,7 @@
 
 本地开发默认根目录为仓库内 `runtime_data/pcd` 与 `runtime_data/maps`；生产必须在 `~/.config/orange-agv/runtime.env` 指定绝对路径。`orange-web.service` 和所有 ROS service 读取同一份配置，因此建图保存、二维地图生成、后端校验和页面加载使用一致的路径。点云保存到 `<ROBOT_PCD_DIR>/<地图编号>/GlobalMap.pcd`，二维地图保存到 `<ROBOT_MAP_DIR>/<地图编号>/setting/`。新机从空目录开始；旧地图样例位于 `archive/map-examples/`，不作为新系统默认地图。
 
-它们不是同一种文件格式。坐标统一按米，接口朝向按弧度，栅格分辨率为米/像素；定位表单为方便操作显示角度，提交时转弧度。新处理器不旋转、不重新居中点云，输出 YAML 保留原坐标系。已有地图沿用原文件及其 YAML，历史点云和栅格是否同坐标系仍需现场核验。
+它们不是同一种文件格式。坐标统一按米，接口朝向按弧度，栅格分辨率为米/像素；定位和原点表单为方便操作显示角度，提交时转弧度。点云处理默认沿用源坐标系。启用“自定义原点与方向”后，可在点云画布从目标原点拖向新坐标系的 +X 方向，也可填写源坐标 X/Y 和方向角；处理器仅对输出副本执行刚性平移和旋转，使所选源点成为 (0,0)、所选方向成为新 +X，然后从变换后的 PCD 同步生成 PGM/YAML。变换公式为 `x'=cos(yaw)(x-x0)+sin(yaw)(y-y0)`、`y'=-sin(yaw)(x-x0)+cos(yaw)(y-y0)`。裁剪与删除仍按源坐标执行。原 PCD 不会覆盖，原点参数与处理统计保存在新资产的 `asset.json`。路线地图需使用这张新栅格创建或更新，才能与变换后的定位点云处于同一坐标系。已有地图沿用原文件及其 YAML，历史点云和栅格是否同坐标系仍需现场核验。
 
 二维白色画笔标记栅格可通行区，不会删除 PCD 中的点。三维框选删除在点云步骤完成：删除选定 XY 矩形内、保留高度区间中的点，可累计多个区域；绿色保留框最多一个。半径去噪使用 PCL `RadiusOutlierRemoval`。输出 PCD 为 XYZ + intensity，其他自定义字段不保留。点云投影中无点的位置为 205（未知），障碍为 0，不根据缺少点推断可通行空间。
 
@@ -29,7 +29,7 @@
 | GET `/assets` | ID、PCD/栅格是否存在、resolution、origin、revision |
 | GET `/file/{pcd\|pgm\|yaml}/{asset_id}` | 同一 ID 的指定资产 |
 | POST `/grid` | multipart：asset_id、pgm、metadata、revision；另存加 create_only=true |
-| POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase |
+| POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase；可选 `origin:{x,y,yaw}`，其中 yaw 为源坐标系中的弧度 |
 | GET `/jobs/{id}` | queued / running / success / failed，message 与 result |
 | GET `/mapping` | ROS 桥接、近 2 秒雷达点云、建图控制器订阅、定位与运动控制服务状态、建图状态 |
 | POST `/mapping/start` | `{manual_push_confirmed:true}`；要求定位与运动控制服务确认停止、实时雷达点云、建图控制器订阅和现场手动/自由轮确认，启动建图并等到点云就绪 |
@@ -54,8 +54,8 @@ Windows 已验证：隔离数据库下的接口与资产测试，实际 PCD 浏�
 
 ## 可视化地图绑定
 
-工作台右上角“地图绑定”（`/ui/map-bindings.html`）：选择 PCD → 选择线路地图当前发布版本 → 确认同一坐标系 → 保存 → 打开定位地图并重新定位。未发布草稿不能绑定；发布版本更新后页面会提示旧绑定过期。解除绑定也只影响下次定位，保存配置不会更改当前正在运行的地图。
+工作台“地图绑定”页签（也可直接打开 `/ui/map-bindings.html`）：工作台选中的点云会预填；选择线路地图当前发布版本，确认现场和坐标系后保存，再进入“定位与重定位”完成应用。未发布草稿不能绑定；发布版本更新后页面会提示旧绑定过期。解除绑定也只影响下次定位，保存配置不会更改当前正在运行的地图。
 
 接口：GET/POST `/api/map-workbench/bindings`，分别需要 map:view / map:edit。保存要求 revision 防止覆盖他人修改；有审计记录。平台使用 RCS_DATA_DIR/map-bindings.json 原子持久化，重启后保留；原 ROS_MAP_CATALOG 保留作兼容来源，界面保存的同 key 记录优先，解除绑定以空绑定覆盖旧配置。请随运行数据一并备份该文件。
 
-界面绑定只声明已有坐标一致，不对点云和线路做旋转、平移或自动配准。真实地图一致性与定位效果仍需现场核验。
+界面绑定只声明已有坐标一致，不对点云和线路做旋转、平移或自动配准；需要调整坐标时，先在点云处理阶段生成坐标变换后的新地图，再以新栅格编辑或更新路线。真实地图一致性与定位效果仍需现场核验。

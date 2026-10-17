@@ -8,7 +8,7 @@
     const m=data?.maps.find(m=>m.id===e?.map_id),active=data?.active;
     $('binding-status').textContent=!e?'请选择定位点云':!e.map_id?'当前尚未绑定线路地图':`已保存：${m?.name||'线路地图已删除'} · v${e.version}${m?.published_version!==e.version?'（发布版本已更新，需要重新绑定）':''}\n${active?.status==='ready'&&active.key===e.key&&active.map_id===e.map_id&&active.version===e.version?'已确认用于当前定位':'尚未确认应用此绑定；保存后请重新定位'}`;
     if(m?.published_version)$('binding-map').value=String(m.id);
-    $('binding-locate').href='localization.html'+(e?.asset_id?'?asset='+encodeURIComponent(e.asset_id):'');
+    $('binding-locate').href='map-workbench.html'+(e?.asset_id?'?map='+encodeURIComponent(e.asset_id):'')+'#locate';
     $('binding-remove').disabled=busy||!e?.map_id;
     $('binding-save').disabled=busy||!e;
     detail();

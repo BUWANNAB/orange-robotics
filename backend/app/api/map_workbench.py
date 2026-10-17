@@ -72,6 +72,13 @@ class Box(BaseModel):
         return self
 
 
+class CoordinateOrigin(BaseModel):
+    model_config=ConfigDict(allow_inf_nan=False,extra='forbid')
+    x:float=Field(ge=-1000000,le=1000000)
+    y:float=Field(ge=-1000000,le=1000000)
+    yaw:float=Field(ge=-3.141592654,le=3.141592654)
+
+
 class Process(BaseModel):
     model_config=ConfigDict(allow_inf_nan=False,extra='forbid')
     source:str
@@ -84,6 +91,7 @@ class Process(BaseModel):
     neighbors:int=Field(default=3,ge=1,le=128)
     crop:Box|None=None
     erase:list[Box]=Field(default_factory=list,max_length=100)
+    origin:CoordinateOrigin|None=None
     @model_validator(mode='after')
     def valid(self):
         assets.identity(self.source);assets.identity(self.output)

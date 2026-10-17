@@ -161,7 +161,7 @@
   $('auto-cancel').onclick=()=>action('/api/localization/auto/cancel');
   $('stop-button').onclick=()=>action('/api/localization/stop');$('release-button').onclick=()=>action('/api/localization/release');
   $('use-pose').onclick=()=>{cancelPick();if(frame?.localization.fresh){$('pose-x').value=frame.position.LocalX;$('pose-y').value=frame.position.LocalY;$('pose-yaw').value=frame.position.Heading;}};
-  $('map-key').onchange=()=>{trail=[];loadMap($('map-key').value);};
+  $('map-key').onchange=()=>{trail=[];loadMap($('map-key').value);$('binding-link').href='map-workbench.html'+($('map-key').value?'?map='+encodeURIComponent($('map-key').value):'')+'#binding';};
   $('rotate-view-left').onclick=()=>setViewRotation(viewRotation-90);
   $('rotate-view-right').onclick=()=>setViewRotation(viewRotation+90);
   $('reset-view-rotation').onclick=()=>setViewRotation(0);
@@ -169,6 +169,6 @@
   window.addEventListener('resize',()=>{if(gesture)cancelPick();else draw();});
   const watchdog=setInterval(()=>{if(Date.now()-lastMessage>2000){$('pose-status').textContent='连接断流，位置仅为最后已知值';$('pose-status').className='state';showFeedback(window.LocalizationFeedback.disconnected());$('switch-button').disabled=true;$('release-button').disabled=true;$('auto-pose').disabled=true;}},500);
   window.addEventListener('pagehide',()=>{closed=true;clearTimeout(retry);clearInterval(watchdog);socket?.close();if(imageURL)URL.revokeObjectURL(imageURL);});
-  api.get('/api/localization/maps').then(rows=>{maps=rows;$('map-key').replaceChildren(...[new Option(rows.length?'请选择地图':'未发现 PCD 地图',''),...rows.map(m=>new Option(m.asset_id||m.key,m.key))]);const asset=new URLSearchParams(location.search).get('asset');const match=asset&&rows.find(m=>m.asset_id===asset);if(asset)$('map-key').disabled=true;if(match){$('map-key').value=match.key;loadMap(match.key);}}).catch(error=>{$('message').textContent=error.message;});
+  api.get('/api/localization/maps').then(rows=>{maps=rows;$('map-key').replaceChildren(...[new Option(rows.length?'请选择地图':'未发现 PCD 地图',''),...rows.map(m=>new Option(m.asset_id||m.key,m.key))]);const asset=new URLSearchParams(location.search).get('asset');const match=asset&&rows.find(m=>m.asset_id===asset);if(asset)$('map-key').disabled=true;if(match){$('map-key').value=match.key;loadMap(match.key);}$('binding-link').href='map-workbench.html'+(match?'?map='+encodeURIComponent(match.asset_id||match.key):'')+'#binding';}).catch(error=>{$('message').textContent=error.message;});
   connect();draw();
 })();

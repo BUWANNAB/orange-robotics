@@ -2,6 +2,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/common/common.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <Eigen/Geometry>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <fstream>
@@ -24,6 +25,15 @@ int main(int argc, char **argv) {
     const double low=job.get<double>("z_min"), high=job.get<double>("z_max");
     const double resolution=job.get<double>("resolution"), radius=job.get<double>("radius");
     const int neighbors=job.get<int>("neighbors");
+    const auto coordinate_origin=job.get_child_optional("origin");
+    double origin_x=0.0,origin_y=0.0,origin_yaw=0.0;
+    if (coordinate_origin) {
+      origin_x=coordinate_origin->get<double>("x");
+      origin_y=coordinate_origin->get<double>("y");
+      origin_yaw=coordinate_origin->get<double>("yaw");
+      if (!std::isfinite(origin_x)||!std::isfinite(origin_y)||!std::isfinite(origin_yaw))
+        throw std::runtime_error("Coordinate origin must contain finite x, y and yaw values");
+    }
     if (!std::isfinite(low) || !std::isfinite(high) || low>=high ||
         !std::isfinite(resolution) || resolution<0.01 || resolution>1 ||
         !std::isfinite(radius) || radius<=0 || radius>5 || neighbors<1 || neighbors>128)
@@ -48,8 +58,25 @@ int main(int argc, char **argv) {
       filter.filter(*result);
     } else *result=*clipped;
     if (result->empty()) throw std::runtime_error("Denoising removed every point; adjust radius/neighbors");
+    if (coordinate_origin) {
+      // Re-express a copy of the filtered cloud in the selected origin and heading.
+      // The chosen source point becomes (0, 0); its selected direction becomes +X.
+      const double cosine=std::cos(origin_yaw),sine=std::sin(origin_yaw);
+      for (auto &point : result->points) {
+        const double dx=point.x-origin_x,dy=point.y-origin_y;
+        point.x=static_cast<float>(cosine*dx+sine*dy);
+        point.y=static_cast<float>(-sine*dx+cosine*dy);
+      }
+      const Eigen::Vector4f sensor=result->sensor_origin_;
+      const double sensor_dx=sensor.x()-origin_x,sensor_dy=sensor.y()-origin_y;
+      result->sensor_origin_=Eigen::Vector4f(
+        static_cast<float>(cosine*sensor_dx+sine*sensor_dy),
+        static_cast<float>(-sine*sensor_dx+cosine*sensor_dy),sensor.z(),1.0f);
+      const Eigen::Quaternionf frame_rotation(Eigen::AngleAxisf(-origin_yaw,Eigen::Vector3f::UnitZ()));
+      result->sensor_orientation_=frame_rotation*result->sensor_orientation_;
+    }
     Point min,max;pcl::getMinMax3D(*result,min,max);
-    // Keep the original map coordinate frame. Cropping never recenters or rotates points.
+    // Without a selected origin, keep the original frame; otherwise rasterize transformed points.
     const double ox=std::floor(min.x/resolution)*resolution-resolution;
     const double oy=std::floor(min.y/resolution)*resolution-resolution;
     const double width_d=std::ceil((max.x-ox)/resolution)+2, height_d=std::ceil((max.y-oy)/resolution)+2;
@@ -77,6 +104,11 @@ int main(int argc, char **argv) {
     stats.put("input_points",original->size());stats.put("after_crop",clipped->size());
     stats.put("output_points",result->size());stats.put("removed_points",original->size()-result->size());
     stats.put("width",width);stats.put("height",height);stats.put("frame","map");
+    stats.put("coordinate_transform",static_cast<bool>(coordinate_origin));
+    if (coordinate_origin) {
+      stats.put("source_origin_x",origin_x);stats.put("source_origin_y",origin_y);
+      stats.put("source_origin_yaw_rad",origin_yaw);
+    }
     boost::property_tree::write_json(root+"result.json",stats);
     return 0;
   } catch(const std::exception &error) {std::cerr << error.what() << std::endl;return 1;}

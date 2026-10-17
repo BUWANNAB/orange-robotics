@@ -36,3 +36,14 @@
 @media(max-width:650px){.rail{width:100%;max-height:56vh;overflow-y:auto;padding:14px 14px 10px;border-right:0;border-bottom:1px solid #2a3b50}.brand{padding:0 4px 12px}.brand .brand-name{font-size:19px}.brand .brand-caption{margin-top:5px}.rail-scroll{overflow:visible}.rail-group+.rail-group{margin-top:13px;padding-top:12px}.rail-section-head{padding:0 4px 7px}.rail-nav,.rail-links{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.rail-nav .rail-item,.rail-item.rail-link{min-height:40px;padding:6px 7px}.rail-icon{flex-basis:27px;width:27px;height:27px}.rail-icon svg{width:16px;height:16px}.rail-item-label{font-size:12px}.rail-link{min-height:46px!important}.rail-item-copy strong{font-size:11px}.rail-item-copy small{font-size:9px}main{padding:16px}}
 @media(max-width:380px){.rail{max-height:62vh}.rail-nav,.rail-links{grid-template-columns:minmax(0,1fr)}.rail-nav .rail-item,.rail-item.rail-link{min-height:38px}.rail-link{min-height:42px!important}}
 @media(prefers-reduced-motion:reduce){.rail-item{transition:none}}
+
+/* Embedded in the map workbench: keep the route editor and hide the second app shell. */
+html.embedded,html.embedded body{min-height:0;background:#f3f5f8}
+html.embedded body{display:block}
+html.embedded .rail,html.embedded main>header,html.embedded #filters,html.embedded #pagination{display:none!important}
+html.embedded main{width:100%;max-width:none;margin:0;padding:12px}
+html.embedded #content{margin:0}
+html.embedded .map-editor{padding:0}
+html.embedded .map-layout canvas#map-canvas{height:clamp(540px,68vh,980px);min-height:500px}
+html.embedded .map-properties{max-height:clamp(540px,68vh,980px)}
+@media(max-width:650px){html.embedded main{padding:7px}html.embedded .map-layout canvas#map-canvas{height:62vh;min-height:380px}html.embedded .map-properties{max-height:none}}
