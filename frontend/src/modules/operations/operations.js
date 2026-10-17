@@ -121,7 +121,7 @@
   async function openMap(row){
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
     $('filters').hidden=true;$('pagination').innerHTML='';
-    $('content').innerHTML=`<div class="map-editor" id="map-editor"><div class="map-tools">${button('返回列表','leave-map','')}${button('选择 / 拖动','tool-select','')}${button('添加站点','tool-point','')}${button('直线路径','tool-path','')}${button('平滑曲线','tool-curve','')}${button('绘制作业区','tool-area','')}<label class="map-toolbar-select">新区域类型<select id="map-area-kind"><option value="forbidden">禁行区</option><option value="slow">减速区</option><option value="work">作业区</option><option value="charge">充电区</option></select></label>${button('平移','tool-pan','')}${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('删除选中','map-remove','')}${button('适应窗口','map-fit','')}${button('大图显示','map-fullscreen','')}${button('保存草稿','map-save','')}${button('校验','map-validate','')}${button('发布','map-publish',row.id,'map:publish')}${button('导入 JSON','map-import','')}${button('上传底图','map-image','')}</div><p id="map-live-status" class="help" role="status">正在连接实时定位…</p><div class="map-editor-help"><span>点位拖动可微调坐标；滚轮缩放，中键拖动平移。直线或曲线路径：依次点击两个站点。</span><span>作业区依次点边界顶点，双击闭合；禁行区与减速区会参与路线校验。</span></div><div class="map-legend"><span><i class="path-swatch"></i>草稿路线</span><span><i class="live-done-swatch"></i>已行驶路段</span><span><i class="live-active-swatch"></i>当前路段</span><span><i class="live-unknown-swatch"></i>进度未确认</span><span><i class="trail-swatch"></i>实测轨迹</span><span><i class="station-swatch"></i>站点</span><span><i class="zone-swatch forbidden"></i>禁行</span><span><i class="zone-swatch slow"></i>减速</span><span><i class="zone-swatch work"></i>作业</span><span><i class="zone-swatch charge"></i>充电</span></div><div class="map-layout" id="map-layout"><canvas id="map-canvas" aria-label="地图、运行路线、站点与作业区编辑画布"></canvas><aside class="map-properties"><h3>${escape(row.name)}</h3><p id="map-save-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version}</p><p class="help">编辑草稿不会改变正在执行的路线。平滑曲线会保存并以下发路线点形式传给 ROS；实车平顺度仍需现场验证。</p><div id="point-properties">选择站点、路径或区域以编辑详细属性</div><div class="map-issues" id="map-issues"></div></aside></div></div>`;
+    $('content').innerHTML=`<div class="map-editor" id="map-editor"><div class="map-tools">${button('返回列表','leave-map','')}${button('选择 / 拖动','tool-select','')}${button('添加站点','tool-point','')}${button('直线路径','tool-path','')}${button('平滑曲线','tool-curve','')}${button('绘制作业区','tool-area','')}<label class="map-toolbar-select">新区域类型<select id="map-area-kind"><option value="forbidden">禁行区</option><option value="slow">减速区</option><option value="work">作业区</option><option value="charge">充电区</option></select></label>${button('平移','tool-pan','')}${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('删除选中','map-remove','')}${button('适应窗口','map-fit','')}${button('大图显示','map-fullscreen','')}${button('保存草稿','map-save','')}${button('校验','map-validate','')}${button('发布','map-publish',row.id,'map:publish')}${button('导入 JSON','map-import','')}${button('选择已有底图','map-asset','')}${button('上传底图','map-image','')}</div><p id="map-live-status" class="help" role="status">正在连接实时定位…</p><div class="map-editor-help"><span>点位拖动可微调坐标；滚轮缩放，中键拖动平移。直线或曲线路径：依次点击两个站点。</span><span>作业区依次点边界顶点，双击闭合；禁行区与减速区会参与路线校验。</span></div><div class="map-legend"><span><i class="path-swatch"></i>草稿路线</span><span><i class="live-done-swatch"></i>已行驶路段</span><span><i class="live-active-swatch"></i>当前路段</span><span><i class="live-unknown-swatch"></i>进度未确认</span><span><i class="trail-swatch"></i>实测轨迹</span><span><i class="station-swatch"></i>站点</span><span><i class="zone-swatch forbidden"></i>禁行</span><span><i class="zone-swatch slow"></i>减速</span><span><i class="zone-swatch work"></i>作业</span><span><i class="zone-swatch charge"></i>充电</span></div><div class="map-layout" id="map-layout"><canvas id="map-canvas" aria-label="地图、运行路线、站点与作业区编辑画布"></canvas><aside class="map-properties"><h3>${escape(row.name)}</h3><p id="map-save-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version}</p><p class="help">编辑草稿不会改变正在执行的路线。平滑曲线会保存并以下发路线点形式传给 ROS；实车平顺度仍需现场验证。</p><div id="point-properties">选择站点、路径或区域以编辑详细属性</div><div class="map-issues" id="map-issues"></div></aside></div></div>`;
     state.map=new window.OperationsMapCanvas($('map-canvas'),row.draft,()=>{
       state.dirty=true;$('map-save-state').textContent='有未保存修改';clearTimeout(state.saveTimer);
       state.saveTimer=setTimeout(()=>saveMap().catch(error=>notify(error.message,true)),10000);
@@ -154,6 +154,59 @@
     const url=URL.createObjectURL(blob),image=new Image();
     image.onload=()=>{if(state.map){state.map.image=image;state.map.draw();}URL.revokeObjectURL(url);};
     image.onerror=()=>URL.revokeObjectURL(url);image.src=url;
+  }
+  async function selectMapAsset(){
+    const assets=await api.get('/api/map-workbench/assets'),available=assets.filter(asset=>asset.grid);
+    const options=assets.map(asset=>`<option value="${escape(asset.id)}" data-revision="${escape(asset.revision)}" ${asset.grid?'':'disabled'}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
+    const picker=`<label class="wide">已有地图<select name="asset_key" ${available.length?'required':'disabled'}><option value="">${available.length?'请选择已有栅格地图':'没有可用的 PGM / YAML 地图'}</option>${options}</select></label>`;
+    const help='<p class="help">选择后会把 PGM 作为线路底图，并按 map.yaml 设置分辨率、原点和地图边界。PCD 点云不能直接作为二维底图；有配套 PGM / YAML 的地图可直接选择，只有 PCD 的地图请先在地图工作台生成栅格。</p><label class="wide"><input name="coordinates_confirmed" type="checkbox" required> 我已确认栅格与路线使用相同坐标系；已有点位坐标不会自动转换。</label>';
+    return dialog('选择已有底图',picker+help,async form=>{
+      const key=form.get('asset_key'),asset=assets.find(item=>item.id===key);
+      if(!asset?.grid)throw new Error('请选择包含 PGM / YAML 的地图');
+      await saveMap();
+      const result=await api.post(`/api/maps/${state.mapRow.id}/image/from-asset`,{
+        key,revision:state.mapRow.revision,asset_revision:asset.revision,
+        coordinates_confirmed:form.get('coordinates_confirmed')==='on'
+      });
+      state.mapRow=result;state.map.document=structuredClone(result.draft);state.dirty=false;
+      await loadMapImage();state.map.fit();
+      $('map-save-state').textContent=`草稿 r${result.revision} 已保存 · 底图 ${asset.id}`;
+      notify(`已应用 ${asset.id} 的 PGM 底图；请检查点位是否仍在地图边界内。`);
+    },'应用底图');
+  }
+  async function newMapForm(){
+    const assets=await api.get('/api/map-workbench/assets');
+    const options=assets.map(asset=>`<option value="${escape(asset.id)}" ${asset.grid?'':'disabled'}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
+    const source=`<label class="wide">已有地图底图<select name="asset_key"><option value="">新建空白线路地图</option>${options}</select></label><p class="help wide" id="map-source-help">可选已有 PGM/YAML 栅格作为底图；选择后地图尺寸、分辨率和原点将读取 map.yaml。只有 PCD 的地图请先生成栅格。</p>`;
+    const coordinates='<label class="wide"><input name="coordinates_confirmed" type="checkbox"> 我已确认栅格与路线使用相同坐标系；已有点位坐标不会自动转换。</label>';
+    dialog('新建地图',`<div class="form-grid">${field('name','地图名称','','text','required')}${field('width','宽度（米）',100,'number','min="1" required')}${field('height','高度（米）',100,'number','min="1" required')}${field('resolution','分辨率（米/像素）',.05,'number','min="0.001" step="0.001"')}${source}${coordinates}</div>`,async form=>{
+      const key=form.get('asset_key'),asset=assets.find(item=>item.id===key);
+      if(key&&!asset?.grid)throw new Error('请选择包含 PGM / YAML 的地图');
+      if(asset&&form.get('coordinates_confirmed')!=='on')throw new Error('请先确认已有地图与路线地图使用相同坐标系');
+      let created=await api.post('/api/maps',{name:form.get('name'),document:{width:Number(form.get('width')),height:Number(form.get('height')),resolution:Number(form.get('resolution')),points:[],paths:[],areas:[]}});
+      if(asset){
+        try{
+          created=await api.post(`/api/maps/${created.id}/image/from-asset`,{key,revision:created.revision,asset_revision:asset.revision,coordinates_confirmed:true});
+        }catch(error){
+          $('dialog').close();await openMap(created);
+          notify(`线路地图已创建，但底图导入失败：${error.message}。可在编辑器中点击“选择已有底图”重试。`,true);
+          return false;
+        }
+        $('dialog').close();await openMap(created);return false;
+      }
+      return created;
+    },'创建并打开');
+    const selector=$('dialog-body').querySelector('[name="asset_key"]'),confirmation=$('dialog-body').querySelector('[name="coordinates_confirmed"]');
+    const dimensions=['width','height','resolution'].map(name=>$('dialog-body').querySelector(`[name="${name}"]`));
+    const syncSource=()=>{
+      const selected=!!selector.value;
+      confirmation.required=selected;confirmation.disabled=!selected;if(!selected)confirmation.checked=false;
+      dimensions.forEach(input=>input.readOnly=selected);
+      $('map-source-help').textContent=selected
+        ?'将使用所选 PGM/YAML 的尺寸、分辨率和原点；请确认坐标系一致，之后已有点位坐标不会自动转换。'
+        :'可选已有 PGM/YAML 栅格作为底图；选择后地图尺寸、分辨率和原点将读取 map.yaml。只有 PCD 的地图请先生成栅格。';
+    };
+    selector.addEventListener('change',syncSource);syncSource();
   }
   function hashFirmware(file){
     return new Promise((resolve,reject)=>{
@@ -203,6 +256,7 @@
       await saveMap();const result=await api.upload(`/api/maps/${state.mapRow.id}/image`,form.get('file'),{revision:state.mapRow.revision});
       state.mapRow=result;state.map.document=structuredClone(result.draft);state.dirty=false;await loadMapImage();state.map.fit();
     },'上传底图');
+    if(name==='map-asset')return selectMapAsset();
     if(name==='add-robot'||name==='edit-robot')return robotForm(name==='edit-robot'?row:null);
     if(name==='detail')return details('记录详情',row);
     if(name==='robot-detail')return details('机器人档案与指令记录',await api.get(`/api/robots/${id}`));
@@ -228,7 +282,7 @@
     if(name==='cancel-task')return confirmation('取消排队任务',row.name,'仅取消尚未开始的任务。',async v=>{if(v!==row.name)throw new Error('任务名不一致');await api.post(`/api/task-history/${id}/cancel`);});
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
     if(name==='export-logs'){const params=filterParams();params.level=params.state;saveBlob(await api.download('/api/logs/export',params),'运行日志.csv');return;}
-    if(name==='add-map')return dialog('新建地图',`<div class="form-grid">${field('name','地图名称','','text','required')}${field('width','宽度（米）',100,'number','min="1" required')}${field('height','高度（米）',100,'number','min="1" required')}${field('resolution','分辨率（米/像素）',.05,'number','min="0.001" step="0.001"')}</div>`,form=>api.post('/api/maps',{name:form.get('name'),document:{width:Number(form.get('width')),height:Number(form.get('height')),resolution:Number(form.get('resolution')),points:[],paths:[],areas:[]}}));
+    if(name==='add-map')return newMapForm();
     if(name==='open-selected-map'){
       if(!id)throw new Error('请先从已有地图列表中选择一张地图。');
       return openMap(await api.get(`/api/maps/${id}`));

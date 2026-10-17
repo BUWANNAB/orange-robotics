@@ -7,12 +7,14 @@ import os
 from pathlib import Path
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+import yaml
 from app.database import get_db
 from app.config import settings
 from app.models.operations import MapDocument, MapVersion, Robot, TaskRun
 from app.common.response import ok
 from app.services.operations_common import require, get_or_404, page, public, confirm, audit, device
 from app.services.map_editor import MapData, validate_map, acquire_lock, save_draft, publish, published_map
+from app.services import map_assets
 
 router = APIRouter(prefix="/api")
 
@@ -34,6 +36,13 @@ def convert_image(data):
         return output.getvalue(), image.width, image.height
 
 
+class ExistingMapImage(BaseModel):
+    key: str = Field(min_length=1, max_length=180)
+    revision: int = Field(ge=0)
+    asset_revision: str = Field(min_length=64, max_length=64)
+    coordinates_confirmed: bool = False
+
+
 @router.post("/maps/{map_id}/image")
 async def image_upload(map_id: int, request: Request, revision: int, actor=Depends(require("map:edit")), db=Depends(get_db)):
     row = await get_or_404(db, MapDocument, map_id)
@@ -48,6 +57,57 @@ async def image_upload(map_id: int, request: Request, revision: int, actor=Depen
     if not path.exists(): await asyncio.to_thread(path.write_bytes, png)
     document = {**row.draft, "image": digest, "width": width*row.draft["resolution"], "height": height*row.draft["resolution"]}
     await save_draft(db, row, actor, revision, document)
+    await db.commit()
+    await db.refresh(row)
+    return ok(public(row))
+
+
+@router.post("/maps/{map_id}/image/from-asset")
+async def image_from_asset(map_id: int, body: ExistingMapImage, actor=Depends(require("map:edit")), db=Depends(get_db)):
+    row = await get_or_404(db, MapDocument, map_id)
+    if not body.coordinates_confirmed:
+        raise HTTPException(400, "请确认所选栅格地图与路线使用相同坐标系；已有点位坐标不会自动转换")
+    try:
+        asset = await asyncio.to_thread(map_assets.asset, body.key)
+        if not asset["grid"]:
+            raise ValueError("该地图没有 PGM/YAML 栅格底图；只有 PCD 时请先在地图工作台处理生成栅格")
+        if asset["revision"] != body.asset_revision:
+            raise ValueError("已有地图文件已更新，请刷新列表后重新选择")
+        directory = map_assets.path_in(settings.MAPS_DIR, body.key) / "setting"
+        pgm_path = map_assets.checked_file(settings.MAPS_DIR, directory / "map.pgm")
+        yaml_path = map_assets.checked_file(settings.MAPS_DIR, directory / "map.yaml")
+        pgm_data, yaml_data = await asyncio.gather(
+            asyncio.to_thread(pgm_path.read_bytes),
+            asyncio.to_thread(yaml_path.read_bytes),
+        )
+        await asyncio.to_thread(map_assets.validate_grid, pgm_data, yaml_data)
+        if await asyncio.to_thread(map_assets.revision, directory) != body.asset_revision:
+            raise ValueError("读取期间已有地图文件发生变化，请刷新列表后重试")
+        metadata = yaml.safe_load(yaml_data)
+        origin = [float(value) for value in metadata["origin"]]
+        if abs(origin[2]) > 1e-6:
+            raise ValueError("当前路线画布暂不支持带旋转角的栅格地图")
+        png, pixel_width, pixel_height = await asyncio.to_thread(convert_image, pgm_data)
+        resolution = float(metadata["resolution"])
+        if pixel_width * resolution > 100000 or pixel_height * resolution > 100000:
+            raise ValueError("栅格地图的实际宽高超过路线编辑器支持范围")
+    except (ValueError, TypeError, KeyError, yaml.YAMLError, OSError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    digest = hashlib.sha256(png).hexdigest()
+    path = image_directory(map_id) / (digest + ".png")
+    if not path.exists():
+        await asyncio.to_thread(path.write_bytes, png)
+    document = MapData.model_validate({
+        **row.draft,
+        "image": digest,
+        "width": pixel_width * resolution,
+        "height": pixel_height * resolution,
+        "resolution": resolution,
+        "origin_x": origin[0],
+        "origin_y": origin[1],
+    }).model_dump()
+    await save_draft(db, row, actor, body.revision, document)
     await db.commit()
     await db.refresh(row)
     return ok(public(row))
