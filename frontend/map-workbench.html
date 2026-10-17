@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261017-map-console-refine-2">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261017-map-console-refine-4">
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
 </head>
 <body>
@@ -34,8 +34,14 @@
     </section>
 
     <section id="panel-point" class="panel" hidden>
-      <div class="point-layout"><div class="viewer-wrap"><div class="viewer-toolbar"><strong>点云视图</strong><button id="fit" type="button">俯视全图</button><button data-draw="crop" type="button">框选保留区域</button><button data-draw="erase" type="button">框选删除点</button><button id="draw-origin" type="button">拖动设置原点和方向</button><button id="clear-boxes" type="button">清空选区</button></div><div id="viewer"><div id="viewer-empty">选择含 PCD 的地图以查看点云</div></div><div class="viewer-footer"><span id="point-info">左键旋转 · 右键平移 · 滚轮缩放</span><span id="box-info">未设置选区</span></div></div>
-        <form id="process-form" class="controls"><h2>生成可用地图</h2><p class="muted">原始地图只读；每次处理都会生成新的 PCD、PGM 和 YAML。</p><div class="two"><label>最低高度（m）<input id="z-min" type="number" step="any" value="0.1" required></label><label>最高高度（m）<input id="z-max" type="number" step="any" value="2" required></label></div><p id="height-preview" class="muted height-preview" aria-live="polite">点云加载后会按此高度范围实时预览。</p><label class="check"><input id="denoise" type="checkbox" checked>半径滤波去除离群点</label><div class="two"><label>搜索半径（m）<input id="radius" type="number" min="0.001" max="5" step="any" value="0.2" required></label><label>最少邻点数<input id="neighbors" type="number" min="1" max="128" value="3" required></label></div><label>栅格分辨率（m/像素）<input id="resolution" type="number" min="0.01" max="1" step="0.01" value="0.05" required></label><label>输出地图名称<input id="output" required placeholder="输入新名称"></label><fieldset class="origin-fields"><legend>新地图坐标原点</legend><label class="check"><input id="origin-enabled" type="checkbox">应用自定义原点与方向</label><div class="two"><label>原始 X（m）<input id="origin-x" type="number" step="any" min="-1000000" max="1000000" value="0" disabled></label><label>原始 Y（m）<input id="origin-y" type="number" step="any" min="-1000000" max="1000000" value="0" disabled></label></div><label>新坐标系 X 轴方向（度）<input id="origin-yaw" type="number" step="any" min="-180" max="180" value="0" disabled></label><p class="muted">在点云上按住左键：从希望设为 (0,0) 的位置拖向新坐标系的 +X 方向。也可直接输入坐标。裁剪和删除仍按原始点云坐标执行。</p><button id="reset-origin" type="button">恢复源坐标系</button></fieldset><p id="origin-preview" class="muted origin-preview" aria-live="polite">未启用坐标变换：输出沿用源地图坐标系。</p><button class="primary" id="process-button">处理并保存为新地图</button></form>
+      <div class="point-layout"><div class="viewer-wrap"><div class="viewer-toolbar"><strong>点云地图预览</strong><button id="fit" type="button">适应窗口</button><span>裁剪范围按源地图 XY 坐标设置</span></div><div id="viewer"><div id="viewer-empty">选择含 PCD 的地图以查看点云</div></div><div class="viewer-footer"><span id="point-info">左键旋转 · 右键平移 · 滚轮缩放</span><span>框选模式：在点云上按住左键拖动</span></div></div>
+        <form id="process-form" class="controls map-create-controls">
+          <div class="map-create-intro"><span class="eyebrow">MAP CUT / CREATE</span><h2>裁剪与生成地图</h2><p class="muted">在左侧预览点云，先框选范围，再设置栅格与坐标原点。生成结果会另存为新地图，原始地图保持不变。</p></div>
+          <section class="map-create-section" aria-labelledby="crop-title"><header><b>01</b><div><h3 id="crop-title">裁剪点云范围</h3><p>拖动鼠标框选地图区域</p></div></header><div class="selection-tools"><button type="button" data-draw="crop">框选保留范围</button><button type="button" data-draw="erase">框选删除区域</button><button type="button" id="clear-boxes">清空裁剪区域</button></div><output id="selection-summary" class="selection-summary" aria-live="polite">未设置选区，默认使用全部点云</output><p class="muted">绿色框保留范围，红色框从结果中删除。裁剪与删除按源地图坐标执行。</p></section>
+          <section class="map-create-section" aria-labelledby="grid-title"><header><b>02</b><div><h3 id="grid-title">栅格生成参数</h3><p>预览高度过滤并配置地图输出</p></div></header><div class="two"><label>最低高度（m）<input id="z-min" type="number" step="any" value="0.1" required></label><label>最高高度（m）<input id="z-max" type="number" step="any" value="2" required></label></div><p id="height-preview" class="muted height-preview" aria-live="polite">点云加载后会按此高度范围实时预览。</p><label class="check"><input id="denoise" type="checkbox" checked>半径滤波去除离群点</label><div class="two"><label>搜索半径（m）<input id="radius" type="number" min="0.001" max="5" step="any" value="0.2" required></label><label>最少邻点数<input id="neighbors" type="number" min="1" max="128" value="3" required></label></div><label>栅格分辨率（m/像素）<input id="resolution" type="number" min="0.01" max="1" step="0.01" value="0.05" required></label><label>输出地图名称<input id="output" required placeholder="输入新名称"></label></section>
+          <fieldset class="origin-fields"><legend>03 · 新地图坐标原点</legend><label class="check"><input id="origin-enabled" type="checkbox">应用自定义原点与方向</label><div class="two"><label>原始 X（m）<input id="origin-x" type="number" step="any" min="-1000000" max="1000000" value="0" disabled></label><label>原始 Y（m）<input id="origin-y" type="number" step="any" min="-1000000" max="1000000" value="0" disabled></label></div><label>新坐标系 X 轴方向（度）<input id="origin-yaw" type="number" step="any" min="-180" max="180" value="0" disabled></label><p class="muted">也可在点云上按住鼠标左键，从新原点拖向新坐标系的 +X 方向。拖动选原点时，源坐标 X / Y 和方向会同步显示在这里。</p><button id="draw-origin" type="button">在地图上设定原点和方向</button><button id="reset-origin" type="button">恢复源坐标系</button></fieldset><p id="origin-preview" class="muted origin-preview" aria-live="polite">未启用坐标变换：输出沿用源地图坐标系。</p>
+          <button class="primary map-create-submit" id="process-button">处理并保存为新地图</button>
+        </form>
       </div>
     </section>
 
@@ -52,6 +58,6 @@
       <iframe id="workflow-frame" title="地图绑定或重新定位"></iframe>
     </section>
   </div>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261017-map-console-refine-3"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261017-map-console-refine-4"></script>
 </body>
 </html>
