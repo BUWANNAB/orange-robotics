@@ -62,7 +62,7 @@ async function refresh(preferred){
 }
 async function selected(){
   const row=current(),key=row?.id||'';
-  if(key!==selectedAsset){selectedAsset=key;pointAsset=null;resetOrigin();}
+  if(key!==selectedAsset){selectedAsset=key;pointAsset=null;resetOrigin();document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.remove('active');}
   notice(row?'当前地图：'+row.id:'请选择地图，或开始采集新地图。');
   $('asset-detail').textContent=row?`${row.pcd?'定位点云可用':'无 PCD'} · ${row.grid?'路线栅格可用':'无 PGM / YAML'}${row.resolution?' · '+row.resolution+' m/像素':''}`:'同一地图统一管理点云与栅格';
   $('output').value=row?row.id+'_processed':'';
@@ -78,7 +78,7 @@ async function show(next,reload=false){
   if(next==='point'){
     try{
       viewerModule ||= import('./point-viewer.js?v=20261017-origin-and-unified-workbench');
-      const mod=await viewerModule;viewer ||= mod.createViewer($('viewer'),text=>$('box-info').textContent=text);viewer.resize();updateHeightPreview();
+      const mod=await viewerModule;viewer ||= mod.createViewer($('viewer'),text=>{const target=$('selection-summary');if(target)target.textContent=text;});viewer.resize();updateHeightPreview();
       if(pointAsset===key&&row?.pcd){updateOriginPreview();return;}
       pointAsset=null;viewer.clear();$('point-info').textContent='左键旋转 · 右键平移 · 滚轮缩放';$('viewer-empty').hidden=false;
       $('viewer-empty').textContent=row?.pcd?'加载点云…':'请选择含 PCD 的地图';
@@ -119,16 +119,16 @@ $('process-form').onsubmit=e=>{
 };
 $('z-min').addEventListener('input',updateHeightPreview);$('z-max').addEventListener('input',updateHeightPreview);
 for(const id of ['origin-enabled','origin-x','origin-y','origin-yaw'])$(id).addEventListener(id==='origin-enabled'?'change':'input',updateOriginPreview);
-$('draw-origin').onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先加载一张 PCD 点云。',true);$('origin-enabled').checked=true;updateOriginPreview();viewer?.drawOrigin(origin=>{$('origin-x').value=origin.x.toFixed(3);$('origin-y').value=origin.y.toFixed(3);$('origin-yaw').value=(origin.yaw*180/Math.PI).toFixed(1);updateOriginPreview();notice('坐标原点和方向已选定。生成新地图时将应用这个坐标变换。');});notice('在点云上按住左键，从新原点拖向新坐标系 +X 方向。');};
-$('reset-origin').onclick=resetOrigin;
+$('draw-origin').onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先加载一张 PCD 点云。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.add('active');$('origin-enabled').checked=true;updateOriginPreview();viewer?.drawOrigin(origin=>{$('origin-x').value=origin.x.toFixed(3);$('origin-y').value=origin.y.toFixed(3);$('origin-yaw').value=(origin.yaw*180/Math.PI).toFixed(1);updateOriginPreview();notice('坐标原点和方向已选定。生成新地图时将应用这个坐标变换。');});notice('在点云上按住左键，从新原点拖向新坐标系 +X 方向。');};
+$('reset-origin').onclick=()=>{resetOrigin();$('draw-origin').classList.remove('active');};
 $('mapping-start').onclick=()=>{if(!$('manual-push-confirmed').checked)return notice('请先在现场确认底盘处于厂家允许的安全手动/自由轮状态，并可人工推行。',true);run('/mapping/start',{manual_push_confirmed:true});};
 $('manual-push-confirmed').onchange=updateMapping;$('mapping-form').onsubmit=e=>{e.preventDefault();if(!mapping?.active)return notice('请先开始采集，再保存点云。',true);run('/mapping/save',{name:$('mapping-name').value.trim()});};$('mapping-stop').onclick=()=>run('/mapping/stop');
 $('asset').onchange=()=>selected().catch(e=>notice(e.message,true));$('refresh').onclick=()=>refresh().catch(e=>notice(e.message,true));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab).catch(e=>notice(e.message,true)));
 $('workflow-close').onclick=$('workflow-scrim').onclick=closeWorkflowDrawer;
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('workflow-drawer').hidden)closeWorkflowDrawer();});
-$('fit').onclick=()=>viewer?.fit();$('clear-boxes').onclick=()=>viewer?.clearBoxes();
-document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{viewer?.drawBox(b.dataset.draw);notice('已切换俯视：按住左键拖出矩形，松开完成选区。框选删除作用于源坐标系 XY 区域。');});
+$('fit').onclick=()=>viewer?.fit();$('clear-boxes').onclick=()=>{viewer?.clearBoxes();document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.remove('active');};
+document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先选择并加载一张 PCD 地图。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.toggle('active',button===b));$('draw-origin').classList.remove('active');viewer?.drawBox(b.dataset.draw);notice('已进入框选模式：在点云上按住鼠标左键拖出矩形，松开完成选区。');});
 window.addEventListener('message',e=>{
   if(e.origin!==location.origin)return;
   if(e.source===$('grid-frame').contentWindow&&e.data?.type==='map-saved')refresh(e.data.id).then(()=>{$('locate-frame').removeAttribute('data-asset');$('binding-frame').removeAttribute('data-asset');notice('二维地图已保存。路线编辑和地图绑定会显示更新后的栅格版本。');}).catch(err=>notice(err.message,true));
