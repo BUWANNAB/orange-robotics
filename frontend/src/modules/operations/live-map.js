@@ -4,14 +4,17 @@
     const fresh=now-lastMessage<2000, loc=frame?.localization;
     const matched=frame?.switch?.status==='ready' && Number(frame.switch.map_id)===Number(mapId);
     const nav=frame?.navigation||{}, route=matched&&nav.map_id===frame.switch.map_id&&nav.version===frame.switch.version&&nav.key===frame.switch.key?nav:null;
-    return {matched,pose:matched&&fresh&&loc?.valid&&loc.source==='ros'?frame.position:null,
+    return {matched,connected:fresh&&!!frame?.connected,localization:loc,position:frame?.position||null,
+      vehicleStatus:frame?.status||null,navigation:nav,switch:frame?.switch||null,
+      inhibited:fresh&&typeof frame?.inhibited==='boolean'?frame.inhibited:null,
+      pose:matched&&fresh&&loc?.valid&&loc.source==='ros'?frame.position:null,
       route,progress:route&&fresh&&((nav.status==='running'&&nav.progress_fresh&&Number.isInteger(nav.target_index)&&nav.target_index>=0)||nav.status==='success'),
       text:!fresh?'实时连接断流，隐藏车位':!matched?'当前地图未绑定到已确认的 ROS 定位地图，隐藏车辆和执行线路':
         `${loc?.source==='simulation'?'仿真模式':loc?.valid?'实时定位有效':'定位无效，隐藏车位'} · 定位版本 v${frame.switch.version} · ${names[nav.status]||'未知任务状态'}${nav.status==='running'&&(!nav.progress_fresh||nav.target_index<0)?' · 路段进度未知（反馈过期或正在避障）':''}`};
   }
   class LiveMap {
-    constructor(editor,mapId,status){
-      this.editor=editor;this.mapId=mapId;this.status=status;this.trail=[];this.lastMessage=0;this.closed=false;
+    constructor(editor,mapId,status,onState){
+      this.editor=editor;this.mapId=mapId;this.status=status;this.onState=onState;this.trail=[];this.lastMessage=0;this.closed=false;
       this.timer=setInterval(()=>this.refresh(),500);this.connect();
     }
     connect(){
@@ -25,7 +28,7 @@
       const data=view(this.frame,this.mapId,Date.now(),this.lastMessage), key=this.frame?.switch?.key;
       if(key!==this.key||!data.pose){this.trail=[];this.key=key;}
       if(data.pose){const p={x:data.pose.LocalX,y:data.pose.LocalY}, last=this.trail.at(-1);if(!last||Math.hypot(last.x-p.x,last.y-p.y)>.03){this.trail.push(p);if(this.trail.length>1200)this.trail.shift();}}
-      this.status.textContent=data.text;this.editor.live={...data,trail:this.trail};this.editor.draw();
+      this.status.textContent=data.text;this.editor.live={...data,trail:this.trail};this.onState?.(this.editor.live);this.editor.draw();
     }
     destroy(){this.closed=true;clearInterval(this.timer);clearTimeout(this.retry);this.socket?.close();}
   }
@@ -34,13 +37,13 @@
     const ctx=editor.ctx,points=live.route?.points||[];
     function line(a,b,color,width,dash=[]){a=editor.screen(a);b=editor.screen(b);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
     ctx.save();
-    for(let i=1;i<points.length;i++){
+    for(let i=1;editor.layers?.liveRoute&&i<points.length;i++){
       const completed=live.progress&&(live.route.status==='success'||i<live.route.target_index);
       line(points[i-1],points[i],completed?'#23996d':live.progress?'#ed8b25':'#8974ae',3,live.progress?[]:[7,5]);
     }
-    for(let i=1;i<live.trail.length;i++)line(live.trail[i-1],live.trail[i],'#168aab',2);
+    if(editor.layers?.liveTrail!==false)for(let i=1;i<live.trail.length;i++)line(live.trail[i-1],live.trail[i],'#168aab',2);
     ctx.setLineDash([]);
-    if(live.pose){const p=editor.screen({x:live.pose.LocalX,y:live.pose.LocalY});ctx.translate(p.x,p.y);ctx.rotate(-live.pose.Heading*Math.PI/180);ctx.fillStyle='#df5728';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(17,0);ctx.lineTo(-11,-10);ctx.lineTo(-6,0);ctx.lineTo(-11,10);ctx.closePath();ctx.fill();ctx.stroke();}
+    if(editor.layers?.liveRobot!==false&&live.pose){const p=editor.screen({x:live.pose.LocalX,y:live.pose.LocalY});ctx.translate(p.x,p.y);ctx.rotate(-live.pose.Heading*Math.PI/180);ctx.fillStyle='#df5728';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(17,0);ctx.lineTo(-11,-10);ctx.lineTo(-6,0);ctx.lineTo(-11,10);ctx.closePath();ctx.fill();ctx.stroke();}
     ctx.restore();
   }
   if(typeof module==='object')module.exports={view};

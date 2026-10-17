@@ -160,6 +160,10 @@
   $('auto-pose').onclick=()=>{if(!$('map-key').value){$('message').textContent='请先选择定位地图';return;}cancelPick();action('/api/localization/auto',{key:$('map-key').value});};
   $('auto-cancel').onclick=()=>action('/api/localization/auto/cancel');
   $('stop-button').onclick=()=>action('/api/localization/stop');$('release-button').onclick=()=>action('/api/localization/release');
+  $('binding-link').addEventListener('click',event=>{
+    if(!new URLSearchParams(location.search).has('embedded'))return;
+    event.preventDefault();window.parent.postMessage({type:'workbench-open-drawer',tab:'binding'},location.origin);
+  });
   $('use-pose').onclick=()=>{cancelPick();if(frame?.localization.fresh){$('pose-x').value=frame.position.LocalX;$('pose-y').value=frame.position.LocalY;$('pose-yaw').value=frame.position.Heading;}};
   $('map-key').onchange=()=>{trail=[];loadMap($('map-key').value);$('binding-link').href='map-workbench.html'+($('map-key').value?'?map='+encodeURIComponent($('map-key').value):'')+'#binding';};
   $('rotate-view-left').onclick=()=>setViewRotation(viewRotation-90);

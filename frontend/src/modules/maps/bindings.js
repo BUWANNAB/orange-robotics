@@ -37,6 +37,11 @@
   }
   $('binding-form').onsubmit=e=>{e.preventDefault();save();};$('binding-remove').onclick=()=>save(true);
   $('binding-pcd').onchange=selected;$('binding-map').onchange=detail;
+  document.querySelectorAll('.binding-actions a').forEach(link=>link.addEventListener('click',event=>{
+    if(!new URLSearchParams(location.search).has('embedded'))return;
+    event.preventDefault();const tab=link.id==='binding-locate'?'locate':'route';
+    window.parent.postMessage({type:tab==='locate'?'workbench-open-drawer':'workbench-navigate',tab},location.origin);
+  }));
   $('binding-refresh').onclick=()=>refresh().then(()=>notice('列表已刷新')).catch(e=>notice(e.message,true));
   refresh().then(()=>notice('按顺序选择点云、线路地图，并核对坐标。')).catch(e=>notice(e.message,true));
 })();

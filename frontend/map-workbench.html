@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261017-unified-map-workbench">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261017-map-console-refine-2">
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
 </head>
 <body>
@@ -45,6 +45,13 @@
     <section id="panel-locate" class="panel embedded-panel" hidden><div class="embedded-note">地图会显示当前位姿；可在画布上拖动机器人模型设定位置与朝向，或使用真实定位自动重定位。成功后仍保持软件停止锁定。</div><iframe id="locate-frame" title="实时定位与地图切换"></iframe></section>
     <section class="job-strip" id="job-strip" hidden><strong id="job-state">处理中</strong><span id="job-message"></span><code id="job-id"></code></section>
   </main>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261017-origin-and-unified-workbench"></script>
+  <div class="workflow-drawer" id="workflow-drawer" hidden>
+    <button class="workflow-scrim" id="workflow-scrim" type="button" aria-label="关闭操作面板"></button>
+    <section class="workflow-sheet" role="dialog" aria-modal="true" aria-labelledby="workflow-title">
+      <header class="workflow-sheet-head"><div><span class="eyebrow">MAP WORKSPACE</span><h2 id="workflow-title">地图操作</h2></div><button id="workflow-close" type="button" aria-label="关闭">×</button></header>
+      <iframe id="workflow-frame" title="地图绑定或重新定位"></iframe>
+    </section>
+  </div>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261017-map-console-refine-3"></script>
 </body>
 </html>

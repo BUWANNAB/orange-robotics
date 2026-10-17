@@ -2,10 +2,23 @@ const $=id=>document.getElementById(id), api=window.OpsAPI, base='/api/map-workb
 const tabs=['build','point','grid','route','binding','locate'];
 const requestedTab=location.hash.slice(1);
 const initialTab=tabs.includes(requestedTab)?requestedTab:requestedTab==='maps'?'route':'build';
-let pointAsset=null, selectedAsset='', assets=[], tab='', viewer, viewerModule, generation=0, busy=false, mapping;
+let pointAsset=null, selectedAsset='', assets=[], tab='', viewer, viewerModule, generation=0, busy=false, mapping, workflowReturnFocus=null;
 
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
 function current(){return assets.find(row=>row.id===$('asset').value);}
+function openWorkflowDrawer(next){
+  if(!['binding','locate'].includes(next))return;
+  const drawer=$('workflow-drawer'),frame=$('workflow-frame'),asset=$('asset').value;
+  workflowReturnFocus=document.activeElement;
+  $('workflow-title').textContent=next==='binding'?'地图绑定':'重新定位';
+  const src=`${next==='binding'?'map-bindings.html':'localization.html'}?embedded=1${asset?'&asset='+encodeURIComponent(asset):''}`;
+  if(frame.getAttribute('src')!==src)frame.src=src;
+  drawer.hidden=false;document.body.classList.add('drawer-open');$('workflow-close').focus();
+}
+function closeWorkflowDrawer(){
+  $('workflow-drawer').hidden=true;document.body.classList.remove('drawer-open');
+  workflowReturnFocus?.focus();workflowReturnFocus=null;
+}
 function setBusy(value){busy=value;for(const id of ['process-button','mapping-start','mapping-save','mapping-stop'])$(id).disabled=value;updateMapping();}
 function updateHeightPreview(){
   const minValue=$('z-min').value.trim(),maxValue=$('z-max').value.trim(),min=Number(minValue),max=Number(maxValue),status=$('height-preview');
@@ -58,7 +71,7 @@ async function selected(){
 async function show(next,reload=false){
   if(!tabs.includes(next))next='build';
   if(tab===next&&!reload)return;
-  tab=next;history.replaceState(null,'','#'+next);
+  tab=next;history.replaceState(null,'','#'+next);document.body.classList.toggle('route-mode',next==='route');
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===next)));
   document.querySelectorAll('.panel').forEach(p=>p.hidden=p.id!=='panel-'+next);
   const row=current(),key=row?.id||'';generation++;const token=generation;
@@ -112,12 +125,15 @@ $('mapping-start').onclick=()=>{if(!$('manual-push-confirmed').checked)return no
 $('manual-push-confirmed').onchange=updateMapping;$('mapping-form').onsubmit=e=>{e.preventDefault();if(!mapping?.active)return notice('请先开始采集，再保存点云。',true);run('/mapping/save',{name:$('mapping-name').value.trim()});};$('mapping-stop').onclick=()=>run('/mapping/stop');
 $('asset').onchange=()=>selected().catch(e=>notice(e.message,true));$('refresh').onclick=()=>refresh().catch(e=>notice(e.message,true));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab).catch(e=>notice(e.message,true)));
+$('workflow-close').onclick=$('workflow-scrim').onclick=closeWorkflowDrawer;
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('workflow-drawer').hidden)closeWorkflowDrawer();});
 $('fit').onclick=()=>viewer?.fit();$('clear-boxes').onclick=()=>viewer?.clearBoxes();
 document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{viewer?.drawBox(b.dataset.draw);notice('已切换俯视：按住左键拖出矩形，松开完成选区。框选删除作用于源坐标系 XY 区域。');});
 window.addEventListener('message',e=>{
   if(e.origin!==location.origin)return;
   if(e.source===$('grid-frame').contentWindow&&e.data?.type==='map-saved')refresh(e.data.id).then(()=>{$('locate-frame').removeAttribute('data-asset');$('binding-frame').removeAttribute('data-asset');notice('二维地图已保存。路线编辑和地图绑定会显示更新后的栅格版本。');}).catch(err=>notice(err.message,true));
-  if(e.source===$('locate-frame').contentWindow&&e.data?.type==='workbench-navigate'&&tabs.includes(e.data.tab))show(e.data.tab).catch(err=>notice(err.message,true));
+  if([$('route-frame').contentWindow,$('binding-frame').contentWindow,$('locate-frame').contentWindow,$('workflow-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-open-drawer')openWorkflowDrawer(e.data.tab);
+  if([$('locate-frame').contentWindow,$('route-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-navigate'&&tabs.includes(e.data.tab))show(e.data.tab).catch(err=>notice(err.message,true));
 });
 window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(tabs.includes(next))show(next).catch(e=>notice(e.message,true));});
 

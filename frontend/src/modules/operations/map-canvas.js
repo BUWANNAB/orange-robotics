@@ -27,10 +27,11 @@
   }
 
   class MapCanvas {
-    constructor(canvas, document, onChange, onSelect) {
+    constructor(canvas, document, onChange, onSelect, onMeasure) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.document = structuredClone(document);
-      this.onChange = onChange; this.onSelect = onSelect; this.tool = 'select'; this.selected = null; this.shape = null;
+      this.onChange = onChange; this.onSelect = onSelect; this.onMeasure = onMeasure; this.tool = 'select'; this.selected = null; this.shape = null;
       this.history = []; this.future = []; this.area = []; this.areaType = 'forbidden'; this.edgeStart = null; this.drag = null;
+      this.layers = { background: true, paths: true, stations: true, coordinates: true, areas: true, liveRoute: true, liveTrail: true, liveRobot: true };
       this.scale = 6; this.pan = { x: 35, y: 35 };
       this.abort = new AbortController();
       const options = { signal: this.abort.signal };
@@ -48,6 +49,17 @@
       }, { ...options, passive: false });
       this.resizeObserver = new ResizeObserver(() => this.draw()); this.resizeObserver.observe(canvas);
       this.fit();
+    }
+    setTool(tool) { this.tool = tool; this.drag = null; if (tool !== 'measure') this.measure = null; this.draw(); }
+    setLayerVisible(name, visible) { if (!(name in this.layers)) return; this.layers[name] = !!visible; this.draw(); }
+    selectPoint(code) {
+      const index = this.document.points.findIndex(point => point.code === code);
+      if (index < 0) return;
+      this.selected = index; this.shape = null; this.draw(); this.onSelect(this.document.points[index]);
+    }
+    selectObject(kind, index) {
+      if (!this.document[kind]?.[index]) return;
+      this.selected = null; this.shape = { kind, index }; this.draw(); this.onSelect({ ...this.document[kind][index], kind });
     }
     checkpoint() {
       this.history.push(structuredClone(this.document)); if (this.history.length > 60) this.history.shift();
@@ -74,11 +86,13 @@
       return { x: Math.round((event.clientX - rect.left - this.pan.x) / this.scale * 10) / 10,
         y: Math.round((rect.height - (event.clientY - rect.top) - this.pan.y) / this.scale * 10) / 10 };
     }
-    nearest(point) { return this.document.points.findIndex(p => Math.hypot(p.x - point.x, p.y - point.y) * this.scale < 13); }
+    nearest(point) { return this.layers.stations ? this.document.points.findIndex(p => Math.hypot(p.x - point.x, p.y - point.y) * this.scale < 13) : -1; }
     down(event) {
       if (event.button === 1 || this.tool === 'pan') { this.drag = { pan: true, x: event.clientX, y: event.clientY }; this.canvas.setPointerCapture(event.pointerId); return; }
       const point = this.world(event), index = this.nearest(point);
-      if (this.tool === 'point') {
+      if (this.tool === 'measure') {
+        this.measure = { start: point, end: point }; this.drag = { measure: true }; this.canvas.setPointerCapture(event.pointerId); this.draw();
+      } else if (this.tool === 'point') {
         this.checkpoint(); let n = this.document.points.length + 1;
         while (this.document.points.some(p => p.code === `P${n}`)) n++;
         this.document.points.push({ code: `P${n}`, name: '', type: 'station', ...point, theta: 0 });
@@ -109,9 +123,17 @@
       if (this.drag.pan) {
         this.pan.x += event.clientX - this.drag.x; this.pan.y -= event.clientY - this.drag.y;
         this.drag.x = event.clientX; this.drag.y = event.clientY; this.draw();
+      } else if (this.drag.measure) {
+        this.measure.end = this.world(event); this.draw();
       } else { Object.assign(this.document.points[this.drag.index], this.world(event)); this.draw(); }
     }
-    up() { if (this.drag && !this.drag.pan) this.changed(); this.drag = null; }
+    up() {
+      if (this.drag?.measure) {
+        const distance = Math.hypot(this.measure.end.x - this.measure.start.x, this.measure.end.y - this.measure.start.y);
+        this.onMeasure?.(distance, this.measure);
+      } else if (this.drag && !this.drag.pan) this.changed();
+      this.drag = null;
+    }
     closeArea() {
       if (this.area.length < 3) return;
       const labels = { forbidden: '禁行区', slow: '减速区', work: '作业区', charge: '充电区' };
@@ -138,7 +160,7 @@
     }
     selectShape(point) {
       const points = new Map(this.document.points.map(p => [p.code, p]));
-      for (let index = 0; index < this.document.paths.length; index++) {
+      for (let index = 0; this.layers.paths && index < this.document.paths.length; index++) {
         const path = this.document.paths[index], a = points.get(path.start), b = points.get(path.end); if (!a || !b) continue;
         const sampled = samplePath(path, a, b).map(p => this.screen(p));
         for (let i = 1; i < sampled.length; i++) {
@@ -150,7 +172,7 @@
           }
         }
       }
-      for (let index = this.document.areas.length - 1; index >= 0; index--) {
+      for (let index = this.layers.areas ? this.document.areas.length - 1 : -1; index >= 0; index--) {
         const area = this.document.areas[index]; let inside = false;
         for (let i = 0, j = area.polygon.length - 1; i < area.polygon.length; j = i++) {
           const [x, y] = area.polygon[i], [px, py] = area.polygon[j];
@@ -166,11 +188,24 @@
       this.canvas.width = width * ratio; this.canvas.height = height * ratio;
       const ctx = this.ctx; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = '#fbfcfe'; ctx.fillRect(0, 0, width, height);
-      if (this.image) { const corner = this.screen({ x: this.document.origin_x, y: this.document.origin_y + this.document.height }); ctx.drawImage(this.image, corner.x, corner.y, this.document.width * this.scale, this.document.height * this.scale); }
+      if (this.layers.background && this.image) { const corner = this.screen({ x: this.document.origin_x, y: this.document.origin_y + this.document.height }); ctx.drawImage(this.image, corner.x, corner.y, this.document.width * this.scale, this.document.height * this.scale); }
       const step = Math.max(1, Math.pow(10, Math.ceil(Math.log10(25 / this.scale)))) * this.scale;
-      ctx.strokeStyle = '#edf0f5'; ctx.lineWidth = 1;
-      for (let x = this.pan.x % step; x < width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-      for (let y = (height - this.pan.y) % step; y < height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+      if (this.layers.coordinates) {
+        ctx.strokeStyle = '#edf0f5'; ctx.lineWidth = 1;
+        for (let x = this.pan.x % step; x < width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+        for (let y = (height - this.pan.y) % step; y < height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+        const zero = this.screen({ x: 0, y: 0 }); ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#f36a14'; ctx.lineWidth = 1.25;
+        if (zero.y >= 0 && zero.y <= height) { ctx.beginPath(); ctx.moveTo(0, zero.y); ctx.lineTo(width - 32, zero.y); ctx.stroke(); }
+        if (zero.x >= 0 && zero.x <= width) { ctx.beginPath(); ctx.moveTo(zero.x, height); ctx.lineTo(zero.x, 24); ctx.stroke(); }
+        ctx.setLineDash([]); ctx.fillStyle = '#f36a14'; ctx.font = '600 12px Segoe UI, Microsoft YaHei, sans-serif';
+        if (zero.y >= 0 && zero.y <= height) ctx.fillText('X  →', width - 30, zero.y - 7);
+        if (zero.x >= 0 && zero.x <= width) ctx.fillText('Y  ↑', zero.x + 7, 18);
+        if (zero.x >= 0 && zero.x <= width && zero.y >= 0 && zero.y <= height) {
+          ctx.beginPath(); ctx.arc(zero.x, zero.y, 6, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#f36a14'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.fillStyle = '#f36a14'; ctx.fillText('(0, 0)', zero.x + 10, zero.y + 19);
+        }
+        ctx.restore();
+      }
       const areaStyles = {
         forbidden: { fill: 'rgba(220,76,82,.16)', stroke: '#cf4f56', label: '禁行' },
         slow: { fill: 'rgba(230,161,43,.20)', stroke: '#c58926', label: '减速' },
@@ -186,10 +221,10 @@
         const label = this.document.areas.find(a => a.polygon === polygon)?.name || style.label, p = this.screen({ x: center[0], y: center[1] });
         ctx.font = '600 12px Microsoft YaHei, sans-serif'; ctx.fillStyle = style.stroke; ctx.fillText(label, p.x, p.y);
       };
-      this.document.areas.forEach((area, index) => drawPoly(area.polygon, area.type, this.shape?.kind === 'areas' && this.shape.index === index));
-      if (this.area.length) drawPoly(this.area, this.areaType);
+      if (this.layers.areas) this.document.areas.forEach((area, index) => drawPoly(area.polygon, area.type, this.shape?.kind === 'areas' && this.shape.index === index));
+      if (this.layers.areas && this.area.length) drawPoly(this.area, this.areaType);
       const points = new Map(this.document.points.map(p => [p.code, p]));
-      for (const [index, path] of this.document.paths.entries()) {
+      for (const [index, path] of (this.layers.paths ? this.document.paths : []).entries()) {
         const pointA = points.get(path.start), pointB = points.get(path.end); if (!pointA || !pointB) continue;
         const a = this.screen(pointA), b = this.screen(pointB), controls = curveControls(path, pointA, pointB);
         const selected = this.shape?.kind === 'paths' && this.shape.index === index;
@@ -205,7 +240,7 @@
         }
       }
       window.drawLiveMap?.(this);
-      this.document.points.forEach((point, index) => {
+      if (this.layers.stations) this.document.points.forEach((point, index) => {
         const p = this.screen(point); if (p.x < -120 || p.x > width + 120 || p.y < -50 || p.y > height + 50) return;
         const selected = index === this.selected, color = point.type === 'charger' ? '#25835d' : point.type === 'shelf' ? '#8564aa' : point.type === 'waiting' ? '#bc7a27' : point.type === 'elevator' ? '#287fa0' : '#3976ad';
         ctx.save(); ctx.translate(p.x, p.y); ctx.fillStyle = color; ctx.strokeStyle = selected ? '#e87832' : '#fff'; ctx.lineWidth = selected ? 3 : 1.5;
@@ -226,6 +261,11 @@
           ctx.fillStyle = '#263d52'; ctx.fillText(label, x, y + 1);
         }
       });
+      if (this.measure) {
+        const start = this.screen(this.measure.start), end = this.screen(this.measure.end), distance = Math.hypot(this.measure.end.x - this.measure.start.x, this.measure.end.y - this.measure.start.y);
+        ctx.save(); ctx.strokeStyle = '#ed6b16'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#ed6b16'; ctx.font = '600 12px Segoe UI, Microsoft YaHei, sans-serif'; ctx.fillText(`${distance.toFixed(2)} m`, (start.x + end.x) / 2 + 8, (start.y + end.y) / 2 - 8); ctx.restore();
+      }
       if (this.edgeStart) {
         const p = points.get(this.edgeStart), s = p && this.screen(p);
         if (s) { ctx.fillStyle = '#e87832'; ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI * 2); ctx.strokeStyle = '#e87832'; ctx.lineWidth = 2; ctx.stroke(); }
