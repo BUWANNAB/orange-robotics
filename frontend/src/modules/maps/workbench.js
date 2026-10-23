@@ -55,18 +55,19 @@ function updateMapping(){
   const navigation=navigationNodes?'仍有运动控制节点运行':navigationStopped?'已停止':mapping.navigation_state==='active'?'服务运行中':'状态未知';
   $('mapping-state').textContent=`ROS 桥接：${real?'已连接':'未连接'} · 雷达点云：${lidar?'实时':'无新数据'} · 建图控制器：${controller?'就绪':'未就绪'} · 定位：${localization} · 运动控制：${navigation} · 建图：${state}`;
 }
-async function refresh(preferred){
+async function refresh(preferred,options={}){
   const previous=preferred||$('asset').value;assets=await api.get(base+'/assets');
   $('asset').replaceChildren(new Option(assets.length?'请选择地图':'暂无地图',''),...assets.map(a=>new Option(`${a.id}${a.pcd?' · PCD':''}${a.grid?' · PGM':''}`,a.id)));
-  if(assets.some(a=>a.id===previous))$('asset').value=previous;await selected();
+  if(assets.some(a=>a.id===previous))$('asset').value=previous;await selected(options);
 }
-async function selected(){
+async function selected({render=true}={}){
   const row=current(),key=row?.id||'';
   if(key!==selectedAsset){selectedAsset=key;pointAsset=null;resetOrigin();document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.remove('active');}
   notice(row?'当前地图：'+row.id:'请选择地图，或开始采集新地图。');
   $('asset-detail').textContent=row?`${row.pcd?'定位点云可用':'无 PCD'} · ${row.grid?'路线栅格可用':'无 PGM / YAML'}${row.resolution?' · '+row.resolution+' m/像素':''}`:'同一地图统一管理点云与栅格';
   $('output').value=row?row.id+'_processed':'';
-  await show(tab||initialTab,true);
+  $('grid-route-action').hidden=!row?.grid;
+  if(render)await show(tab||initialTab,true);
 }
 async function show(next,reload=false){
   if(!tabs.includes(next))next='build';
@@ -86,9 +87,14 @@ async function show(next,reload=false){
     }catch(e){notice(e.message,true);$('viewer-empty').textContent='点云加载失败，请检查文件或浏览器 WebGL 支持';}
   }
   if(next==='grid'){
-    if($('grid-frame').dataset.asset!==key){$('grid-frame').src=row?.grid?'src/components/process-map/handle_map.html?embedded=1&map='+encodeURIComponent(key)+'&ui=20261017-unified-map-workbench':'about:blank';$('grid-frame').dataset.asset=key;}
+    const frame=$('grid-frame'),revision=String(row?.revision??''),identity=`${key}:${revision}`;
+    if(frame.dataset.asset!==identity){frame.src=row?.grid?'src/components/process-map/handle_map.html?embedded=1&map='+encodeURIComponent(key)+'&revision='+encodeURIComponent(revision)+'&ui=20261023-pgm-route-handoff-1':'about:blank';frame.dataset.asset=identity;}
     if(!row?.grid)notice('请选择含 PGM / YAML 的地图，或先从点云处理生成栅格。');
-  }else if(next==='route'&&!$('route-frame').dataset.loaded){$('route-frame').src='operations.html?embedded=1#maps';$('route-frame').dataset.loaded='1';}
+  }else if(next==='route'){
+    const routeFrame=$('route-frame'),asset=row?.grid?key:'';
+    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?embedded=1'+(asset?'&asset='+encodeURIComponent(asset):'')+'#maps';routeFrame.dataset.loaded='1';}
+    else routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset},location.origin);
+  }
   else if(next==='binding'&&$('binding-frame').dataset.asset!==key){$('binding-frame').src='map-bindings.html?embedded=1'+(key?'&asset='+encodeURIComponent(key):'');$('binding-frame').dataset.asset=key;}
   else if(next==='locate'&&$('locate-frame').dataset.asset!==key){$('locate-frame').src='localization.html?embedded=1'+(key?'&asset='+encodeURIComponent(key):'');$('locate-frame').dataset.asset=key;}
   if(next==='build')await mappingStatus();
@@ -99,8 +105,9 @@ async function follow(job){
   try{while(true){$('job-id').textContent=job.id;$('job-state').textContent=({queued:'等待处理',running:'处理中',success:'已完成',failed:'未完成'})[job.status]||job.status;$('job-message').textContent=job.message;
     if(job.status==='failed')throw new Error(job.message);
     if(job.status==='success'){
-      localStorage.removeItem('map-workbench-job');const key=job.result?.asset?.id||job.result?.asset_id;await refresh(key);
-      if(job.kind==='process'){await show('grid');notice('新地图已生成：原始点云未修改。可继续编辑栅格、路线、绑定并重新定位。');}
+      localStorage.removeItem('map-workbench-job');const key=job.result?.asset?.id||job.result?.asset_id;
+      await refresh(key,{render:job.kind!=='process'});
+      if(job.kind==='process'){await show('grid',true);notice('新地图已生成：原始点云未修改。可继续编辑栅格、路线、绑定并重新定位。');}
       else if(job.kind==='mapping-save'){await show('point');notice('原始点云已保存，可设置坐标原点并生成路线栅格。');}
       else notice(job.result?.message||'操作完成');break;
     }
@@ -124,6 +131,7 @@ $('reset-origin').onclick=()=>{resetOrigin();$('draw-origin').classList.remove('
 $('mapping-start').onclick=()=>{if(!$('manual-push-confirmed').checked)return notice('请先在现场确认底盘处于厂家允许的安全手动/自由轮状态，并可人工推行。',true);run('/mapping/start',{manual_push_confirmed:true});};
 $('manual-push-confirmed').onchange=updateMapping;$('mapping-form').onsubmit=e=>{e.preventDefault();if(!mapping?.active)return notice('请先开始采集，再保存点云。',true);run('/mapping/save',{name:$('mapping-name').value.trim()});};$('mapping-stop').onclick=()=>run('/mapping/stop');
 $('asset').onchange=()=>selected().catch(e=>notice(e.message,true));$('refresh').onclick=()=>refresh().catch(e=>notice(e.message,true));
+$('grid-route-action').onclick=()=>show('route').catch(e=>notice(e.message,true));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab).catch(e=>notice(e.message,true)));
 $('workflow-close').onclick=$('workflow-scrim').onclick=closeWorkflowDrawer;
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('workflow-drawer').hidden)closeWorkflowDrawer();});
@@ -131,6 +139,9 @@ $('fit').onclick=()=>viewer?.fit();$('clear-boxes').onclick=()=>{viewer?.clearBo
 document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先选择并加载一张 PCD 地图。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.toggle('active',button===b));$('draw-origin').classList.remove('active');viewer?.drawBox(b.dataset.draw);notice('已进入框选模式：在点云上按住鼠标左键拖出矩形，松开完成选区。');});
 window.addEventListener('message',e=>{
   if(e.origin!==location.origin)return;
+  if(e.source===$('grid-frame').contentWindow&&e.data?.type==='map-load-state'&&e.data.id===current()?.id){
+    notice(e.data.ok?`${e.data.id} 的 PGM 二维地图已显示，可继续编辑或进入路线规划。`:`${e.data.id} 的 PGM 没有显示：${e.data.message||'加载失败'}`,!e.data.ok);
+  }
   if(e.source===$('grid-frame').contentWindow&&e.data?.type==='map-saved')refresh(e.data.id).then(()=>{$('locate-frame').removeAttribute('data-asset');$('binding-frame').removeAttribute('data-asset');notice('二维地图已保存。路线编辑和地图绑定会显示更新后的栅格版本。');}).catch(err=>notice(err.message,true));
   if([$('route-frame').contentWindow,$('binding-frame').contentWindow,$('locate-frame').contentWindow,$('workflow-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-open-drawer')openWorkflowDrawer(e.data.tab);
   if([$('locate-frame').contentWindow,$('route-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-navigate'&&tabs.includes(e.data.tab))show(e.data.tab).catch(err=>notice(err.message,true));

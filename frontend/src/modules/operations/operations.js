@@ -21,7 +21,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -55,7 +55,7 @@
     return `<div class="cards">${data.metrics.map(m=>`<article class="card" title="${escape(m.formula)}"><p>${escape(m.name)}</p><strong>${m.value??'—'}</strong><em>${escape(m.unit)}</em><small>${escape(m.formula)}</small></article>`).join('')}</div><div class="panels"><article class="panel"><h2>近七天任务趋势</h2>${Object.keys(data.trend).length?chart(data.trend):'<p class="empty">尚无任务执行记录</p>'}</article><article class="panel"><h2>机器人状态分布</h2>${Object.entries(data.status).map(([status,count])=>`<div class="bar-row"><span>${escape(labels[status]||status)}</span><div class="bar"><i style="width:${count/Math.max(1,state.robots.length)*100}%"></i></div><b>${count}</b></div>`).join('')||'<p class="empty">尚未添加机器人</p>'}</article><article class="panel"><h2>七天任务热力 · 周一至周日 / 0—23 时</h2><div class="heat">${Array.from({length:168},(_,i)=>{const count=data.heat[`${Math.floor(i/24)}-${i%24}`]||0;return `<i title="周${Math.floor(i/24)+1} ${i%24}时：${count} 单" style="${count?`background:rgba(235,117,40,${Math.min(1,.25+count/20)})`:''}"></i>`;}).join('')}</div><p class="help">业务日期统一按 Asia/Shanghai 统计；空分母显示 —。${data.trend_truncated?'趋势超过 10 万条，已截断。':''}</p></article><article class="panel"><h2>运行提示</h2><p class="help">设备状态来自已认证心跳。操作指令需要设备回执后才会显示成功。断线时自动使用 3 秒快照轮询。</p><p class="help">上次统计：${stamp(data.updated_at)}</p></article></div>`;
   }
   function controls(){
-    const actions={robots:button('导出档案','export-robots','','robot:view')+button('导入档案','import-robots','','robot:import')+button('新增机器人','add-robot','', 'robot:edit')+button('批量回充','batch-charge','','robot:control'),battery:button('低电量回充','batch-charge','','robot:control'),tasks:button('统计分析','task-stats','','task:view')+button('创建任务','add-task','','task:edit'),logs:button('下载 CSV','export-logs','','log:export'),maps:button('新建地图','add-map','','map:edit'),integration:button('新增应用','add-app','','integration:manage')+button('回调记录','callbacks','','integration:manage')+button('接口文档','api-doc','','integration:manage'),firmware:button('上传固件','upload-firmware','','firmware:upload'),upgrades:button('创建升级任务','add-upgrade','','firmware:upgrade')};
+    const actions={robots:button('导出档案','export-robots','','robot:view')+button('导入档案','import-robots','','robot:import')+button('新增机器人','add-robot','', 'robot:edit')+button('批量回充','batch-charge','','robot:control'),battery:button('低电量回充','batch-charge','','robot:control'),tasks:button('统计分析','task-stats','','task:view')+button('创建任务','add-task','','task:edit'),logs:button('下载 CSV','export-logs','','log:export'),maps:button(state.preferredAssetKey?'基于当前 PGM 新建地图':'新建地图','add-map','','map:edit','primary'),integration:button('新增应用','add-app','','integration:manage')+button('回调记录','callbacks','','integration:manage')+button('接口文档','api-doc','','integration:manage'),firmware:button('上传固件','upload-firmware','','firmware:upload'),upgrades:button('创建升级任务','add-upgrade','','firmware:upgrade')};
     $('actions').innerHTML=actions[state.tab]||'';
   }
   async function load(){
@@ -85,7 +85,7 @@
         state.mapChoices=choices.list||[];
         if(!state.mapChoices.some(map=>String(map.id)===String(state.selectedMapId)))state.selectedMapId='';
         html=!data.list.length&&document.documentElement.classList.contains('embedded')
-          ?`<section class="map-empty-state"><span class="eyebrow">ROUTE MAP SETUP</span><h2>还没有路线地图</h2><p>可从已有 PGM / YAML 栅格创建路线地图，再添加站点、规划路线并发布。</p>${button('从现有地图创建','add-map','','map:edit','primary')}</section>`
+          ?`<section class="map-empty-state"><span class="eyebrow">ROUTE MAP SETUP</span><h2>还没有路线地图</h2><p>${state.preferredAssetKey?`当前已选中 PGM 栅格「${escape(state.preferredAssetKey)}」。点击顶部“基于当前 PGM 新建地图”，确认坐标系后即可打开路线画布。`:'可从已有 PGM / YAML 栅格创建路线地图，再添加站点、规划路线并发布。'}</p>${state.preferredAssetKey?'':button('从现有地图创建','add-map','','map:edit','primary')}</section>`
           :window.OperationsMapPicker.render(state.mapChoices,can('map:edit'),state.selectedMapId)+table(['地图名称','草稿修订','发布版本','点位 / 路径 / 区域','更新人','操作'],data.list.map(r=>[escape(r.name),r.revision,r.published_version||'未发布',`${r.draft.points.length} / ${r.draft.paths.length} / ${r.draft.areas.length}`,escape(r.operator),button('打开编辑器','edit-map',r.id,'map:edit')+button('版本','map-versions',r.id,'map:view')+button('导出','export-map',r.id,'map:view')+button('删除','delete-map',r.id,'map:edit','danger')]));
       }else if(tab==='integration'){
         data=await api.get('/api/integration/apps');
@@ -141,7 +141,7 @@
           <span class="map-tool-separator"></span>${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('选择','tool-select','','','map-tool-active')}${button('平移','tool-pan','')}${button('测距','tool-measure','')}
         </div>
         <div class="map-toolbar-row map-toolbar-actions">
-          ${button('地图绑定','workbench-binding','')}${button('重新定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
+          ${button('选择 PGM 底图','map-asset','','','primary')}${button('地图绑定','workbench-binding','')}${button('重新定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
         </div>
       </nav>
       <div class="map-workspace">
@@ -245,7 +245,8 @@
   }
   async function selectMapAsset(){
     const assets=await api.get('/api/map-workbench/assets'),available=assets.filter(asset=>asset.grid);
-    const options=assets.map(asset=>`<option value="${escape(asset.id)}" data-revision="${escape(asset.revision)}" ${asset.grid?'':'disabled'}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
+    const selectedKey=available.some(asset=>asset.id===state.preferredAssetKey)?state.preferredAssetKey:'';
+    const options=assets.map(asset=>`<option value="${escape(asset.id)}" data-revision="${escape(asset.revision)}" ${asset.grid?'':'disabled'} ${asset.id===selectedKey?'selected':''}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
     const picker=`<label class="wide">已有地图<select name="asset_key" ${available.length?'required':'disabled'}><option value="">${available.length?'请选择已有栅格地图':'没有可用的 PGM / YAML 地图'}</option>${options}</select></label>`;
     const help='<p class="help">选择后会把 PGM 作为线路底图，并按 map.yaml 设置分辨率、原点和地图边界。PCD 点云不能直接作为二维底图；有配套 PGM / YAML 的地图可直接选择，只有 PCD 的地图请先在地图工作台生成栅格。</p><label class="wide"><input name="coordinates_confirmed" type="checkbox" required> 我已确认栅格与路线使用相同坐标系；已有点位坐标不会自动转换。</label>';
     return dialog('选择已有底图',picker+help,async form=>{
@@ -264,7 +265,8 @@
   }
   async function newMapForm(){
     const assets=await api.get('/api/map-workbench/assets');
-    const options=assets.map(asset=>`<option value="${escape(asset.id)}" ${asset.grid?'':'disabled'}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
+    const preferredAsset=assets.find(asset=>asset.id===state.preferredAssetKey&&asset.grid);
+    const options=assets.map(asset=>`<option value="${escape(asset.id)}" ${asset.grid?'':'disabled'} ${asset.id===preferredAsset?.id?'selected':''}>${escape(asset.id)} · ${asset.grid?'PGM / YAML 可用':'仅 PCD，需先生成 PGM / YAML'}${asset.pcd?' · PCD':''}</option>`).join('');
     const source=`<label class="wide">已有地图底图<select name="asset_key"><option value="">新建空白线路地图</option>${options}</select></label><p class="help wide" id="map-source-help">可选已有 PGM/YAML 栅格作为底图；选择后地图尺寸、分辨率和原点将读取 map.yaml。只有 PCD 的地图请先生成栅格。</p>`;
     const coordinates='<label class="wide"><input name="coordinates_confirmed" type="checkbox"> 我已确认栅格与路线使用相同坐标系；已有点位坐标不会自动转换。</label>';
     dialog('新建地图',`<div class="form-grid">${field('name','地图名称','','text','required')}${field('width','宽度（米）',100,'number','min="1" required')}${field('height','高度（米）',100,'number','min="1" required')}${field('resolution','分辨率（米/像素）',.05,'number','min="0.001" step="0.001"')}${source}${coordinates}</div>`,async form=>{
@@ -475,5 +477,10 @@
   window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
   window.addEventListener('pagehide',()=>{state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);state.map?.destroy();});
   document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
+  window.addEventListener('message',event=>{
+    if(event.origin!==location.origin||event.source!==parent||event.data?.type!=='workbench-selected-map-asset')return;
+    state.preferredAssetKey=typeof event.data.asset==='string'?event.data.asset:'';
+    if(!state.map&&state.tab==='maps'&&!$('dialog').open)load().catch(error=>notify(error.message,true));
+  });
   init();
 })();
