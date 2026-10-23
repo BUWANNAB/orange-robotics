@@ -3023,25 +3023,37 @@ let isDrawingRect = false; // 是否正在绘制矩形
     // 地图选择器逻辑
     let gridRevision = null;
     let loadedMapKey = null;
+    let mapLoadGeneration = 0;
     const mapAuth = () => ({Authorization: localStorage.getItem('token') || ''});
     const mapSelector = document.getElementById('mapSelector');
     const reloadMapsBtn = document.getElementById('reloadMapsBtn');
+    const reportMapLoad = (id, ok, message = '') => {
+        if (window.parent !== window) parent.postMessage({type:'map-load-state', id, ok, message}, location.origin);
+    };
 
 
    // 加载选中的地图
     async function loadSelectedMap(mapName) {
+        const generation = ++mapLoadGeneration;
         try {
             statusMessage.style.display = 'block';
             statusMessage.textContent = `正在加载地图: ${mapName}...`;
             statusMessage.className = 'status-message';
             
             // 从后端获取PGM和YAML文件
-            const before = await fetch('/api/map-workbench/assets', {headers:mapAuth()}).then(r=>r.json());
-            const selectedAsset = before.data?.find(row=>row.id===mapName);
+            const listingResponse = await fetch('/api/map-workbench/assets', {headers:mapAuth(),cache:'no-store'});
+            const before = await listingResponse.json();
+            if (!listingResponse.ok || before.code !== 0) throw new Error(before.message || '地图列表读取失败');
+            if (generation !== mapLoadGeneration) return;
+            const selectedAsset = before.data?.find(row=>row.id===mapName&&row.grid);
+            if (!selectedAsset) throw new Error('这张地图没有完整的 PGM / YAML 栅格');
             const version = selectedAsset?.revision;
             setMapCoordinateFrame(selectedAsset);
-            const responsepgm = await fetch(`/api/map-workbench/file/pgm/${encodeURIComponent(mapName)}`, {headers:mapAuth()});
-            const responseyaml = await fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapName)}`, {headers:mapAuth()});
+            const [responsepgm, responseyaml] = await Promise.all([
+                fetch(`/api/map-workbench/file/pgm/${encodeURIComponent(mapName)}`, {headers:mapAuth()}),
+                fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapName)}`, {headers:mapAuth()})
+            ]);
+            if (generation !== mapLoadGeneration) return;
     
             // 检查PGM文件响应
             if (!responsepgm.ok) {
@@ -3057,9 +3069,11 @@ let isDrawingRect = false; // 是否正在绘制矩形
             const pgmFile = new File([pgmBlob], `${mapName}.pgm`, { type: 'image/x-portable-greymap' });
             // 将YAML响应转换为文本
             const yamlContent = await responseyaml.text();
+            if (!yamlContent.trim()) throw new Error('地图 YAML 内容为空');
          
             // 使用现有方法解析PGM文件
             const parsedData = await parsePGM(pgmFile);
+            if (generation !== mapLoadGeneration) return;
             pgmData = parsedData;
             gridRevision = version; loadedMapKey = mapName;
             lastCutoutPGMData = null; lastCutoutImageData = null;
@@ -3076,12 +3090,15 @@ let isDrawingRect = false; // 是否正在绘制矩形
             draw();
 
             statusMessage.className = 'status-message success';
-            statusMessage.textContent = `地图 ${mapName} 加载成功！`;
+            statusMessage.textContent = `二维地图 ${mapName} 已显示 · ${parsedData.width} × ${parsedData.height} 像素`;
+            reportMapLoad(mapName, true, statusMessage.textContent);
             setTimeout(() => statusMessage.style.display = 'none', 2000);
         } catch (error) {
+            if (generation !== mapLoadGeneration) return;
             statusMessage.style.display = 'block';
             statusMessage.className = 'status-message error';
             statusMessage.textContent = `加载地图失败: ${error.message}`;
+            reportMapLoad(mapName, false, error.message);
         }
     }
 
@@ -3519,15 +3536,25 @@ let isDrawingRect = false; // 是否正在绘制矩形
             if (!response.ok || body.code !== 0) throw new Error(body.message || '地图列表读取失败');
             const rows = body.data.filter(row=>row.grid);
             mapSelector.replaceChildren(new Option('请选择地图',''), ...rows.map(row=>new Option(row.id,row.id)));
+            mapSelector.disabled=rows.length===0;
             document.getElementById('subFilesContainer').style.display='none';
-            if (rows.some(row=>row.id===selected)) {
+            const selectedRow=rows.find(row=>row.id===selected);
+            if (selectedRow) {
                 mapSelector.value=selected;
-                if (loadedMapKey !== selected) mapSelector.dispatchEvent(new Event('change'));
+                if (loadedMapKey!==selected || gridRevision!==selectedRow.revision) await loadSelectedMap(selected);
+                else statusMessage.textContent=`二维地图 ${selected} 已显示`;
+            } else if (selected) {
+                mapSelector.value='';
+                const message=rows.length?'当前选择没有可用的 PGM / YAML 栅格':'尚无可编辑的 PGM / YAML 地图';
+                statusMessage.textContent=message;
+                reportMapLoad(selected,false,message);
+            } else {
+                statusMessage.textContent=`已加载 ${rows.length} 个二维地图`;
             }
-            statusMessage.textContent=`已加载 ${rows.length} 个地图`;
         } catch(error) {
             statusMessage.style.display='block';
             statusMessage.textContent=`加载地图列表失败: ${error.message}`;
+            reportMapLoad(new URLSearchParams(location.search).get('map')||'',false,error.message);
         }
     }
 

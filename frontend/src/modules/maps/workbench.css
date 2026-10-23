@@ -64,3 +64,7 @@ body.route-mode #panel-route iframe{display:block;width:100%;height:100vh;min-he
 .viewer-toolbar strong{color:#263d52;font-size:13px}
 .viewer-toolbar>span{color:var(--muted);font-size:10px}
 @media(max-width:1150px){.point-layout>.map-create-controls{position:static;max-height:none;overflow:visible;border-left:0;border-top:1px solid var(--line);padding:20px}.map-create-controls .map-create-submit{position:static;box-shadow:0 3px 8px rgba(201,83,17,.2)}}
+.grid-workflow-note{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#grid-route-action{flex:none;min-height:38px;padding:8px 14px;border:1px solid #d85f16;border-radius:7px;background:#e87523;color:#fff;font-size:12px;font-weight:700;box-shadow:0 2px 5px rgba(156,68,15,.16)}
+#grid-route-action:hover{background:#d9681c;box-shadow:0 3px 8px rgba(156,68,15,.22)}
+@media(max-width:650px){.grid-workflow-note{align-items:stretch;flex-direction:column;gap:9px}#grid-route-action{width:100%}}

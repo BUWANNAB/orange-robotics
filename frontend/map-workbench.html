@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261017-map-console-refine-4">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261023-pgm-route-handoff-1">
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
 </head>
 <body>
@@ -45,7 +45,7 @@
       </div>
     </section>
 
-    <section id="panel-grid" class="panel embedded-panel" hidden><div class="embedded-note">二维画笔修改 PGM 通行区域；它不会改写原始点云。保存后可在“路线编辑”里直接选择这张栅格。</div><iframe id="grid-frame" title="二维地图编辑器"></iframe></section>
+    <section id="panel-grid" class="panel embedded-panel" hidden><div class="embedded-note grid-workflow-note"><span>二维画笔修改 PGM 通行区域；它不会改写原始点云。保存后可直接用于路线编辑。</span><button id="grid-route-action" type="button" hidden>下一步：用此 PGM 规划路线 →</button></div><iframe id="grid-frame" title="二维地图编辑器"></iframe></section>
     <section id="panel-route" class="panel embedded-panel" hidden><div class="embedded-note">在地图主画布上编辑站点、路径和作业区。草稿校验、发布版本、自动保存和运行安全锁定沿用 Orange 现有规则。</div><iframe id="route-frame" title="路线编辑器"></iframe></section>
     <section id="panel-binding" class="panel embedded-panel" hidden><div class="embedded-note">选好定位点云和已发布路线地图，确认坐标系后保存；只有重新定位成功，绑定才会用于后续任务。</div><iframe id="binding-frame" title="定位点云与路线地图绑定"></iframe></section>
     <section id="panel-locate" class="panel embedded-panel" hidden><div class="embedded-note">地图会显示当前位姿；可在画布上拖动机器人模型设定位置与朝向，或使用真实定位自动重定位。成功后仍保持软件停止锁定。</div><iframe id="locate-frame" title="实时定位与地图切换"></iframe></section>
@@ -58,6 +58,6 @@
       <iframe id="workflow-frame" title="地图绑定或重新定位"></iframe>
     </section>
   </div>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261017-map-console-refine-4"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261023-pgm-route-handoff-1"></script>
 </body>
 </html>
