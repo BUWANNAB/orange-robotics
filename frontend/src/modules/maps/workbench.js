@@ -120,7 +120,7 @@ async function show(next,reload=false){
     if(!row?.grid)notice('请选择含 PGM / YAML 的地图，或先从点云处理生成栅格。');
   }else if(next==='route'){
     const routeFrame=$('route-frame'),asset=key,readyForRoutes=!!row?.grid;
-    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?embedded=1'+(asset?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
+    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?ui=manual-console-20261024-3&embedded=1'+(asset?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
     else if(asset&&readyForRoutes)routeFrame.contentWindow?.postMessage({type:'workbench-open-map-asset',asset},location.origin);
     else if(asset)routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset},location.origin);
     else routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset:''},location.origin);
