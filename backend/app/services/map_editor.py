@@ -45,6 +45,8 @@ class MapData(BaseModel):
     resolution: float = Field(default=0.05, gt=0, le=10)
     origin_x: float = 0
     origin_y: float = 0
+    asset_id: str = Field(default="", max_length=180)
+    asset_revision: str = Field(default="", pattern=r"^([a-f0-9]{64})?$")
     image: str = Field(default="", pattern=r"^([a-f0-9]{64})?$")
     points: list[Point] = Field(default_factory=list, max_length=5000)
     paths: list[Path] = Field(default_factory=list, max_length=20000)
@@ -202,8 +204,12 @@ async def save_draft(db, row, actor, revision, document):
 
 
 async def publish(db, row, actor, revision, document=None):
-    document = document if document is not None else row.draft
-    errors = await asyncio.to_thread(validate_map, document)
+    current_draft = row.draft if isinstance(row.draft, dict) else {}
+    draft_document = dict(document if document is not None else current_draft)
+    for field in ("asset_id", "asset_revision"):
+        if field not in draft_document and field in current_draft:
+            draft_document[field] = current_draft[field]
+    errors = await asyncio.to_thread(validate_map, draft_document)
     if errors:
         raise HTTPException(422, errors)
     active = await db.scalar(select(TaskRun.id).where(TaskRun.map_id == row.id, TaskRun.status.in_(["queued", "dispatched", "running"])).limit(1))
@@ -212,9 +218,13 @@ async def publish(db, row, actor, revision, document=None):
     from app.services.operations_common import online
     if active or busy or any(r.telemetry.get("busy") or (r.enabled and not online(r)) for r in robots):
         raise HTTPException(409, "地图有任务或维护中的机器人占用")
-    await save_draft(db, row, actor, revision, document)
+    await save_draft(db, row, actor, revision, draft_document)
     version = row.published_version + 1
     row.published_version = version
-    db.add(MapVersion(map_id=row.id, version=version, document=document, operator=actor))
+    published_document = {
+        key: value for key, value in draft_document.items()
+        if key not in {"asset_id", "asset_revision"}
+    }
+    db.add(MapVersion(map_id=row.id, version=version, document=published_document, operator=actor))
     audit(db, actor, "map", f"发布地图 #{row.id} v{version}；设备需拉取并确认加载")
     return version

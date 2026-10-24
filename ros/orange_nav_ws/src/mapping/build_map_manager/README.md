@@ -1,6 +1,6 @@
 # build_map_manager
 
-这是一个 ROS2 Humble 建图管理节点，用于接收前端 `/buildmap` 指令，自动启动 Livox msg 驱动和 LIO-SAM 建图，并在收到地图名后调用 `/lio_sam/save_map` 保存 PCD 地图。
+这是一个 ROS 2 Humble 建图管理节点，用于接收 `/buildmap` 指令，按配置启动 LIO-SAM（可选管理 Livox 驱动），并在收到地图名后调用 `/lio_sam/save_map` 保存 PCD 地图。生产常驻雷达模式使用 `manage_livox=false`，复用已运行的雷达 core。
 
 ## 话题协议
 
@@ -15,6 +15,7 @@ std_msgs/msg/String
 
 ```text
 start      开始建图
+stop       停止建图，不保存
 地图名      结束建图并保存，例如 qin4、shuobao-pgm、map_001
 ```
 
@@ -33,7 +34,12 @@ starting
 mapping
 map_data_ready
 saving
+stopping_mapping
+mapping_stopped
 saved:$ROBOT_PCD_DIR/地图名
+map_exists
+save_failed
+save_failed_lio_stopped
 already_mapping
 not_mapping
 no_map_data
@@ -118,7 +124,7 @@ ros2 launch livox_ros_driver2 msg_MID360_launch.py
 
 不要改成 `rviz_MID360_launch.py`，否则 `/livox/lidar` 会变成 PointCloud2，当前 LIO-SAM 的 `lio_sam_imageProjection` 订阅 CustomMsg 会收不到点云。
 
-2. 节点收到过 `/lio_sam/mapping/cloud_registered` 非空点云后，才允许保存地图，防止空地图触发：
+2. 保存只接受最近 2 秒内收到的非空 `/lio_sam/mapping/cloud_registered`，且仅在保存服务返回成功、`GlobalMap.pcd` 非空后，才将隐藏临时目录改名为正式地图目录。已有同名地图不会覆盖；超时后如保存请求仍未返回，会停止本节点所管理的 LIO-SAM 进程后清理临时目录。这样可避免空地图及超时服务继续写入被删除的目录：
 
 ```text
 [pcl::PCDWriter::writeBinary] Input point cloud has no data!

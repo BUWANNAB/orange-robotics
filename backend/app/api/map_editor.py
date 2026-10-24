@@ -106,6 +106,8 @@ async def image_from_asset(map_id: int, body: ExistingMapImage, actor=Depends(re
         "resolution": resolution,
         "origin_x": origin[0],
         "origin_y": origin[1],
+        "asset_id": body.key,
+        "asset_revision": body.asset_revision,
     }).model_dump()
     await save_draft(db, row, actor, body.revision, document)
     await db.commit()
@@ -189,7 +191,24 @@ async def release(map_id: int, body: PublishInput, actor=Depends(require("map:pu
     confirm(body.confirmation, row.name)
     version = await publish(db, row, actor, body.revision)
     await db.commit()
-    return ok({"version": version, "delivery": "published_for_device_pull"})
+    linked = False
+    asset_id = row.draft.get("asset_id") if isinstance(row.draft, dict) else None
+    if asset_id:
+        try:
+            from app.api.localization import catalog
+            from app.services import map_bindings
+            entry = next((item for item in await asyncio.to_thread(catalog)
+                          if item.get("asset_id") == asset_id), None)
+            if entry:
+                async with map_bindings.lock:
+                    map_bindings.save(entry["key"], {"map_id": row.id, "version": version})
+                linked = True
+        except (OSError, ValueError):
+            # Publishing the route remains successful if the optional local
+            # localization catalog cannot be updated.
+            linked = False
+    return ok({"version": version, "delivery": "published_for_device_pull",
+               "localization_linked": linked})
 
 
 @router.get("/maps/{map_id}/versions")

@@ -27,9 +27,9 @@
   }
 
   class MapCanvas {
-    constructor(canvas, document, onChange, onSelect, onMeasure) {
+    constructor(canvas, document, onChange, onSelect, onMeasure, onRelocalize) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.document = structuredClone(document);
-      this.onChange = onChange; this.onSelect = onSelect; this.onMeasure = onMeasure; this.tool = 'select'; this.selected = null; this.shape = null;
+      this.onChange = onChange; this.onSelect = onSelect; this.onMeasure = onMeasure; this.onRelocalize = onRelocalize; this.tool = 'select'; this.selected = null; this.shape = null;
       this.history = []; this.future = []; this.area = []; this.areaType = 'forbidden'; this.edgeStart = null; this.drag = null;
       this.layers = { background: true, paths: true, stations: true, coordinates: true, areas: true, liveRoute: true, liveTrail: true, liveRobot: true };
       this.scale = 6; this.pan = { x: 35, y: 35 };
@@ -50,7 +50,7 @@
       this.resizeObserver = new ResizeObserver(() => this.draw()); this.resizeObserver.observe(canvas);
       this.fit();
     }
-    setTool(tool) { this.tool = tool; this.drag = null; if (tool !== 'measure') this.measure = null; this.draw(); }
+    setTool(tool) { this.tool = tool; this.drag = null; this.relocalization = null; if (tool !== 'measure') this.measure = null; this.draw(); }
     setLayerVisible(name, visible) { if (!(name in this.layers)) return; this.layers[name] = !!visible; this.draw(); }
     selectPoint(code) {
       const index = this.document.points.findIndex(point => point.code === code);
@@ -81,16 +81,19 @@
     }
     setAreaType(type) { this.areaType = type; }
     screen(point) { return { x: point.x * this.scale + this.pan.x, y: this.canvas.clientHeight - point.y * this.scale - this.pan.y }; }
-    world(event) {
+    world(event, precision = 10) {
       const rect = this.canvas.getBoundingClientRect();
-      return { x: Math.round((event.clientX - rect.left - this.pan.x) / this.scale * 10) / 10,
-        y: Math.round((rect.height - (event.clientY - rect.top) - this.pan.y) / this.scale * 10) / 10 };
+      return { x: Math.round((event.clientX - rect.left - this.pan.x) / this.scale * precision) / precision,
+        y: Math.round((rect.height - (event.clientY - rect.top) - this.pan.y) / this.scale * precision) / precision };
     }
     nearest(point) { return this.layers.stations ? this.document.points.findIndex(p => Math.hypot(p.x - point.x, p.y - point.y) * this.scale < 13) : -1; }
     down(event) {
       if (event.button === 1 || this.tool === 'pan') { this.drag = { pan: true, x: event.clientX, y: event.clientY }; this.canvas.setPointerCapture(event.pointerId); return; }
-      const point = this.world(event), index = this.nearest(point);
-      if (this.tool === 'measure') {
+      const point = this.world(event, this.tool === 'relocalize' ? 1000 : 10), index = this.nearest(point);
+      if (this.tool === 'relocalize') {
+        this.relocalization = { start: point, end: point }; this.drag = { relocalize: true };
+        this.canvas.setPointerCapture(event.pointerId); this.draw();
+      } else if (this.tool === 'measure') {
         this.measure = { start: point, end: point }; this.drag = { measure: true }; this.canvas.setPointerCapture(event.pointerId); this.draw();
       } else if (this.tool === 'point') {
         this.checkpoint(); let n = this.document.points.length + 1;
@@ -123,11 +126,19 @@
       if (this.drag.pan) {
         this.pan.x += event.clientX - this.drag.x; this.pan.y -= event.clientY - this.drag.y;
         this.drag.x = event.clientX; this.drag.y = event.clientY; this.draw();
+      } else if (this.drag.relocalize) {
+        this.relocalization.end = this.world(event, 1000); this.draw();
       } else if (this.drag.measure) {
         this.measure.end = this.world(event); this.draw();
       } else { Object.assign(this.document.points[this.drag.index], this.world(event)); this.draw(); }
     }
     up() {
+      if (this.drag?.relocalize) {
+        const { start, end } = this.relocalization;
+        const pose = { x: start.x, y: start.y, yaw: Math.atan2(end.y - start.y, end.x - start.x),
+          directionLength: Math.hypot(end.x - start.x, end.y - start.y) };
+        this.drag = null; this.relocalization = null; this.draw(); this.onRelocalize?.(pose); return;
+      }
       if (this.drag?.measure) {
         const distance = Math.hypot(this.measure.end.x - this.measure.start.x, this.measure.end.y - this.measure.start.y);
         this.onMeasure?.(distance, this.measure);
@@ -269,6 +280,17 @@
       if (this.edgeStart) {
         const p = points.get(this.edgeStart), s = p && this.screen(p);
         if (s) { ctx.fillStyle = '#e87832'; ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI * 2); ctx.strokeStyle = '#e87832'; ctx.lineWidth = 2; ctx.stroke(); }
+      }
+      if (this.relocalization) {
+        const start = this.screen(this.relocalization.start), end = this.screen(this.relocalization.end);
+        const angle = Math.atan2(end.y - start.y, end.x - start.x), head = 11;
+        ctx.save();ctx.strokeStyle='#ec6d1c';ctx.fillStyle='#ec6d1c';ctx.lineWidth=3;ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(end.x,end.y);ctx.lineTo(end.x-head*Math.cos(angle-.55),end.y-head*Math.sin(angle-.55));
+        ctx.lineTo(end.x-head*Math.cos(angle+.55),end.y-head*Math.sin(angle+.55));ctx.closePath();ctx.fill();
+        ctx.beginPath();ctx.arc(start.x,start.y,8,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#ec6d1c';ctx.lineWidth=3;ctx.stroke();
+        ctx.fillStyle='#c44e0c';ctx.font='600 12px Segoe UI, Microsoft YaHei, sans-serif';
+        ctx.fillText(`新车位 (${this.relocalization.start.x.toFixed(2)}, ${this.relocalization.start.y.toFixed(2)})`,start.x+12,start.y-12);ctx.restore();
       }
       const curves = this.document.paths.filter(path => path.curve_mode === 'smooth').length;
       ctx.fillStyle = '#63788b'; ctx.font = '12px Microsoft YaHei, sans-serif';

@@ -34,6 +34,25 @@ body.route-mode #panel-route iframe{display:block;width:100%;height:100vh;min-he
 .workflow-sheet iframe{width:100%;height:100%;min-height:0;flex:1;border:0;background:#fff}
 @media(max-width:650px){body.route-mode #panel-route iframe{height:100vh}.workflow-sheet{width:100vw}.workflow-sheet-head{min-height:60px}}
 
+.workflow-sheet{width:min(1060px,calc(100vw - 24px))}
+.live-grid-card{display:grid;grid-template-rows:auto minmax(240px,360px) auto;margin-top:18px;overflow:hidden;border:1px solid #d6e0e6;border-radius:10px;background:#fff;box-shadow:0 3px 12px rgba(26,49,66,.06)}
+.live-grid-card>header,.live-grid-card>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;color:#314b60;font-size:12px}
+.live-grid-card>header{border-bottom:1px solid #e7edf1}.live-grid-card>header span{color:#738594;font-size:11px}.live-grid-card>footer{border-top:1px solid #e7edf1;color:#748491;font-size:10px}
+.live-grid-card>footer button{padding:5px 8px;font-size:10px}
+.live-grid-view{position:relative;min-height:240px;overflow:hidden;background-color:#fbfcfd;background-image:linear-gradient(#ebeff2 1px,transparent 1px),linear-gradient(90deg,#ebeff2 1px,transparent 1px);background-size:24px 24px}
+#live-grid-canvas{display:block;width:100%;height:100%;min-height:240px}
+#live-grid-empty{position:absolute;inset:0;display:grid;place-items:center;padding:24px;color:#81909c;text-align:center;font-size:12px;line-height:1.7;pointer-events:none}
+#live-grid-empty[hidden]{display:none}
+body.drawer-mode{min-height:100vh;background:#f7f9fb}
+body.drawer-mode>.masthead,body.drawer-mode main>.asset-bar,body.drawer-mode main>.steps,body.drawer-mode main>#notice{display:none}
+body.drawer-mode main{width:100%;max-width:none;margin:0;padding:0}
+body.drawer-mode .panel{border:0;border-radius:0;box-shadow:none}
+body.drawer-mode .build-layout{grid-template-columns:minmax(0,1fr) 330px;gap:18px;padding:20px}
+body.drawer-mode .point-layout{grid-template-columns:minmax(0,1fr) minmax(340px,390px)}
+body.drawer-mode #panel-build,body.drawer-mode #panel-point{min-height:100vh;overflow:auto}
+body.drawer-mode .map-create-controls{top:0;max-height:none}
+@media(max-width:850px){body.drawer-mode .build-layout,body.drawer-mode .point-layout{grid-template-columns:1fr}body.drawer-mode .map-create-controls{position:static}}
+
 /* Map creation: keep point-cloud editing and generation settings together in a dedicated side column. */
 .point-layout{grid-template-columns:minmax(0,1fr) minmax(340px,390px);align-items:start}
 .point-layout>.map-create-controls{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;padding:18px;background:#f8fafb;border-left:1px solid var(--line);scrollbar-gutter:stable}

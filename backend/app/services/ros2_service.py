@@ -32,6 +32,12 @@ class ROS2BridgeService:
         self.plc_link_received = 0.0
         self.lidar_received = 0.0
         self.inhibited = False
+        self.live_grid = None
+        self.live_grid_status = "等待建图"
+        self.live_grid_status_received = 0.0
+        self.live_grid_received = 0.0
+        self.live_grid_sequence = 0
+        self.live_grid_lock = threading.Lock()
 
     def start(self):
         self._running = True
@@ -44,7 +50,7 @@ class ROS2BridgeService:
         try:
             import rclpy
             from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-            from nav_msgs.msg import Odometry
+            from nav_msgs.msg import OccupancyGrid, Odometry
             from sensor_msgs.msg import BatteryState, PointCloud2
             from std_msgs.msg import UInt32, UInt8, Float32, Float64MultiArray, Float32MultiArray, String, Bool
             from rclpy.qos import qos_profile_sensor_data
@@ -53,6 +59,8 @@ class ROS2BridgeService:
             self.node = rclpy.create_node("orange_agv_web_bridge")
             from app.services.mapping_control import receive as mapping_receive
             self.node.create_subscription(String, "/buildmap_status", lambda m: self._schedule(mapping_receive, m), 10)
+            self.node.create_subscription(OccupancyGrid, "/orange/mapping/live_grid", self._on_live_grid, 10)
+            self.node.create_subscription(String, "/orange/mapping/live_grid_status", self._on_live_grid_status, 10)
             subscriptions = [
                 (PoseStamped, "/tf_pose", self._on_tf_pose),
                 (UInt32, "/path_point_id", lambda m: setattr(state, "current_station_id", int(m.data))),
@@ -92,6 +100,77 @@ class ROS2BridgeService:
     def _event(self, topic, value):
         self.event_seq += 1
         self.events[topic] = (self.event_seq, int(value))
+
+    def _on_live_grid(self, message):
+        info = message.info
+        if not info.width or not info.height:
+            return
+        cell_count = int(info.width) * int(info.height)
+        if cell_count > 4_000_000 or len(message.data) != cell_count:
+            log.warning("Ignoring malformed or oversized live mapping grid (%s cells)", cell_count)
+            return
+        if not math.isfinite(float(info.resolution)) or info.resolution <= 0:
+            log.warning("Ignoring live mapping grid with invalid resolution")
+            return
+        with self.live_grid_lock:
+            self.live_grid = message
+            self.live_grid_received = time.monotonic()
+            self.live_grid_sequence += 1
+
+    def _on_live_grid_status(self, message):
+        with self.live_grid_lock:
+            self.live_grid_status = str(message.data)[:200]
+            self.live_grid_status_received = time.monotonic()
+            if self.live_grid_status.startswith("建图已启动") or self.live_grid_status == "等待建图":
+                self.live_grid = None
+                self.live_grid_received = 0.0
+
+    def live_grid_snapshot(self):
+        with self.live_grid_lock:
+            message = self.live_grid
+            age = time.monotonic() - self.live_grid_received if self.live_grid_received else None
+            status_age = (
+                time.monotonic() - self.live_grid_status_received
+                if self.live_grid_status_received else None
+            )
+            sequence = self.live_grid_sequence
+            status = self.live_grid_status
+        if message is None:
+            return {
+                "available": False, "sequence": sequence, "status": status,
+                "age_seconds": None, "frame_id": "", "width": 0, "height": 0,
+                "resolution": None, "origin": None,
+            }
+        info = message.info
+        q = info.origin.orientation
+        yaw = math.atan2(
+            2.0 * (q.w * q.z + q.x * q.y),
+            1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+        )
+        status_fresh = status_age is not None and status_age < 5.0
+        return {
+            "available": True,
+            "sequence": sequence,
+            "status": status if status_fresh else "实时栅格状态已过期，显示最后一帧",
+            "age_seconds": round(age, 2) if age is not None else None,
+            "frame_id": message.header.frame_id or "odom",
+            "width": int(info.width),
+            "height": int(info.height),
+            "resolution": float(info.resolution),
+            "origin": {
+                "x": float(info.origin.position.x),
+                "y": float(info.origin.position.y),
+                "yaw": yaw,
+            },
+        }
+
+    def live_grid_message(self):
+        with self.live_grid_lock:
+            message = self.live_grid
+            sequence = self.live_grid_sequence
+        if message is None:
+            return None, sequence
+        return message, sequence
 
 
     def _on_nav_result(self, msg):

@@ -8,4 +8,5 @@ setup(name='orange_runtime',version='0.1.0',packages=['orange_runtime'],
       entry_points={'console_scripts':['livox_cloud_converter = orange_runtime.converter:main',
                                       'global_relocalization = orange_runtime.relocalization_node:main',
                                       'motion_report = orange_runtime.motion_report:main',
-                                      'obstacle_command_watchdog = orange_runtime.obstacle_watchdog:main']})
+                                      'obstacle_command_watchdog = orange_runtime.obstacle_watchdog:main',
+                                      'live_grid_preview = orange_runtime.live_grid:main']})

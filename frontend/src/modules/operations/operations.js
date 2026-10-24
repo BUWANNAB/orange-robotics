@@ -136,12 +136,12 @@
       </header>
       <nav class="map-tools" aria-label="地图编辑工具">
         <div class="map-toolbar-row map-toolbar-edit">
-          ${button('点云 / 原点','workbench-point','')}${button('裁剪点云','workbench-point','')}${button('添加站点','tool-point','')}${button('直线路径','tool-path','')}${button('平滑曲线','tool-curve','')}${button('绘制作业区','tool-area','')}
+          ${button('实时建图','workbench-build','')}${button('裁切 / 原点','workbench-point','')}${button('添加站点','tool-point','')}${button('直线路径','tool-path','')}${button('平滑曲线','tool-curve','')}${button('绘制作业区','tool-area','')}
           <label class="map-toolbar-select">区域类型<select id="map-area-kind"><option value="forbidden">禁行区</option><option value="slow">减速区</option><option value="work">作业区</option><option value="charge">充电区</option></select></label>
           <span class="map-tool-separator"></span>${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('选择','tool-select','','','map-tool-active')}${button('平移','tool-pan','')}${button('测距','tool-measure','')}
         </div>
         <div class="map-toolbar-row map-toolbar-actions">
-          ${button('选择 PGM 底图','map-asset','','','primary')}${button('地图绑定','workbench-binding','')}${button('重新定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
+          ${button('更换地图底图','map-asset','','','')}${button('重新定位','tool-relocalize','')}${button('自动重定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
         </div>
       </nav>
       <div class="map-workspace">
@@ -173,8 +173,17 @@
     </div>`;
   }
 
+  async function openAssetMap(assetId){
+    if(typeof assetId!=='string'||!assetId.trim())throw new Error('请先选择一个已有地图，或完成地图生成。');
+    if(state.map&&!leaveMap())return;
+    const row=await api.post('/api/map-workbench/route-map',{asset_id:assetId});
+    state.preferredAssetKey=assetId;
+    await openMap(row);
+  }
+
   async function openMap(row){
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
+    state.mapChoices=[row,...state.mapChoices.filter(item=>String(item.id)!==String(row.id))];
     $('filters').hidden=true;$('pagination').innerHTML='';
     $('content').innerHTML=mapEditorMarkup(row);
     const renderMapLists=()=>{
@@ -210,7 +219,15 @@
       }
       $('map-tool-hint').textContent=point?`站点 ${point.code} · X ${Number(point.x).toFixed(2)} m · Y ${Number(point.y).toFixed(2)} m`:'选择站点、路径或区域以查看属性';
       $('point-properties').innerHTML=point?`<p class="inspector-title">站点 ${escape(point.code)}</p>${field('point-code','编号',point.code)}${field('point-name','站点名称',point.name||'')}${selectField('point-type','站点用途',[['station','普通站点'],['charger','充电点'],['shelf','货架点'],['waiting','等候点'],['elevator','电梯点']],point.type)}${field('point-theta','目标朝向（弧度）',point.theta,'number','step="0.01"')}${button('应用站点设置','map-point-apply','')}`:'未选择站点；可在画布上添加站点，然后拖动到精确位置。';
-    },distance=>{$('map-measure-result').textContent=`测量距离：${distance.toFixed(3)} m`;});
+    },distance=>{$('map-measure-result').textContent=`测量距离：${distance.toFixed(3)} m`;},pose=>{
+      const key=state.mapRow?.draft?.asset_id;
+      if(!key){$('map-tool-hint').textContent='此路线地图还没有定位点云关联；请从地图资产创建或更换底图后再定位。';return;}
+      if(pose.directionLength<0.15){$('map-tool-hint').textContent='方向箭头太短；请从车位沿车头方向拖动至少 0.15 m。';return;}
+      api.post('/api/localization/switch',{asset_id:key,x:pose.x,y:pose.y,yaw:pose.yaw}).then(()=>{
+        $('map-tool-hint').textContent='重定位请求已发送；正在等待地图载入和定位收敛，车辆保持停止锁定。';
+        state.map.setTool('select');document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
+      }).catch(error=>{$('map-tool-hint').textContent=`重定位未提交：${error.message}`;});
+    });
     renderMapLists();
     $('map-point-search').oninput=renderMapLists;
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
@@ -379,11 +396,14 @@
     }
     if(name==='edit-map')return openMap(row);
     if(name==='leave-map'){if(leaveMap())return load();return;}
-    if(name==='workbench-point'){window.parent.postMessage({type:'workbench-navigate',tab:'point'},location.origin);return;}
-    if(name==='workbench-binding'||name==='workbench-locate'){window.parent.postMessage({type:'workbench-open-drawer',tab:name==='workbench-binding'?'binding':'locate'},location.origin);return;}
+    if(name==='workbench-build'||name==='workbench-point'||name==='workbench-binding'||name==='workbench-locate'){
+      const tab=name==='workbench-build'?'build':name==='workbench-point'?'point':name==='workbench-binding'?'binding':'locate';
+      window.parent.postMessage({type:'workbench-open-drawer',tab,asset:state.mapRow?.draft?.asset_id||state.preferredAssetKey},location.origin);return;
+    }
     if(name.startsWith('tool-')){
-      const tool=name.slice(5);state.map.setTool(tool);document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action===name));
-      const hints={select:'选择对象；拖动站点可微调坐标',point:'点击地图添加站点',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域边界顶点，双击闭合',pan:'拖动画布平移',measure:'按住并拖动，测量两点间距离'};
+      const tool=name.slice(5);if(tool==='relocalize'&&!state.mapRow?.draft?.asset_id)throw new Error('此路线地图还没有定位点云关联；请从地图资产创建或更换底图后再定位。');
+      state.map.setTool(tool);document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action===name));
+      const hints={select:'选择对象；拖动站点可微调坐标',point:'点击地图添加站点',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域边界顶点，双击闭合',pan:'拖动画布平移',measure:'按住并拖动，测量两点间距离',relocalize:'点选机器人新位置，再沿车头朝向拖动；松开后发送真实 ROS 初始位姿'};
       $('map-tool-hint').textContent=hints[tool]||'地图工具已切换';if(tool==='measure')$('map-measure-result').textContent='按住并拖动地图，查看两点间距离';return;
     }
     if(name==='map-undo')return state.map.undo();if(name==='map-redo')return state.map.redo();if(name==='map-remove')return state.map.remove();if(name==='map-fit')return state.map.fit();if(name==='map-save')return saveMap();
@@ -404,7 +424,7 @@
     if(name==='map-point-apply'){const box=$('point-properties');state.map.updatePoint({code:box.querySelector('[name="point-code"]').value,name:box.querySelector('[name="point-name"]').value,type:box.querySelector('[name="point-type"]').value,theta:Number(box.querySelector('[name="point-theta"]').value)});return;}
     if(name==='map-fullscreen'){const target=$('map-editor');if(document.fullscreenElement===target)await document.exitFullscreen();else if(target.requestFullscreen)await target.requestFullscreen();else throw new Error('当前浏览器不支持大图显示');return;}
     if(name==='map-validate'){await saveMap();const issues=await api.post(`/api/maps/${state.mapRow.id}/validate`);$('map-issues').textContent=issues.length?issues.map(e=>`${e.element} ${e.message}`).join('\n'):'校验通过';return;}
-    if(name==='map-publish'){await saveMap();const map=state.mapRow;return confirmation('发布地图',map.name,'发布前将校验连通性、禁行区与占用情况。设备从发布版本接口拉取地图。',async confirmation=>{await api.post(`/api/maps/${map.id}/publish`,{revision:map.revision,confirmation});state.mapRow=await api.get(`/api/maps/${map.id}`);$('map-revision-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;$('map-save-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;notify('地图已发布，设备加载结果需由设备侧确认。');});}
+    if(name==='map-publish'){await saveMap();const map=state.mapRow;return confirmation('发布地图',map.name,'发布前将校验连通性、禁行区与占用情况。设备从发布版本接口拉取地图。',async confirmation=>{const result=await api.post(`/api/maps/${map.id}/publish`,{revision:map.revision,confirmation});state.mapRow=await api.get(`/api/maps/${map.id}`);$('map-revision-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;$('map-save-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;notify(result.localization_linked?'地图已发布，定位点云与路线版本已自动关联；设备加载结果仍需设备侧确认。':'地图已发布；设备加载结果需由设备侧确认。');});}
     if(name==='map-import')return dialog('导入地图 JSON',`${field('file','地图文件','','file','accept="application/json,.json" required')}`,async form=>{const file=form.get('file');if(file.size>5*1024*1024)throw new Error('地图文件不能超过 5MB');const doc=JSON.parse(await file.text());const result=await api.post(`/api/maps/${state.mapRow.id}/draft/save`,{revision:state.mapRow.revision,document:doc});state.mapRow=result;state.map.checkpoint();state.map.document=structuredClone(result.draft);state.map.changed();state.dirty=false;clearTimeout(state.saveTimer);state.map.fit();});
     if(name==='export-map'){saveBlob(new Blob([JSON.stringify(row.draft,null,2)],{type:'application/json'}),row.name+'.json');return;}
     if(name==='delete-map')return confirmation('删除地图',row.name,'绑定机器人或有任务占用时无法删除。',confirmation=>api.delete(`/api/maps/${id}`,{confirmation}));
@@ -455,9 +475,12 @@
       selectTab(selected,embeddedMaps);
       if(embeddedMaps){
         const choices=await api.get('/api/maps',{pageNo:1,pageSize:100});state.mapChoices=choices.list||[];
-        const requestedId=new URLSearchParams(location.search).get('mapId');
-        const target=state.mapChoices.find(map=>String(map.id)===String(requestedId))||(state.mapChoices.length===1?state.mapChoices[0]:null);
-        if(target)await openMap(await api.get(`/api/maps/${target.id}`));else await load();
+        const params=new URLSearchParams(location.search),requestedId=params.get('mapId');
+        if(params.get('openAsset')==='1'&&state.preferredAssetKey)await openAssetMap(state.preferredAssetKey);
+        else{
+          const target=state.mapChoices.find(map=>String(map.id)===String(requestedId))||(state.mapChoices.length===1?state.mapChoices[0]:null);
+          if(target)await openMap(await api.get(`/api/maps/${target.id}`));else await load();
+        }
       }
       state.viewTimer=setInterval(()=>{if(!document.hidden&&!state.map&&!$('dialog').open)load();},5000);
     }catch(error){
@@ -478,7 +501,11 @@
   window.addEventListener('pagehide',()=>{state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);state.map?.destroy();});
   document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
   window.addEventListener('message',event=>{
-    if(event.origin!==location.origin||event.source!==parent||event.data?.type!=='workbench-selected-map-asset')return;
+    if(event.origin!==location.origin||event.source!==parent)return;
+    if(event.data?.type==='workbench-open-map-asset'){
+      openAssetMap(event.data.asset).catch(error=>notify(error.message,true));return;
+    }
+    if(event.data?.type!=='workbench-selected-map-asset')return;
     state.preferredAssetKey=typeof event.data.asset==='string'?event.data.asset:'';
     if(!state.map&&state.tab==='maps'&&!$('dialog').open)load().catch(error=>notify(error.message,true));
   });

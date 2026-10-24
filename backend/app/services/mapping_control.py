@@ -16,7 +16,9 @@ def receive(msg):
     global sequence,status,received,active
     sequence+=1;status=msg.data;received=time.monotonic();events.append((sequence,status))
     if status in {'starting','mapping','map_data_ready','saving'}: active=True
-    if status in {'idle','rviz_livox_started','mapping_stopped'}: active=False
+    if status in {'idle','rviz_livox_started','mapping_stopped','start_livox_failed',
+                  'start_lio_sam_failed','start_failed','start_rviz_livox_failed',
+                  'operation_failed','save_failed_lio_stopped'}: active=False
 
 
 async def wait_status(since, predicate, timeout):

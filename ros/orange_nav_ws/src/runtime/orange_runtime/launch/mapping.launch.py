@@ -12,7 +12,16 @@ def generate_launch_description():
             or not maps or not Path(maps).is_absolute()
             or not raster_maps or not Path(raster_maps).is_absolute()):
         raise RuntimeError('ROBOT_NAV_WS, ROBOT_PCD_DIR and ROBOT_MAP_DIR must use the shared runtime configuration')
-    return LaunchDescription([Node(package='build_map_manager',executable='build_map_manager_node',name='build_map_manager',
-        output='screen',parameters=[{'workspace_setup':workspace+'/install/setup.bash','map_base_dir':maps,
-                                    'manage_livox':False,'stop_after_save':True,
-                                    'lio_sam_launch_cmd':'ros2 launch lio_sam run.launch.py pointcloud_topic:=/livox/lidar_custom use_rviz:=false publish_robot_description:=false'}])])
+    return LaunchDescription([
+        Node(package='build_map_manager',executable='build_map_manager_node',name='build_map_manager',
+            output='screen',parameters=[{'workspace_setup':workspace+'/install/setup.bash','map_base_dir':maps,
+                                        'manage_livox':False,'stop_after_save':True,
+                                        'lio_sam_launch_cmd':'ros2 launch lio_sam run.launch.py pointcloud_topic:=/livox/lidar_custom use_rviz:=false publish_robot_description:=false'}]),
+        Node(package='orange_runtime',executable='live_grid_preview',name='orange_live_grid_preview',
+            output='screen',parameters=[{'cloud_topic':'/lio_sam/mapping/cloud_registered',
+                                        'mapping_status_topic':'/buildmap_status',
+                                        'grid_topic':'/orange/mapping/live_grid',
+                                        'grid_status_topic':'/orange/mapping/live_grid_status',
+                                        'resolution':0.05,'z_min':0.10,'z_max':2.00,
+                                        'max_grid_cells':4000000,'publish_period':1.0}]),
+    ])

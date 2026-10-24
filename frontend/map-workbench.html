@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261023-pgm-route-handoff-1">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261024-live-grid-workflow-1">
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
 </head>
 <body>
@@ -24,13 +24,12 @@
       <button data-tab="point" type="button"><b>02</b><span>点云与原点<small>裁剪 · 去噪 · 坐标</small></span></button>
       <button data-tab="grid" type="button"><b>03</b><span>二维地图<small>编辑 PGM 栅格</small></span></button>
       <button data-tab="route" type="button"><b>04</b><span>路线编辑<small>站点 · 路径 · 区域</small></span></button>
-      <button data-tab="binding" type="button"><b>05</b><span>地图绑定<small>定位点云与路线图</small></span></button>
-      <button data-tab="locate" type="button"><b>06</b><span>定位与重定位<small>地图切换 · 设定车位</small></span></button>
+      <button data-tab="locate" type="button"><b>05</b><span>定位与重定位<small>选择地图 · 设定车位</small></span></button>
     </nav>
     <div id="notice" role="status" aria-live="polite">请选择地图，或开始采集新地图。</div>
 
     <section id="panel-build" class="panel" hidden>
-      <div class="build-layout"><div><span class="eyebrow">采集 / PCD</span><h2>从现场建立地图</h2><p>建图使用真实雷达点云，不依赖导航运行状态、里程计或 PLC 停车反馈。开始前请确认现场底盘可安全人工推行。</p><ol class="instructions"><li>先在 ROS 维护页确认雷达与建图控制器运行，并停止“定位与导航”服务。</li><li>按底盘厂家规定切到手动/自由轮状态，确认牵引不会驱动车辆且车体可安全推行；清空路线并确认周围无人、无障碍。</li><li>勾选现场确认并开始采集。等待“点云已就绪”后，缓慢人工推动车辆完成场地覆盖；网页不会发送行驶命令。</li><li>保存点云并结束采集。导航保持停止；检查 PCD 后再从 ROS 维护页按需启动定位与导航。</li></ol><div class="status-line" id="mapping-state">读取连接状态…</div></div><form id="mapping-form" class="controls"><label>新地图名称<input id="mapping-name" required pattern="[a-zA-Z0-9_-]+" maxlength="64" placeholder="例如 workshop_20260928"></label><p class="muted">字母、数字、横线或下划线。保存时不会覆盖已有地图。</p><label class="check manual-confirm"><input id="manual-push-confirmed" type="checkbox">我已现场确认：定位与自动路线已停止，底盘处于厂家允许的安全手动/自由轮状态，车辆可由人安全推行。</label><p class="muted">网页无法读取物理牵引使能状态。若未确认可手推，请勿开始；PLC 通信在线不代表物理驱动已释放。</p><button type="button" id="mapping-start" class="primary">开始采集</button><button id="mapping-save">保存点云并结束采集</button><button type="button" id="mapping-stop">停止采集，保持导航停止</button></form></div>
+      <div class="build-layout"><div><span class="eyebrow">采集 / 实时二维预览</span><h2>从现场建立地图</h2><p>实时预览来自 LIO-SAM 已配准点云。预览只标记当前看到的占用点，不把未知区域误判成可通行区域；最终导航 PGM 仍在保存点云后生成。</p><ol class="instructions"><li>先在 ROS 维护页确认雷达与建图控制器运行，并停止“定位与导航”服务。</li><li>按底盘厂家规定切到手动/自由轮状态，确认牵引不会驱动车辆且车体可安全推行；清空路线并确认周围无人、无障碍。</li><li>勾选现场确认并开始采集。等待点云与实时预览更新后，缓慢人工推动车辆完成场地覆盖；网页不会发送行驶命令。</li><li>保存点云后继续裁切、设定坐标原点，再进入同一主画布布置站点和路线。</li></ol><section class="live-grid-card" aria-label="实时二维地图预览"><header><strong>实时二维地图</strong><span id="live-grid-state" role="status">等待建图点云</span></header><div class="live-grid-view"><canvas id="live-grid-canvas" aria-label="实时点云二维栅格预览"></canvas><div id="live-grid-empty">开始建图并收到配准点云后，二维预览会显示在这里</div></div><footer><span id="live-grid-info">分辨率 0.05 m/格 · 未知区域显示为空白</span><button id="live-grid-fit" type="button">适应窗口</button></footer></section><div class="status-line" id="mapping-state">读取连接状态…</div></div><form id="mapping-form" class="controls"><label>新地图名称<input id="mapping-name" required pattern="[a-zA-Z0-9_-]+" maxlength="64" placeholder="例如 workshop_20260928"></label><p class="muted">字母、数字、横线或下划线。保存时不会覆盖已有地图。</p><label class="check manual-confirm"><input id="manual-push-confirmed" type="checkbox">我已现场确认：定位与自动路线已停止，底盘处于厂家允许的安全手动/自由轮状态，车辆可由人安全推行。</label><p class="muted">网页无法读取物理牵引使能状态。若未确认可手推，请勿开始；PLC 通信在线不代表物理驱动已释放。</p><button type="button" id="mapping-start" class="primary">开始采集</button><button id="mapping-save">保存点云并结束采集</button><button type="button" id="mapping-stop">停止采集，保持导航停止</button></form></div>
     </section>
 
     <section id="panel-point" class="panel" hidden>
@@ -55,9 +54,9 @@
     <button class="workflow-scrim" id="workflow-scrim" type="button" aria-label="关闭操作面板"></button>
     <section class="workflow-sheet" role="dialog" aria-modal="true" aria-labelledby="workflow-title">
       <header class="workflow-sheet-head"><div><span class="eyebrow">MAP WORKSPACE</span><h2 id="workflow-title">地图操作</h2></div><button id="workflow-close" type="button" aria-label="关闭">×</button></header>
-      <iframe id="workflow-frame" title="地图绑定或重新定位"></iframe>
+      <iframe id="workflow-frame" title="建图、裁切或重新定位"></iframe>
     </section>
   </div>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261023-pgm-route-handoff-1"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261024-live-grid-workflow-1"></script>
 </body>
 </html>

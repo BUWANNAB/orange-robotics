@@ -4,9 +4,12 @@ import json
 import os
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sqlalchemy import select
 from app.config import settings
 from app.common.response import ok
+from app.database import get_db
+from app.models.operations import MapDocument
 from app.services.operations_common import require
 from app.services.ros2_service import ros2_service as bridge
 
@@ -64,12 +67,35 @@ def catalog():
     return result
 
 
+async def route_asset(entry, db):
+    """Attach an unbound localization asset to its draft route map for live display."""
+    if entry.get("map_id") is not None or not entry.get("asset_id"):
+        return entry
+    rows = (await db.scalars(
+        select(MapDocument).where(MapDocument.deleted == False).order_by(MapDocument.id.desc())
+    )).all()
+    route = next((
+        row for row in rows
+        if isinstance(row.draft, dict) and row.draft.get("asset_id") == entry["asset_id"]
+    ), None)
+    if not route:
+        return entry
+    return {**entry, "map_id": route.id, "version": route.published_version or None}
+
+
 class SwitchInput(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
-    key: str = Field(min_length=1, max_length=256)
+    key: str | None = Field(default=None, min_length=1, max_length=256)
+    asset_id: str | None = Field(default=None, min_length=1, max_length=180)
     x: float
     y: float
     yaw: float = Field(ge=-3.141593, le=3.141593)
+
+    @model_validator(mode="after")
+    def require_map_identifier(self):
+        if not self.key and not self.asset_id:
+            raise ValueError("请选择定位点云")
+        return self
 
 
 class AutoInput(BaseModel):
@@ -90,11 +116,12 @@ async def require_localization_service():
 
 
 @router.post('/auto')
-async def automatic(body:AutoInput,actor=Depends(require('map:edit'))):
+async def automatic(body:AutoInput,actor=Depends(require('map:edit')),db=Depends(get_db)):
     global switch_task
     if (switch_task and not switch_task.done()) or bridge.control_lock.locked():raise HTTPException(409,'定位或控制正在执行')
     entry=next((r for r in catalog() if r['key']==body.key),None)
     if not entry:raise HTTPException(404,'请选择有效定位点云')
+    entry=await route_asset(entry,db)
     try:
         await require_localization_service()
         bridge.require_stationary()
@@ -137,19 +164,25 @@ async def perform_switch(entry, body):
 
 
 @router.post("/switch")
-async def switch(body: SwitchInput, actor=Depends(require("map:edit"))):
+async def switch(body: SwitchInput, actor=Depends(require("map:edit")),db=Depends(get_db)):
     global switch_task
     if (switch_task and not switch_task.done()) or bridge.control_lock.locked():
         raise HTTPException(409, "地图切换或控制正在执行")
-    entry = next((row for row in catalog() if row["key"] == body.key), None)
+    rows = catalog()
+    entry = next((
+        row for row in rows if body.asset_id and row.get("asset_id") == body.asset_id
+    ), None)
+    if entry is None and body.key:
+        entry = next((row for row in rows if row["key"] == body.key), None)
     if not entry:
         raise HTTPException(404, "地图不在本机 PCD 目录或已配置目录中")
+    entry = await route_asset(entry, db)
     try:
         await require_localization_service()
         bridge.require_stationary()
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
-    bridge.switch = {"status": "pending", "key": body.key}
+    bridge.switch = {"status": "pending", "key": entry["key"]}
     switch_task = asyncio.create_task(perform_switch(entry, body))
     return ok({"status": "pending"}, message="已排队；请等待地图加载和定位收敛")
 
