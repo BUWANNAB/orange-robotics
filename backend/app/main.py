@@ -283,10 +283,6 @@ app.include_router(system_router, prefix="/api/v1/system", tags=["System Mode"])
 if settings.STATIC_DIR.exists():
     from fastapi.responses import RedirectResponse
 
-    @app.get("/ui/index.html", include_in_schema=False)
-    async def legacy_home_redirect():
-        return RedirectResponse(url="/ui/operations.html")
-
     app.mount("/ui", StaticFiles(directory=str(settings.STATIC_DIR), html=True), name="ui")
     # The existing index.html uses absolute /src/... asset URLs.
     source_dir = settings.STATIC_DIR / "src"
@@ -296,4 +292,4 @@ if settings.STATIC_DIR.exists():
 
     @app.get("/", include_in_schema=False)
     async def index_redirect():
-        return RedirectResponse(url="/ui/operations.html")
+        return RedirectResponse(url="/ui/index.html")
