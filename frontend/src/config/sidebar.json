@@ -1,12 +1,20 @@
 {
   "sidebar": [
     {
+      "id": "mapWorkbench",
+      "title": "地图与路线",
+      "icon": "bx bx-map",
+      "url": "/ui/map-workbench.html?console=1#route",
+      "visible": true,
+      "order": 0
+    },
+    {
       "id": "rcsOperations",
-      "title": "RCS / RDS 管理",
+      "title": "调度与运营",
       "icon": "bx bx-grid-alt",
       "url": "/ui/operations.html",
       "visible": true,
-      "order": 0
+      "order": 1
     },
         {
       "id": "leftmap_simple",

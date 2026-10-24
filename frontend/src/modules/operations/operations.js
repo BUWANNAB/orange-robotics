@@ -85,7 +85,7 @@
         state.mapChoices=choices.list||[];
         if(!state.mapChoices.some(map=>String(map.id)===String(state.selectedMapId)))state.selectedMapId='';
         html=!data.list.length&&document.documentElement.classList.contains('embedded')
-          ?`<section class="map-empty-state"><span class="eyebrow">ROUTE MAP SETUP</span><h2>还没有路线地图</h2><p>${state.preferredAssetKey?`当前已选中 PGM 栅格「${escape(state.preferredAssetKey)}」。点击顶部“基于当前 PGM 新建地图”，确认坐标系后即可打开路线画布。`:'可从已有 PGM / YAML 栅格创建路线地图，再添加站点、规划路线并发布。'}</p>${state.preferredAssetKey?'':button('从现有地图创建','add-map','','map:edit','primary')}</section>`
+          ?`<section class="map-empty-state"><span class="eyebrow">MAP / ROUTE WORKSPACE</span><h2>${state.preferredAssetKey?'这张地图还没有二维栅格':'先建立一张二维地图'}</h2><p>${state.preferredAssetKey?`当前地图「${escape(state.preferredAssetKey)}」还没有可用于路线的 PGM / YAML。可以从点云裁切生成栅格，或开始新一轮实时建图。`:'实时建图、点云裁切与路线设置会在同一工作台完成。选择已有 PGM 地图，或先采集点云。'}</p><div class="map-home-actions">${button('开始实时建图','workbench-build','','map:edit','primary')}${state.preferredAssetKey?button('裁切点云 / 设定原点','workbench-point','','map:edit'):''}${button('从已有 PGM 创建路线地图','add-map','','map:edit')}</div></section>`
           :window.OperationsMapPicker.render(state.mapChoices,can('map:edit'),state.selectedMapId)+table(['地图名称','草稿修订','发布版本','点位 / 路径 / 区域','更新人','操作'],data.list.map(r=>[escape(r.name),r.revision,r.published_version||'未发布',`${r.draft.points.length} / ${r.draft.paths.length} / ${r.draft.areas.length}`,escape(r.operator),button('打开编辑器','edit-map',r.id,'map:edit')+button('版本','map-versions',r.id,'map:view')+button('导出','export-map',r.id,'map:view')+button('删除','delete-map',r.id,'map:edit','danger')]));
       }else if(tab==='integration'){
         data=await api.get('/api/integration/apps');

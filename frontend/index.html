@@ -7,7 +7,7 @@
 	<link rel="icon" href="/src/assets/logo/favicon.svg" type="image/svg+xml" />
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1, viewport-fit=cover" />
-	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=home-toolbar-buttons-20261012" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=map-first-drawer-20261024" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
 	<script type="text/javascript" src="/src/libs/jquery-3.1.0.min.js"></script>
@@ -141,7 +141,7 @@
 				aria-label="拖拽调整导航栏与地图比例，双击恢复默认" title="拖拽调整导航栏与地图比例 · 双击恢复默认"></div>
 			<div class="nav-top">
 				<button type="button" class="btn btn-light btn-sm hiddenBtn" aria-controls="mainNavigation"
-					:aria-expanded="navLeftFlag ? 'true' : 'false'" aria-label="打开或关闭导航菜单"
+					:aria-expanded="navLeftFlag ? 'true' : 'false'" :aria-label="navLeftFlag ? '收起功能导航' : '打开功能导航'"
 					style="margin-left: 12px; border: 1px solid #e2e8f0; background: #f8fafc;" @click="isShowLeft">
 					<i class="bx bx-menu" style="font-size: 24px; color: #334155;"></i>
 				</button>
@@ -271,8 +271,8 @@
 				</button>
 			</div>
 			<div class="content-page" ref="cPage">
-				<iframe name="iframe" width="100%" height="100%" frameborder="0"
-					src="/src/components/indoor-map/drag_move.html?map-resize-20260909"></iframe>
+				<iframe name="iframe" title="地图与路线工作台" width="100%" height="100%" frameborder="0"
+					src="/ui/map-workbench.html?console=1#route"></iframe>
 			</div>
 		</div>
 	</div>
@@ -414,9 +414,9 @@
 		const vue = new Vue({
 			el: '#app',
 			data: {
-				navLeftFlag: window.innerWidth > 900, // 手机/平板端默认收起侧边栏
+				navLeftFlag: false, // 地图工作台作为主界面；功能导航默认收起
 				sidebarItems: [],
-				activeItem: 'leftmap_simple',
+				activeItem: 'mapWorkbench',
 				headerItems: {
 					basic: [],
 					new: []
@@ -425,28 +425,10 @@
 			},
 			methods: {
 				isShowLeft() {
-					const isMobile = window.innerWidth <= 900;
-					if (this.navLeftFlag) {
-						if (!isMobile) {
-							this.$refs.navRight.style.paddingLeft = '0px'
-							this.$refs.cPage.style.left = '0px';
-						}
-						this.navLeftFlag = false;
-					} else {
-						if (!isMobile) {
-							const savedWidth = typeof window.getNavigationWidth === 'function'
-								? window.getNavigationWidth()
-								: Number(localStorage.getItem('layout_nav_width_px')) || 240;
-							this.$refs.navRight.style.paddingLeft = `${savedWidth}px`;
-							this.$refs.cPage.style.left = `${savedWidth}px`;
-						}
-						this.navLeftFlag = true;
-					}
+					this.navLeftFlag = !this.navLeftFlag;
 				},
 				closeNav() {
-					if (window.innerWidth <= 900) {
-						this.navLeftFlag = false;
-					}
+					this.navLeftFlag = false;
 				},
 				// 手机端：点击抽屉遮罩区域关闭菜单
 				onNavLeftClick(e) {
@@ -680,6 +662,7 @@
 				navigateToItem(item) {
 					// 设置当前选中项
 					this.activeItem = item.id;
+					this.navLeftFlag = false;
 					// 根据不同的界面设置localStorage值
 					if (item.id === 'leftmap_simple') {
 						// 操作界面
@@ -726,14 +709,8 @@
 					this.updateAlarmSidebarBadge(event.detail);
 				});
 
-				// 手机/平板适配：窗口尺寸变化时自动收起/展开侧边栏
-				window.addEventListener('resize', () => {
-					const isMobile = window.innerWidth <= 900;
-					this.navLeftFlag = !isMobile;
-					if (isMobile) {
-						this.$refs.navRight.style.paddingLeft = '';
-						this.$refs.cPage.style.left = '';
-					}
+				document.addEventListener('keydown', event => {
+					if (event.key === 'Escape' && this.navLeftFlag) this.closeNav();
 				});
 			});
 		}
@@ -744,11 +721,8 @@
 		(function () {
 			const handle = document.getElementById('navigationResizeHandle');
 			const nav = document.getElementById('mainNavigation');
-			const page = document.getElementById('app');
-			const navRight = document.querySelector('.nav-right');
-			const contentPage = document.querySelector('.content-page');
 			const iframe = document.querySelector('.content-page iframe');
-			if (!nav || !page || !navRight || !contentPage) return;
+			if (!nav) return;
 
 			const STORAGE_KEY = 'layout_nav_width_px';
 			const CFG = { min: 180, max: 360, defaultWidth: 240 };
@@ -788,8 +762,6 @@
 			function applyWidth(width, persist) {
 				width = clampWidth(Number(width) || CFG.defaultWidth);
 				nav.style.width = `${width}px`;
-				navRight.style.paddingLeft = `${width}px`;
-				contentPage.style.left = `${width}px`;
 				if (handle) {
 					handle.style.left = `${width}px`;
 					handle.setAttribute('aria-valuenow', String(Math.round(width)));
@@ -801,12 +773,9 @@
 
 			function setHandleVisibility() {
 				if (!handle) return;
-				const visible = isEnabled() && nav.classList.contains('nav-open');
-				handle.style.display = visible ? 'flex' : 'none';
-				if (!visible && !isEnabled()) {
+				handle.style.display = 'none';
+				if (!isEnabled()) {
 					nav.style.width = '';
-					navRight.style.paddingLeft = '';
-					contentPage.style.left = '';
 				}
 			}
 

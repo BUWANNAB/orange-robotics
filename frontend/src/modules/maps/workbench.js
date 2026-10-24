@@ -66,12 +66,16 @@ function updateMapping(){
   $('mapping-state').textContent=`ROS 桥接：${real?'已连接':'未连接'} · 雷达点云：${lidar?'实时':'无新数据'} · 建图控制器：${controller?'就绪':'未就绪'} · 定位：${localization} · 运动控制：${navigation} · 建图：${state}`;
 }
 async function refresh(preferred,options={}){
-  const previous=preferred||$('asset').value;assets=await api.get(base+'/assets');
+  const previous=preferred||$('asset').value||localStorage.getItem('map-workbench-last-asset')||localStorage.getItem('lastMapName')||'';assets=await api.get(base+'/assets');
   $('asset').replaceChildren(new Option(assets.length?'请选择地图':'暂无地图',''),...assets.map(a=>new Option(`${a.id}${a.pcd?' · PCD':''}${a.grid?' · PGM':''}`,a.id)));
-  if(assets.some(a=>a.id===previous))$('asset').value=previous;await selected(options);
+  const onlyGrid=assets.filter(asset=>asset.grid).length===1?assets.find(asset=>asset.grid).id:'';
+  const initial=assets.length===1?assets[0].id:onlyGrid;
+  if(assets.some(a=>a.id===previous))$('asset').value=previous;else if(assets.some(a=>a.id===initial))$('asset').value=initial;
+  await selected(options);
 }
 async function selected({render=true}={}){
   const row=current(),key=row?.id||'';
+  if(key)localStorage.setItem('map-workbench-last-asset',key);
   if(key!==selectedAsset){selectedAsset=key;pointAsset=null;resetOrigin();document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.remove('active');}
   notice(row?'当前地图：'+row.id:'请选择地图，或开始采集新地图。');
   $('asset-detail').textContent=row?`${row.pcd?'定位点云可用':'无 PCD'} · ${row.grid?'路线栅格可用':'无 PGM / YAML'}${row.resolution?' · '+row.resolution+' m/像素':''}`:'同一地图统一管理点云与栅格';
@@ -101,9 +105,10 @@ async function show(next,reload=false){
     if(frame.dataset.asset!==identity){frame.src=row?.grid?'src/components/process-map/handle_map.html?embedded=1&map='+encodeURIComponent(key)+'&revision='+encodeURIComponent(revision)+'&ui=20261023-pgm-route-handoff-1':'about:blank';frame.dataset.asset=identity;}
     if(!row?.grid)notice('请选择含 PGM / YAML 的地图，或先从点云处理生成栅格。');
   }else if(next==='route'){
-    const routeFrame=$('route-frame'),asset=row?.grid?key:'';
-    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?embedded=1'+(asset?'&asset='+encodeURIComponent(asset)+'&openAsset=1':'')+'#maps';routeFrame.dataset.loaded='1';}
-    else if(asset)routeFrame.contentWindow?.postMessage({type:'workbench-open-map-asset',asset},location.origin);
+    const routeFrame=$('route-frame'),asset=key,readyForRoutes=!!row?.grid;
+    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?embedded=1'+(asset?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
+    else if(asset&&readyForRoutes)routeFrame.contentWindow?.postMessage({type:'workbench-open-map-asset',asset},location.origin);
+    else if(asset)routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset},location.origin);
     else routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset:''},location.origin);
   }
   else if(next==='binding'&&$('binding-frame').dataset.asset!==key){$('binding-frame').src='map-bindings.html?embedded=1'+(key?'&asset='+encodeURIComponent(key):'');$('binding-frame').dataset.asset=key;}

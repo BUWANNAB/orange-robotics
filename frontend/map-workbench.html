@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=20261024-live-grid-workflow-1">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=map-first-console-20261024-1">
+  <script>if(new URLSearchParams(location.search).get('console')==='1')document.documentElement.classList.add('console-mode');</script>
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
 </head>
 <body>
@@ -57,6 +58,6 @@
       <iframe id="workflow-frame" title="建图、裁切或重新定位"></iframe>
     </section>
   </div>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=20261024-live-grid-workflow-1"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=map-first-console-20261024-1"></script>
 </body>
 </html>
