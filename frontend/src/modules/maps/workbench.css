@@ -95,3 +95,12 @@ html.console-mode body>main{width:100%;height:100%;max-width:none;margin:0;paddi
 html.console-mode body.route-mode>main{height:100%}
 html.console-mode body.route-mode #panel-route{height:100%;min-height:0;margin:0;overflow:hidden;border:0;border-radius:0;box-shadow:none}
 html.console-mode body.route-mode #panel-route iframe{height:100%;min-height:0}
+
+.operation-lock{width:min(520px,calc(100vw - 32px));padding:0;border:1px solid #d6e0e7;border-radius:14px;color:var(--ink);box-shadow:0 22px 70px #10283a40}
+.operation-lock::backdrop{background:#10223580;backdrop-filter:blur(2px)}
+.operation-lock form{display:grid;gap:14px;padding:24px}
+.operation-lock h2{margin:0;font-size:20px}
+.operation-lock p{margin:0;color:var(--muted);line-height:1.75;white-space:pre-line}
+.operation-lock .check{align-items:flex-start;padding:12px;border:1px solid #f0c89f;border-radius:8px;background:#fff9f2;line-height:1.6}
+.operation-lock .check input{margin-top:4px}
+.operation-lock footer{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}

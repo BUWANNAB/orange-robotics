@@ -1,0 +1,9 @@
+.operation-lock{width:min(520px,calc(100vw - 32px));padding:0;border:1px solid #d6e0e7;border-radius:14px;background:#fff;color:#233247;box-shadow:0 22px 70px #10283a40}
+.operation-lock::backdrop{background:#10223580;backdrop-filter:blur(2px)}
+.operation-lock form{display:grid;gap:14px;padding:24px}
+.operation-lock h2{margin:0;font-size:20px}
+.operation-lock p{margin:0;color:#647785;line-height:1.75;white-space:pre-line}
+.operation-lock label{display:flex;align-items:flex-start;gap:9px;padding:12px;border:1px solid #f0c89f;border-radius:8px;background:#fff9f2;line-height:1.6}
+.operation-lock label input{width:auto;margin-top:4px}
+.operation-lock .primary{background:#eb7528;border-color:#eb7528;color:#fff;font-weight:650}
+.operation-lock footer{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}

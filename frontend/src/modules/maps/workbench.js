@@ -8,6 +8,13 @@ let drawerVisible=true,liveGridMeta=null,liveGridImage=null,liveGridSequence=-1,
 if(drawerMode)document.body.classList.add('drawer-mode');
 
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
+function confirmCriticalAction(title,message){
+  const dialog=$('operation-lock');if(dialog.open)return Promise.resolve(false);
+  $('operation-lock-title').textContent=title;$('operation-lock-message').textContent=message;
+  $('operation-lock-ack').checked=false;$('operation-lock-confirm').disabled=true;
+  $('operation-lock-ack').onchange=()=>{$('operation-lock-confirm').disabled=!$('operation-lock-ack').checked;};
+  return new Promise(resolve=>{dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});
+}
 function current(){return assets.find(row=>row.id===$('asset').value);}
 function openWorkflowDrawer(next,requestedAsset=''){
   if(!['binding','locate','build','point'].includes(next))return;
@@ -190,19 +197,22 @@ async function follow(job){
 }
 async function run(path,data){if(busy)return;setBusy(true);try{await follow(await api.post(base+path,data));}catch(e){notice(e.message,true);setBusy(false);}}
 
-$('process-form').onsubmit=e=>{
+$('process-form').onsubmit=async e=>{
   e.preventDefault();if(!updateHeightPreview())return notice('请修正高度范围后再处理点云。',true);
   if(!updateOriginPreview())return notice('请修正坐标原点与方向。',true);
   if(!current()?.pcd||pointAsset!==current().id)return notice('请先选择地图并等待点云加载完成。',true);
   const params=viewer?.selection()||{};
-  run('/process',{source:current().id,output:$('output').value.trim(),z_min:Number($('z-min').value),z_max:Number($('z-max').value),resolution:Number($('resolution').value),denoise:$('denoise').checked,radius:Number($('radius').value),neighbors:Number($('neighbors').value),...params});
+  const output=$('output').value.trim();
+  if(!await confirmCriticalAction('生成新的路线地图',`将根据当前点云、高度过滤、选区与坐标原点生成新地图“${output}”，并创建 PGM / YAML 栅格。源点云不会覆盖。`))return;
+  run('/process',{source:current().id,output,z_min:Number($('z-min').value),z_max:Number($('z-max').value),resolution:Number($('resolution').value),denoise:$('denoise').checked,radius:Number($('radius').value),neighbors:Number($('neighbors').value),...params});
 };
 $('z-min').addEventListener('input',updateHeightPreview);$('z-max').addEventListener('input',updateHeightPreview);
 for(const id of ['origin-enabled','origin-x','origin-y','origin-yaw'])$(id).addEventListener(id==='origin-enabled'?'change':'input',updateOriginPreview);
 $('draw-origin').onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先加载一张 PCD 点云。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.add('active');$('origin-enabled').checked=true;updateOriginPreview();viewer?.drawOrigin(origin=>{$('origin-x').value=origin.x.toFixed(3);$('origin-y').value=origin.y.toFixed(3);$('origin-yaw').value=(origin.yaw*180/Math.PI).toFixed(1);updateOriginPreview();notice('坐标原点和方向已选定。生成新地图时将应用这个坐标变换。');});notice('在点云上按住左键，从新原点拖向新坐标系 +X 方向。');};
 $('reset-origin').onclick=()=>{resetOrigin();$('draw-origin').classList.remove('active');};
-$('mapping-start').onclick=()=>{if(!$('manual-push-confirmed').checked)return notice('请先在现场确认底盘处于厂家允许的安全手动/自由轮状态，并可人工推行。',true);run('/mapping/start',{manual_push_confirmed:true});};
-$('manual-push-confirmed').onchange=updateMapping;$('mapping-form').onsubmit=e=>{e.preventDefault();if(!mapping?.active)return notice('请先开始采集，再保存点云。',true);run('/mapping/save',{name:$('mapping-name').value.trim()});};$('mapping-stop').onclick=()=>run('/mapping/stop');
+$('mapping-start').onclick=async()=>{if(!$('manual-push-confirmed').checked)return notice('请先在现场确认底盘处于厂家允许的安全手动/自由轮状态，并可人工推行。',true);if(!await confirmCriticalAction('开始实时建图','开始后将采集雷达点云。必须确认定位和自动导航已停止，底盘处于厂家允许的安全手动/自由轮状态，现场人员可控地推动车辆。网页不会发送行驶命令。'))return;run('/mapping/start',{manual_push_confirmed:true});};
+$('manual-push-confirmed').onchange=updateMapping;$('mapping-form').onsubmit=async e=>{e.preventDefault();if(!mapping?.active)return notice('请先开始采集，再保存点云。',true);const name=$('mapping-name').value.trim();if(!await confirmCriticalAction('保存本次建图点云',`将结束当前采集并保存为“${name}”。保存后可继续裁切、设置坐标原点并生成路线栅格。`))return;run('/mapping/save',{name});};
+$('mapping-stop').onclick=async()=>{if(!await confirmCriticalAction('停止建图采集','停止本次雷达采集并保留定位与导航停止状态。若尚未保存点云，本次采集可能无法用于后续建图。'))return;run('/mapping/stop');};
 $('asset').onchange=()=>selected().catch(e=>notice(e.message,true));$('refresh').onclick=()=>refresh().catch(e=>notice(e.message,true));
 $('grid-route-action').onclick=()=>show('route').catch(e=>notice(e.message,true));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab).catch(e=>notice(e.message,true)));

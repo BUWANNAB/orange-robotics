@@ -8,6 +8,7 @@
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1, viewport-fit=cover" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=map-first-drawer-20261024" />
+	<link rel="stylesheet" type="text/css" href="/src/modules/operations/confirm-lock.css?v=20261024-critical-action-lock-1" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
 	<script type="text/javascript" src="/src/libs/jquery-3.1.0.min.js"></script>
@@ -322,6 +323,31 @@
 			</div>
 		</div>
 	</div>
+	<dialog id="operation-lock" class="operation-lock" aria-labelledby="operation-lock-title">
+		<form method="dialog">
+			<h2 id="operation-lock-title">确认操作</h2>
+			<p id="operation-lock-message"></p>
+			<label><input id="operation-lock-ack" type="checkbox">我已阅读并确认现场状态与操作内容</label>
+			<footer><button value="cancel">取消</button><button id="operation-lock-confirm" class="primary" value="confirm" disabled>确认继续</button></footer>
+		</form>
+	</dialog>
+	<script>
+		window.confirmCriticalAction = function (title, message) {
+			const dialog = document.getElementById('operation-lock');
+			if (!dialog || dialog.open) return Promise.resolve(false);
+			document.getElementById('operation-lock-title').textContent = title;
+			document.getElementById('operation-lock-message').textContent = message;
+			const acknowledge = document.getElementById('operation-lock-ack');
+			const confirm = document.getElementById('operation-lock-confirm');
+			acknowledge.checked = false;
+			confirm.disabled = true;
+			acknowledge.onchange = () => { confirm.disabled = !acknowledge.checked; };
+			return new Promise(resolve => {
+				dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true });
+				dialog.showModal();
+			});
+		};
+	</script>
 
 	<!-- 录制名称输入模态框 -->
 	<div class="modal fade" id="recordNameModal" tabindex="-1" aria-labelledby="recordNameModalLabel"
@@ -1121,6 +1147,7 @@
 		// 开始录制（简化版）
 		async function startRecording() {
 			if (RecordingStatus) return; // 防止重复启动
+			if (!await window.confirmCriticalAction('确认开始轨迹录制', '开始后轨迹录制会持续采集机器人行驶路线。请确认机器人和周围人员处于安全状态，并由现场人员负责驾驶。')) return;
 			try {
 				// 从localStorage获取录制间隔
 				const savedGap = localStorage.getItem("gapNumber");
@@ -1654,15 +1681,23 @@
 
 			// 监听track_control开关变化
 			if (closetrackSwitch && closetrack) {
-				closetrackSwitch.addEventListener('change', function () {
-					// this.checked 表示开关被用户开启
-					if (this.checked) {
-						closetrack.value = '1';
-					} else {
-						// this.checked === false 表示开关被用户关闭
-						closetrack.value = '0';
+				let switchConfirmationPending = false;
+				closetrackSwitch.addEventListener('change', async function () {
+					const requested = this.checked;
+					this.checked = closetrack.value === '1';
+					if (switchConfirmationPending) return;
+					switchConfirmationPending = true;
+					this.disabled = true;
+					try {
+						const mode = requested ? '远程控制' : '本地控制';
+						if (!await window.confirmCriticalAction('确认切换控制模式', `即将切换为${mode}。此操作会改变机器人可接受的控制来源，请确认车辆已停止且现场人员已知情。`)) return;
+						closetrack.value = requested ? '1' : '0';
+						this.checked = requested;
+						updateTrackSwitchStatus();
+					} finally {
+						switchConfirmationPending = false;
+						this.disabled = false;
 					}
-					updateTrackSwitchStatus();
 				});
 			}
 

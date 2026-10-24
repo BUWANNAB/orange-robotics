@@ -122,10 +122,18 @@
     }catch(error){$('message').textContent=error.message;}
   }
   async function action(path,data){try{$('message').textContent='正在处理…';await api.post(path,data);$('message').textContent='请求已受理，请查看实时状态。';}catch(error){$('message').textContent=error.message;}}
+  function confirmCriticalAction(title,message){
+    const dialog=$('operation-lock');if(dialog.open)return Promise.resolve(false);
+    $('operation-lock-title').textContent=title;$('operation-lock-message').textContent=message;
+    $('operation-lock-ack').checked=false;$('operation-lock-confirm').disabled=true;
+    $('operation-lock-ack').onchange=()=>{$('operation-lock-confirm').disabled=!$('operation-lock-ack').checked;};
+    return new Promise(resolve=>{dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});
+  }
   $('switch-form').onsubmit=async e=>{
     e.preventDefault();if(picking||submitting||gesture||Date.now()-lastMessage>2000||frame?.localization.source!=='ros')return;
     const data={key:$('map-key').value,x:Number($('pose-x').value),y:Number($('pose-y').value),yaw:Number($('pose-yaw').value)*Math.PI/180};
-    if(!confirm(`确认在地图 ${data.key} 重定位？\nX ${data.x.toFixed(3)} m，Y ${data.y.toFixed(3)} m，朝向 ${(data.yaw*180/Math.PI).toFixed(1)}°\n车辆必须已停车；完成后仍保持停止锁定。`))return;
+    if(!await confirmCriticalAction('确认切换地图并重新定位',`地图：${data.key}\n初始位置：X ${data.x.toFixed(3)} m，Y ${data.y.toFixed(3)} m，朝向 ${(data.yaw*180/Math.PI).toFixed(1)}°。\n请确认机器人已完全停车且周围安全。操作完成后仍保持软件停止锁定。`))return;
+    if(submitting)return;
     submitting=true;$('switch-button').disabled=true;
     try{await action('/api/localization/switch',data);}finally{submitting=false;}
   };
@@ -157,9 +165,9 @@
   canvas.addEventListener('lostpointercapture',()=>{if(gesture)cancelPick();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')cancelPick();});
   for(const id of ['pose-x','pose-y','pose-yaw'])$(id).addEventListener('input',cancelPick);
-  $('auto-pose').onclick=()=>{if(!$('map-key').value){$('message').textContent='请先选择定位地图';return;}cancelPick();action('/api/localization/auto',{key:$('map-key').value});};
+  $('auto-pose').onclick=async()=>{if(!$('map-key').value){$('message').textContent='请先选择定位地图';return;}const key=$('map-key').value;if(!await confirmCriticalAction('确认自动重定位',`将在地图“${key}”上启动自动重定位。请确认机器人已停车、雷达视野无遮挡且现场人员知情。成功后仍保持软件停止锁定。`))return;cancelPick();action('/api/localization/auto',{key});};
   $('auto-cancel').onclick=()=>action('/api/localization/auto/cancel');
-  $('stop-button').onclick=()=>action('/api/localization/stop');$('release-button').onclick=()=>action('/api/localization/release');
+  $('stop-button').onclick=()=>action('/api/localization/stop');$('release-button').onclick=async()=>{if(await confirmCriticalAction('确认解除软件停止锁定','解除后系统可能允许导航或任务继续。请确认机器人具备现场运行条件；此软件锁不代替物理急停。'))action('/api/localization/release');};
   $('binding-link').addEventListener('click',event=>{
     if(!new URLSearchParams(location.search).has('embedded'))return;
     event.preventDefault();window.parent.postMessage({type:'workbench-open-drawer',tab:'binding'},location.origin);

@@ -2,6 +2,12 @@
   const $=id=>document.getElementById(id),api=window.OpsAPI;
   let data,busy=false;
   function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
+  function confirmCriticalAction(message){
+    const dialog=$('operation-lock');if(dialog.open)return Promise.resolve(false);
+    $('operation-lock-message').textContent=message;$('operation-lock-ack').checked=false;$('operation-lock-confirm').disabled=true;
+    $('operation-lock-ack').onchange=()=>{$('operation-lock-confirm').disabled=!$('operation-lock-ack').checked;};
+    return new Promise(resolve=>{dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});
+  }
   function entry(){return data?.entries.find(e=>e.key===$('binding-pcd').value);}
   function selected(){
     const e=entry();$('binding-confirm').checked=false;$('binding-map').value='';
@@ -28,7 +34,9 @@
   }
   async function save(remove=false){
     if(busy)return;const e=entry(),m=data.maps.find(m=>String(m.id)===$('binding-map').value);if(!e||(!remove&&!m))return;
-    if(remove&&!confirm('解除此点云的线路地图绑定？当前运行地图不变，下次定位不再关联这张线路地图。'))return;
+    if(!remove&&!$('binding-confirm').checked)return notice('请先确认两张地图的坐标原点、方向和单位一致。',true);
+    const message=remove?`将解除点云“${e.asset_id||e.key}”的已保存地图绑定。当前正在运行的地图不变；下次重新定位时不再自动关联该线路地图。`:`将把定位点云“${e.asset_id||e.key}”绑定到线路地图“${m.name} · v${m.published_version}”。保存后需重新定位才会应用；坐标原点或方向不一致会造成定位和路线错位。`;
+    if(!await confirmCriticalAction(message))return;
     busy=true;$('binding-save').disabled=true;$('binding-remove').disabled=true;
     try{
       await api.post('/api/map-workbench/bindings',{key:e.key,map_id:remove?null:m.id,version:remove?null:m.published_version,revision:data.revision,coordinates_confirmed:$('binding-confirm').checked});

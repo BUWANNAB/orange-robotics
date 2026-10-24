@@ -21,7 +21,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[]};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -122,7 +122,7 @@
   async function taskForm(){
     const maps=(await api.get('/api/maps',{pageSize:100})).list.filter(m=>m.published_version);
     if(!maps.length)throw new Error('请先发布一张通过校验的地图');
-    dialog('创建调度任务',`<p class="help">任务会在匹配地图且空闲的机器人上线后下发。设备适配器必须支持 execute-task 协议。</p><div class="form-grid">${field('name','任务名称','','text','required')}${selectField('map_id','已发布地图',maps.map(m=>[m.id,m.name]))}${field('from_point','起点编号','','text','required')}${field('to_point','终点编号','','text','required')}${field('priority','优先级（1—9）',5,'number','min="1" max="9" required')}${selectField('robot_id','机器人',[['','自动分配'],...state.robots.map(r=>[r.id,r.code])])}</div>`,form=>api.post('/api/task-history',{...Object.fromEntries(form),map_id:Number(form.get('map_id')),priority:Number(form.get('priority')),robot_id:form.get('robot_id')?Number(form.get('robot_id')):null}),'创建任务');
+    dialog('创建调度任务',`<p class="help">任务会在匹配地图且空闲的机器人上线后下发。设备适配器必须支持 execute-task 协议。</p><div class="form-grid">${field('name','任务名称','','text','required')}${selectField('map_id','已发布地图',maps.map(m=>[m.id,m.name]))}${field('from_point','起点编号','','text','required')}${field('to_point','终点编号','','text','required')}${field('priority','优先级（1—9）',5,'number','min="1" max="9" required')}${selectField('robot_id','机器人',[['','自动分配'],...state.robots.map(r=>[r.id,r.code])])}</div><label class="wide" style="display:flex;align-items:flex-start;gap:9px"><input name="dispatch_confirmed" type="checkbox" required style="width:auto;margin-top:4px"> 我已核对已发布地图、起终点和目标机器人；机器人空闲时此任务可能自动下发。</label>`,form=>{if(form.get('dispatch_confirmed')!=='on')throw new Error('请先确认地图、起终点和自动下发说明');const task=Object.fromEntries(form);delete task.dispatch_confirmed;return api.post('/api/task-history',{...task,map_id:Number(form.get('map_id')),priority:Number(form.get('priority')),robot_id:form.get('robot_id')?Number(form.get('robot_id')):null});},'确认创建任务');
   }
   function mapEditorMarkup(row){
     const maps=state.mapChoices.length?state.mapChoices:[row];
@@ -223,10 +223,15 @@
       const key=state.mapRow?.draft?.asset_id;
       if(!key){$('map-tool-hint').textContent='此路线地图还没有定位点云关联；请从地图资产创建或更换底图后再定位。';return;}
       if(pose.directionLength<0.15){$('map-tool-hint').textContent='方向箭头太短；请从车位沿车头方向拖动至少 0.15 m。';return;}
-      api.post('/api/localization/switch',{asset_id:key,x:pose.x,y:pose.y,yaw:pose.yaw}).then(()=>{
+      if(state.relocalizeConfirmationOpen)return;
+      state.relocalizeConfirmationOpen=true;
+      $('dialog').addEventListener('close',()=>{state.relocalizeConfirmationOpen=false;},{once:true});
+      confirmation('确认重新定位','确认重定位',`地图：${key}\n初始位置：X ${pose.x.toFixed(3)} m，Y ${pose.y.toFixed(3)} m，朝向 ${(pose.yaw*180/Math.PI).toFixed(1)}°。\n请确认机器人已完全停车且周围安全。请求发送后仍保持软件停止锁定。`,async value=>{
+        if(value!=='确认重定位')throw new Error('请输入“确认重定位”后继续');
+        await api.post('/api/localization/switch',{asset_id:key,x:pose.x,y:pose.y,yaw:pose.yaw});
         $('map-tool-hint').textContent='重定位请求已发送；正在等待地图载入和定位收敛，车辆保持停止锁定。';
         state.map.setTool('select');document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
-      }).catch(error=>{$('map-tool-hint').textContent=`重定位未提交：${error.message}`;});
+      });
     });
     renderMapLists();
     $('map-point-search').oninput=renderMapLists;
