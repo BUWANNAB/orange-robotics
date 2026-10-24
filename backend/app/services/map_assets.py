@@ -43,9 +43,11 @@ def asset(key):
     if (grid/'map.yaml').is_file():
         metadata = yaml.safe_load((grid/'map.yaml').read_text(encoding='utf-8')) or {}
         if not isinstance(metadata,dict): raise ValueError('地图 YAML 必须是对象')
+    files = [pcd, pcd.parent/'asset.json', grid/'map.pgm', grid/'map.yaml']
+    updated_at = max((file.stat().st_mtime for file in files if file.is_file()), default=0)
     return {'id':key, 'name':key, 'pcd':pcd.is_file(), 'grid':(grid/'map.pgm').is_file() and (grid/'map.yaml').is_file(),
             'frame':'map', 'unit':'m', 'angle_unit':'rad', 'resolution':metadata.get('resolution'),
-            'origin':metadata.get('origin'), 'revision':revision(grid)}
+            'origin':metadata.get('origin'), 'revision':revision(grid), 'updated_at':updated_at}
 
 
 def checked_file(root, path):
@@ -75,10 +77,12 @@ def listing():
             key = parent.relative_to(root).as_posix()
             if key != '.': keys.add(key)
     result = []
-    for key in sorted(keys):
+    for key in keys:
         try: result.append(asset(key))
         except (ValueError, yaml.YAMLError, OSError): continue
-    return result
+    # Keep the newest usable map first so a fresh login can open it without
+    # asking the operator to choose from a list. Use the map id as a stable tie-breaker.
+    return sorted(result, key=lambda row: (-row['updated_at'], row['id'].casefold()))
 
 
 def validate_grid(pgm, metadata):

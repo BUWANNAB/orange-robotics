@@ -23,7 +23,7 @@ function openWorkflowDrawer(next,requestedAsset=''){
   const titles={binding:'地图绑定',locate:'重新定位',build:'实时建图',point:'裁切与坐标原点'};
   $('workflow-title').textContent=titles[next];
   const src=['build','point'].includes(next)
-    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=20261024-point-cloud-brush-1`
+    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=20261024-latest-map-home-1`
     :`${next==='binding'?'map-bindings.html':'localization.html'}?embedded=1${asset?'&asset='+encodeURIComponent(asset):''}`;
   frame.onload=()=>frame.contentWindow?.postMessage({type:'workbench-drawer-visibility',visible:!drawer.hidden},location.origin);
   if(frame.getAttribute('src')!==src)frame.src=src;
@@ -80,11 +80,11 @@ function updateMapping(){
   $('mapping-state').textContent=`ROS 桥接：${real?'已连接':'未连接'} · 雷达点云：${lidar?'实时':'无新数据'} · 建图控制器：${controller?'就绪':'未就绪'} · 定位：${localization} · 运动控制：${navigation} · 建图：${state}`;
 }
 async function refresh(preferred,options={}){
-  const previous=preferred||$('asset').value||localStorage.getItem('map-workbench-last-asset')||localStorage.getItem('lastMapName')||'';assets=await api.get(base+'/assets');
+  const previous=options.initial?(preferred||''):(preferred||$('asset').value||localStorage.getItem('map-workbench-last-asset')||localStorage.getItem('lastMapName')||'');assets=await api.get(base+'/assets');
   $('asset').replaceChildren(new Option(assets.length?'请选择地图':'暂无地图',''),...assets.map(a=>new Option(`${a.id}${a.pcd?' · PCD':''}${a.grid?' · PGM':''}`,a.id)));
-  const onlyGrid=assets.filter(asset=>asset.grid).length===1?assets.find(asset=>asset.grid).id:'';
-  const initial=assets.length===1?assets[0].id:onlyGrid;
-  if(assets.some(a=>a.id===previous))$('asset').value=previous;else if(assets.some(a=>a.id===initial))$('asset').value=initial;
+  const latest=assets.find(asset=>asset.grid)||assets[0];
+  const initial=assets.find(asset=>asset.id===previous)||latest;
+  if(initial)$('asset').value=initial.id;
   await selected(options);
 }
 async function selected({render=true}={}){
@@ -263,7 +263,7 @@ window.addEventListener('message',e=>{
 });
 window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(tabs.includes(next))show(next).catch(e=>notice(e.message,true));});
 
-await refresh(new URLSearchParams(location.search).get('map')).catch(e=>notice(e.message,true));await show(initialTab);
+await refresh(new URLSearchParams(location.search).get('map'),{initial:true}).catch(e=>notice(e.message,true));await show(initialTab);
 const pending=localStorage.getItem('map-workbench-job');if(pending)api.get(base+'/jobs/'+pending).then(follow).catch(e=>{notice(e.message,true);localStorage.removeItem('map-workbench-job');});
 new ResizeObserver(drawLiveGrid).observe($('live-grid-canvas'));
 setInterval(()=>{if(tab==='build'&&!document.hidden&&drawerVisible)mappingStatus();},4000);
