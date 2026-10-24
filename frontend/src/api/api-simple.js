@@ -24,6 +24,15 @@
         return localStorage.getItem(TEMP_SKIP_LOGIN_KEY) === "true";
     }
 
+    function requestLogin() {
+        const message = { type: "TOKEN_MISSING", data: "/ui/login.html" };
+        if (window.parent !== window) {
+            window.parent.postMessage(message, window.location.origin);
+        } else {
+            window.location.href = message.data;
+        }
+    }
+
     // 请求拦截器
     axiosClient.interceptors.request.use(
         function(config) {
@@ -40,14 +49,14 @@
             const tokenCreateTime = localStorage.getItem("tokenCreateTime");
 
             if (!token) {
-                window.parent.postMessage({ type: "TOKEN_MISSING", data: "/login.html" }, "*");
+                requestLogin();
                 return Promise.reject(new Error("No token found"));
             }
 
             if (!tokenCreateTime || (Date.now() - Number(tokenCreateTime) > TOKEN_EXPIRE_DURATION)) {
                 localStorage.removeItem("token");
                 localStorage.removeItem("tokenCreateTime");
-                window.parent.postMessage({ type: "TOKEN_MISSING", data: "/login.html" }, "*");
+                requestLogin();
                 return Promise.reject(new Error("Token expired (frontend check)"));
             }
 
@@ -66,7 +75,7 @@
                 && !isTemporaryLoginBypassEnabled()) {
                 localStorage.removeItem("token");
                 localStorage.removeItem("tokenCreateTime");
-                window.parent.postMessage({ type: "TOKEN_MISSING", data: "/login.html" }, "*");
+                requestLogin();
             }
             return response;
         },

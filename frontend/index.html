@@ -527,7 +527,7 @@
 							localStorage.removeItem('tokenCreateTime');
 							localStorage.removeItem('robot.tempSkipLogin');
 							// 静态预览始终回到免登录主界面，正式服务仍回到登录页。
-							window.location.href = window.isStaticPreview ? '/?skipLogin=1' : '/login.html';
+							window.location.href = window.isStaticPreview ? '/?skipLogin=1' : '/ui/login.html';
 						}
 					});
 				},
