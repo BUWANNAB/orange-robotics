@@ -701,6 +701,9 @@ input:checked + .slider:before {
 .page .nav-right { padding-left: 0 !important; }
 .page .content-page { left: 0 !important; }
 .page .navigation-resize-handle { display: none !important; }
+.page.map-home .nav-top { display: none !important; }
+.page.map-home .content-page { top: 0; bottom: 0; margin-top: 0; }
+.page.map-home .content-page iframe { height: 100%; }
 .mobile-nav-backdrop {
 	display: block;
 	position: fixed;

@@ -279,12 +279,21 @@ async def status(actor=Depends(require('map:view'))):
 
 @router.get('/live-grid')
 async def live_grid_status(actor=Depends(require('map:view'))):
-    return ok(mapping.bridge.live_grid_snapshot())
+    snapshot=getattr(mapping.bridge,'live_grid_snapshot',None)
+    if not callable(snapshot):
+        return ok({
+            'available':False,'sequence':0,'status':'当前 ROS 桥接尚未提供实时二维地图数据',
+            'age_seconds':None,'frame_id':'','width':0,'height':0,'resolution':None,'origin':None,
+        })
+    return ok(snapshot())
 
 
 @router.get('/live-grid.png')
 async def live_grid_image(actor=Depends(require('map:view'))):
-    grid, sequence = mapping.bridge.live_grid_message()
+    get_message=getattr(mapping.bridge,'live_grid_message',None)
+    if not callable(get_message):
+        raise HTTPException(503,'当前 ROS 桥接尚未提供实时二维地图数据')
+    grid, sequence = get_message()
     if grid is None:
         raise HTTPException(404, '尚无新鲜的实时二维地图；请确认正在建图并收到雷达点云')
 

@@ -21,7 +21,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -120,15 +120,48 @@
     });
   }
   async function taskForm(){
-    const maps=(await api.get('/api/maps',{pageSize:100})).list.filter(m=>m.published_version);
-    if(!maps.length)throw new Error('请先发布一张通过校验的地图');
-    dialog('创建调度任务',`<p class="help">任务会在匹配地图且空闲的机器人上线后下发。设备适配器必须支持 execute-task 协议。</p><div class="form-grid">${field('name','任务名称','','text','required')}${selectField('map_id','已发布地图',maps.map(m=>[m.id,m.name]))}${field('from_point','起点编号','','text','required')}${field('to_point','终点编号','','text','required')}${field('priority','优先级（1—9）',5,'number','min="1" max="9" required')}${selectField('robot_id','机器人',[['','自动分配'],...state.robots.map(r=>[r.id,r.code])])}</div><label class="wide" style="display:flex;align-items:flex-start;gap:9px"><input name="dispatch_confirmed" type="checkbox" required style="width:auto;margin-top:4px"> 我已核对已发布地图、起终点和目标机器人；机器人空闲时此任务可能自动下发。</label>`,form=>{if(form.get('dispatch_confirmed')!=='on')throw new Error('请先确认地图、起终点和自动下发说明');const task=Object.fromEntries(form);delete task.dispatch_confirmed;return api.post('/api/task-history',{...task,map_id:Number(form.get('map_id')),priority:Number(form.get('priority')),robot_id:form.get('robot_id')?Number(form.get('robot_id')):null});},'确认创建任务');
+    const maps=(await api.get('/api/maps',{pageSize:100})).list.filter(m=>m.published_version&&String(m.id)===String(state.mapRow?.id));
+    if(!maps.length)throw new Error('请先保存并发布当前线路地图，通过校验后才能创建导航任务');
+    const currentMap=maps.find(map=>String(map.id)===String(state.mapRow?.id));
+    const publishedVersion=Number(currentMap.published_version);
+    const versions=await api.get(`/api/maps/${currentMap.id}/versions`);
+    const publishedDocument=versions.find(version=>Number(version.version)===publishedVersion)?.document;
+    if(!publishedDocument)throw new Error('没有找到当前已发布的地图版本，请刷新后重试');
+    const points=publishedDocument.points||[];
+    if(points.length<2)throw new Error('当前地图至少需要两个站点才能创建导航任务');
+    const pointOptions=points.map(point=>[point.code,`${point.code} · ${point.name||'未命名站点'}`]);
+    const first=points[0]?.code||'',last=points.find(point=>point.code!==first)?.code||first;
+    const fromField=pointOptions.length?selectField('from_point','起点站点',pointOptions,first):field('from_point','起点编号','','text','required');
+    const toField=pointOptions.length?selectField('to_point','终点站点',pointOptions,last):field('to_point','终点编号','','text','required');
+    dialog('新建导航任务',`<p class="help">只使用已发布的线路地图。任务入队后会按机器人在线、空闲和设备协议状态下发；请核对现场状态再确认。</p><div class="form-grid">${field('name','任务名称','','text','required')}${selectField('map_id','已发布地图',maps.map(m=>[m.id,m.name]),currentMap?.id||maps[0].id)}${fromField}${toField}${field('priority','任务优先级（1—9）',5,'number','min="1" max="9" required')}${selectField('robot_id','机器人',[['','自动分配'],...state.robots.map(r=>[r.id,`${r.code} · ${labels[r.status]||r.status}`])])}</div><label class="wide" style="display:flex;align-items:flex-start;gap:9px"><input name="dispatch_confirmed" type="checkbox" required style="width:auto;margin-top:4px"> 我已核对地图、起终点及机器人；任务可能在机器人空闲后自动下发。</label>`,form=>{if(form.get('dispatch_confirmed')!=='on')throw new Error('请先确认地图、起终点和自动下发说明');const task=Object.fromEntries(form);delete task.dispatch_confirmed;return api.post('/api/task-history',{...task,map_id:Number(form.get('map_id')),priority:Number(form.get('priority')),robot_id:form.get('robot_id')?Number(form.get('robot_id')):null});},'确认并创建');
+  }
+  function renderMapTasks(){
+    const list=$('map-task-list'),count=$('map-task-count');if(!list||!count)return;
+    if(!can('task:view')){list.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';count.textContent='—';return;}
+    count.textContent=String(state.mapTaskTotal);
+    list.innerHTML=state.mapTasks.map(task=>`<div class="map-task-entry"><button type="button" class="map-task-row" data-action="map-task-detail" data-id="${task.id}"><span><strong>${escape(task.name)}</strong><small>${escape(task.from_point)} → ${escape(task.to_point)}</small></span>${badge(task.status)}</button>${task.status==='queued'&&can('task:edit')?button('×','map-task-cancel',task.id,'task:edit','map-task-cancel-button'):''}</div>`).join('')||'<p class="map-list-empty">暂无任务记录</p>';
+    const active=state.mapTasks.find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
+    $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${badge(active.status)}</span>${can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
+  }
+  async function refreshMapTasks(){
+    if(!state.map||!can('task:view'))return;
+    try{const data=await api.get('/api/task-history',{pageNo:1,pageSize:6});state.mapTasks=data.list||[];state.mapTaskTotal=Number(data.total)||0;renderMapTasks();}
+    catch(error){const list=$('map-task-list');if(list)list.innerHTML=`<p class="map-list-empty">任务状态暂不可用：${escape(error.message)}</p>`;}
+  }
+  function renderMapRobot(){
+    const panel=$('map-robot-card');if(!panel)return;
+    const robot=state.robots.find(item=>item.online)||state.robots[0];
+    const stateChip=$('map-robot-state');if(stateChip){stateChip.className='map-state-chip '+(robot?.online?'good':'offline');stateChip.innerHTML=`<i></i>${robot?.online?'在线':'离线'}`;}
+    if(!robot){panel.innerHTML='<div class="map-robot-portrait" aria-hidden="true">AGV</div><div><strong>等待机器人心跳</strong><small>设备连接后显示状态与电量</small></div>';return;}
+    const batteryValue=robot.telemetry?.battery,level=batteryValue!=null&&Number.isFinite(Number(batteryValue))?Math.max(0,Math.min(100,Number(batteryValue))):null;
+    panel.innerHTML=`<div class="map-robot-portrait" aria-hidden="true">AGV</div><div class="map-robot-summary"><strong>${escape(robot.code)} · ${escape(robot.name)}</strong><small>${escape(labels[robot.status]||robot.status)} · ${robot.online?'在线':'离线'}</small><div class="map-battery"><i><b style="width:${level??0}%"></b></i><span>${level===null?'电量未知':level+'%'}${robot.telemetry?.charging?' · 充电中':''}</span></div></div>`;
   }
   function mapEditorMarkup(row){
     const maps=state.mapChoices.length?state.mapChoices:[row];
     const options=maps.map(map=>`<option value="${map.id}" ${String(map.id)===String(row.id)?'selected':''}>${escape(map.name)}${map.published_version?` · v${map.published_version}`:' · 未发布'}</option>`).join('');
     return `<div class="map-editor" id="map-editor">
       <header class="map-console-header">
+        <button type="button" class="map-menu-button" data-action="map-open-navigation" aria-label="打开功能导航" title="调度与其他功能">☰</button>
         <div class="map-console-brand"><span class="map-brand-mark">O</span><strong>Orange Robotics</strong><i></i><b>地图与任务</b></div>
         <label class="map-console-select">地图<select id="map-switch">${options}</select></label>
         <div class="map-console-status"><span class="map-state-chip" id="map-ros-chip"><i></i>ROS 连接检测中</span><span class="map-state-chip" id="map-loc-chip"><i></i>定位待确认</span></div>
@@ -141,11 +174,13 @@
           <span class="map-tool-separator"></span>${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('选择','tool-select','','','map-tool-active')}${button('平移','tool-pan','')}${button('测距','tool-measure','')}
         </div>
         <div class="map-toolbar-row map-toolbar-actions">
-          ${button('更换地图底图','map-asset','','','')}${button('重新定位','tool-relocalize','')}${button('自动重定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
+          ${button('编辑二维地图','workbench-grid','')}${button('更换地图底图','map-asset','','','')}${button('重新定位','tool-relocalize','')}${button('自动重定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
         </div>
       </nav>
       <div class="map-workspace">
         <aside class="map-side-panel" aria-label="地图对象">
+          <section class="map-side-section map-task-list-section"><header><strong>任务列表</strong><span id="map-task-count">0</span>${button('＋','map-task-create','','task:edit','map-add-compact')}</header><div id="map-task-list" class="map-task-list"><p class="map-list-empty">正在读取任务…</p></div></section>
+          <section class="map-side-section map-robot-section"><header><strong>机器人</strong><span class="map-state-chip" id="map-robot-state"><i></i>状态同步中</span></header><div id="map-robot-card" class="map-robot-card"></div></section>
           <section class="map-side-section"><header><strong>地图图层</strong><button type="button" class="map-side-collapse" aria-label="折叠图层">⌃</button></header>
             <label class="map-layer-row"><input type="checkbox" data-map-layer="background" checked><span class="layer-color layer-background"></span>底图</label>
             <label class="map-layer-row"><input type="checkbox" data-map-layer="paths" checked><span class="layer-color layer-route"></span>路线网络</label>
@@ -167,6 +202,7 @@
         <aside class="map-properties" aria-label="对象属性"><div class="map-inspector-heading"><span class="map-inspector-icon">⌖</span><div><h3>${escape(row.name)}</h3><p>路线与地图属性</p></div><button type="button" data-action="map-remove" aria-label="删除选中对象" title="删除选中对象">⌫</button></div>
           <div id="map-revision-card"><p id="map-revision-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version||0}</p><p class="map-inspector-note">编辑草稿不会改变正在执行的路线。发布前会重新校验站点边界、连通性和禁行区。</p></div>
           <div id="point-properties" class="map-object-properties">选择站点、路径或区域以编辑详细属性</div><div class="map-issues" id="map-issues" role="status"></div>
+          <section class="map-task-execution"><header><strong>任务执行</strong><span id="map-task-state">等待状态</span></header><div id="map-task-active" class="map-task-active"><span>正在读取任务状态…</span></div><p>新建任务后由已发布地图、在线空闲机器人和设备协议共同决定是否下发。</p>${button('新建导航任务','map-task-create','','task:edit','primary')}</section>
         </aside>
       </div>
       <footer class="map-statusbar" aria-label="机器人运行状态"><span class="map-status-brand"><i></i>ROS</span><span class="map-status-item" id="map-live-status">等待实时定位数据</span><span class="map-status-item" id="map-pose-readout">位姿：—</span><span class="map-status-item" id="map-nav-readout">任务：—</span><span class="map-status-item" id="map-plc-readout">PLC：—</span><span class="map-status-item" id="map-lock-readout">安全锁：未知</span></footer>
@@ -182,6 +218,7 @@
   }
 
   async function openMap(row){
+    clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
     state.mapChoices=[row,...state.mapChoices.filter(item=>String(item.id)!==String(row.id))];
     $('filters').hidden=true;$('pagination').innerHTML='';
@@ -201,6 +238,7 @@
       $('map-pose-readout').textContent=live.pose?`X ${Number(live.pose.LocalX).toFixed(3)} m · Y ${Number(live.pose.LocalY).toFixed(3)} m · 航向 ${Number(live.pose.Heading).toFixed(1)}°`:'位姿：—';
       const task=live.navigation?.status;const taskNames={idle:'无任务',sending:'等待接收',accepted:'已接收',running:'执行中',success:'已完成',cancelled:'已取消',failed:'执行失败'};
       $('map-nav-readout').textContent=`任务：${taskNames[task]||'未知'}`;
+      const taskState=$('map-task-state');if(taskState)taskState.textContent=taskNames[task]||'等待机器人反馈';
       const plc=live.vehicleStatus?.plcConnected;$('map-plc-readout').textContent=`PLC：${plc===true?'在线':plc===false?'离线':'未知'}`;
       $('map-lock-readout').textContent=`软件停止锁：${live.inhibited===true?'已锁定':live.inhibited===false&&connected?'已解除':'未知'}`;
     };
@@ -233,7 +271,8 @@
         state.map.setTool('select');document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
       });
     });
-    renderMapLists();
+    renderMapLists();renderMapRobot();renderMapTasks();refreshMapTasks();
+    state.mapTaskTimer=setInterval(refreshMapTasks,5000);
     $('map-point-search').oninput=renderMapLists;
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
     $('map-path-list').onclick=event=>{const item=event.target.closest('[data-map-select-path]');if(item)state.map?.selectObject('paths',Number(item.dataset.mapSelectPath));};
@@ -258,7 +297,7 @@
     state.dirty=JSON.stringify(draft)!==JSON.stringify(state.map.document);
     $('map-save-state').textContent=`草稿 r${result.revision} 已保存`;$('map-revision-state').textContent=`草稿 r${result.revision} · 已发布 v${result.published_version||0}`;
   }
-  function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;if(document.fullscreenElement===$('map-editor'))document.exitFullscreen().catch(()=>{});clearTimeout(state.saveTimer);clearInterval(state.lockTimer);state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
+  function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;if(document.fullscreenElement===$('map-editor'))document.exitFullscreen().catch(()=>{});clearTimeout(state.saveTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
   async function loadMapImage(){
     const blob=await api.download(`/api/maps/${state.mapRow.id}/image/${state.map.document.image}`);
     const url=URL.createObjectURL(blob),image=new Image();
@@ -393,6 +432,11 @@
     if(name==='task-detail')return dialog('任务时间轴',`<p>${escape(row.name)} · ${badge(row.status)}</p>${row.timeline.map(t=>`<p>${stamp(t.at)} · ${badge(t.status)} ${escape(t.note)}</p>`).join('')}<p>${escape(row.failure)}</p>`,null);
     if(name==='cancel-task')return confirmation('取消排队任务',row.name,'仅取消尚未开始的任务。',async v=>{if(v!==row.name)throw new Error('任务名不一致');await api.post(`/api/task-history/${id}/cancel`);});
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
+    if(name==='map-open-navigation'){window.top.postMessage({type:'orange-toggle-navigation'},location.origin);return;}
+    if(name==='map-task-create')return taskForm();
+    if(name==='map-task-detail'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('任务记录已更新，请刷新后重试');return dialog('任务时间轴',`<p><strong>${escape(task.name)}</strong> · ${badge(task.status)}</p><p>${escape(task.from_point)} → ${escape(task.to_point)} · 机器人 ${escape(task.robot_id||'等待分配')}</p>${(task.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${badge(item.status)} ${escape(item.note)}</p>`).join('')||'<p class="help">暂无设备回执</p>'}<p>${escape(task.failure||'')}</p>`,null);}
+    if(name==='map-task-cancel'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task||task.status!=='queued')throw new Error('该任务已不在排队状态');return confirmation('取消排队任务',task.name,'仅取消尚未开始的任务。',async value=>{if(value!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${id}/cancel`);await refreshMapTasks();});}
+    if(name==='map-task-stop'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('没有可停止的任务记录');return confirmation('停止任务并锁定',task.name,'会向设备发送停止请求并保持软件停止锁。设备回执到达前仍显示执行中；这不代替物理急停。',async value=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:value});notify(result.stop_status==='pending'?'停止请求已发送，等待设备回执。':'任务已在设备领取前撤销。');await refreshMapTasks();});}
     if(name==='export-logs'){const params=filterParams();params.level=params.state;saveBlob(await api.download('/api/logs/export',params),'运行日志.csv');return;}
     if(name==='add-map')return newMapForm();
     if(name==='open-selected-map'){
@@ -401,8 +445,8 @@
     }
     if(name==='edit-map')return openMap(row);
     if(name==='leave-map'){if(leaveMap())return load();return;}
-    if(name==='workbench-build'||name==='workbench-point'||name==='workbench-binding'||name==='workbench-locate'){
-      const tab=name==='workbench-build'?'build':name==='workbench-point'?'point':name==='workbench-binding'?'binding':'locate';
+    if(name==='workbench-build'||name==='workbench-point'||name==='workbench-grid'||name==='workbench-binding'||name==='workbench-locate'){
+      const tab=name==='workbench-build'?'build':name==='workbench-point'?'point':name==='workbench-grid'?'grid':name==='workbench-binding'?'binding':'locate';
       window.parent.postMessage({type:'workbench-open-drawer',tab,asset:state.mapRow?.draft?.asset_id||state.preferredAssetKey},location.origin);return;
     }
     if(name.startsWith('tool-')){
@@ -465,6 +509,7 @@
       $('nav').innerHTML=modules.filter(m=>can(m[2])).map(m=>`<button class="rail-item" type="button" data-tab="${m[0]}"><span class="rail-icon">${navIcon(m[3])}</span><span class="rail-item-label">${escape(m[1])}</span><span class="rail-item-mark" aria-hidden="true"></span></button>`).join('');
       state.monitor=new window.OperationsMonitor(api,data=>{
         state.robots=data.robots||[];
+        renderMapRobot();
         if(['robots','battery'].includes(state.tab))for(const robot of state.robots){
           const batteryNode=document.querySelector(`[data-battery="${robot.id}"]`);
           if(batteryNode)batteryNode.parentElement.innerHTML=battery(robot);
@@ -499,7 +544,7 @@
   document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=false;}});
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();
   $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notify(e.message,true));};
-  $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
+  $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
   $('dialog-close').onclick=$('dialog-cancel').onclick=()=>$('dialog').close();
   document.addEventListener('visibilitychange',()=>{if(document.hidden)state.monitor?.stop();else{if(can('monitor:view'))state.monitor?.start();if(!state.map)load();}});
   window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue='';}});

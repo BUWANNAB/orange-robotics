@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id), api=window.OpsAPI, base='/api/map-workb
 const tabs=['build','point','grid','route','locate'];
 const query=new URLSearchParams(location.search),drawerMode=query.get('drawer')==='1';
 const requestedTab=location.hash.slice(1),requestedPanel=query.get('panel');
-const initialTab=drawerMode&&tabs.includes(requestedPanel)?requestedPanel:tabs.includes(requestedTab)?requestedTab:requestedTab==='maps'?'route':'build';
+const initialTab=drawerMode&&tabs.includes(requestedPanel)?requestedPanel:tabs.includes(requestedTab)?requestedTab:'route';
 let pointAsset=null, selectedAsset='', assets=[], tab='', viewer, viewerModule, generation=0, busy=false, mapping, workflowReturnFocus=null,brushDiameter=.4;
 let drawerVisible=true,liveGridMeta=null,liveGridImage=null,liveGridSequence=-1,liveGridRequest=0;
 if(drawerMode)document.body.classList.add('drawer-mode');
@@ -17,12 +17,12 @@ function confirmCriticalAction(title,message){
 }
 function current(){return assets.find(row=>row.id===$('asset').value);}
 function openWorkflowDrawer(next,requestedAsset=''){
-  if(!['binding','locate','build','point'].includes(next))return;
+  if(!['binding','locate','build','point','grid'].includes(next))return;
   const drawer=$('workflow-drawer'),frame=$('workflow-frame'),asset=requestedAsset||$('asset').value;
   workflowReturnFocus=document.activeElement;
-  const titles={binding:'地图绑定',locate:'重新定位',build:'实时建图',point:'裁切与坐标原点'};
+  const titles={binding:'地图绑定',locate:'重新定位',build:'实时建图',point:'裁切与坐标原点',grid:'二维地图编辑'};
   $('workflow-title').textContent=titles[next];
-  const src=['build','point'].includes(next)
+  const src=['build','point','grid'].includes(next)
     ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=20261024-latest-map-home-1`
     :`${next==='binding'?'map-bindings.html':'localization.html'}?embedded=1${asset?'&asset='+encodeURIComponent(asset):''}`;
   frame.onload=()=>frame.contentWindow?.postMessage({type:'workbench-drawer-visibility',visible:!drawer.hidden},location.origin);

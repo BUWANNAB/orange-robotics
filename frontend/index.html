@@ -7,7 +7,7 @@
 	<link rel="icon" href="/src/assets/logo/favicon.svg" type="image/svg+xml" />
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1, viewport-fit=cover" />
-	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=map-first-drawer-20261024" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=map-first-console-20261024-1" />
 	<link rel="stylesheet" type="text/css" href="/src/modules/operations/confirm-lock.css?v=20261024-critical-action-lock-1" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
@@ -141,7 +141,7 @@
 				aria-orientation="vertical" aria-valuemin="180" aria-valuemax="360" aria-valuenow="240"
 				aria-label="拖拽调整导航栏与地图比例，双击恢复默认" title="拖拽调整导航栏与地图比例 · 双击恢复默认"></div>
 			<div class="nav-top">
-				<button type="button" class="btn btn-light btn-sm hiddenBtn" aria-controls="mainNavigation"
+				<button id="mapNavToggle" type="button" class="btn btn-light btn-sm hiddenBtn" aria-controls="mainNavigation"
 					:aria-expanded="navLeftFlag ? 'true' : 'false'" :aria-label="navLeftFlag ? '收起功能导航' : '打开功能导航'"
 					style="margin-left: 12px; border: 1px solid #e2e8f0; background: #f8fafc;" @click="isShowLeft">
 					<i class="bx bx-menu" style="font-size: 24px; color: #334155;"></i>
@@ -1766,6 +1766,25 @@
 	
 	</script>
 <script src="src/modules/operations/legacy-localization-status.js"></script>
+<script>
+	(function () {
+		const app = document.getElementById('app');
+		const frame = document.querySelector('.content-page iframe');
+		const syncMapChrome = () => {
+			try {
+				const url = new URL(frame.contentWindow.location.href);
+				app.classList.toggle('map-home', url.pathname.endsWith('/map-workbench.html'));
+			} catch (_) {}
+		};
+		frame?.addEventListener('load', syncMapChrome);
+		syncMapChrome();
+		window.addEventListener('message', event => {
+			if (event.origin === location.origin && event.data?.type === 'orange-toggle-navigation') {
+				document.getElementById('mapNavToggle')?.click();
+			}
+		});
+	})();
+</script>
 </body>
 
 </html>
