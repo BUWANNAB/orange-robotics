@@ -18,6 +18,8 @@
 
 二维白色画笔标记栅格可通行区，不会删除 PCD 中的点。三维框选删除在点云步骤完成：删除选定 XY 矩形内、保留高度区间中的点，可累计多个区域；绿色保留框最多一个。半径去噪使用 PCL `RadiusOutlierRemoval`。输出 PCD 为 XYZ + intensity，其他自定义字段不保留。点云投影中无点的位置为 205（未知），障碍为 0，不根据缺少点推断可通行空间。
 
+点云步骤提供可调直径的橡皮擦：在俯视点云上按住鼠标左键涂抹，按 XY 轨迹擦除半径范围内的点；每笔保留画笔半径与源坐标轨迹，可撤销上一笔或清空选区。建议擦除托盘、移动料车和人员等动态物体，并保留墙体、产线和货架等固定定位特征。橡皮擦与高度过滤、保留范围和自动半径离群点滤波按顺序共同作用，处理结果另存为新点云，不修改源地图；任务结果会报告橡皮擦与自动滤波各自移除的点数。为避免误擦，工具启用时固定为俯视操作，画面中的红色半透明区域表示将删除的范围。
+
 建图过程中，LIO-SAM 配准点云会生成实时二维占用预览：只把实际观测到的障碍端点标为占用，未观测区域保持未知；这是采集预览，不是最终导航 PGM，也不会把无回波区域推断为可通行。停止/保存点云后，仍需通过地图处理生成正式 PGM/YAML。处理必须另存新名称，生成新 PCD、PGM、YAML；原文件不覆盖。二维另存保存当前编辑结果，仅创建栅格资产，不复制定位点云。覆盖栅格要求加载时的 `revision`，冲突返回 409，旧文件对保存在对应地图的 `.history` 中。页面保存前重新生成当前结果，避免保存旧预览。
 
 ## 统一接口
@@ -31,14 +33,14 @@
 | GET `/live-grid`、`GET /live-grid.png` | 实时占用预览状态、坐标元信息和最近一帧栅格图；断流时保留最后一帧并标记状态 |
 | POST `/route-map` | `{asset_id}`；从已有 PGM/YAML 自动创建或复用路线地图并保留已有站点、路线 |
 | POST `/grid` | multipart：asset_id、pgm、metadata、revision；另存加 create_only=true |
-| POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase；可选 `origin:{x,y,yaw}`，其中 yaw 为源坐标系中的弧度 |
+| POST `/process` | source、output、z_min、z_max、resolution、denoise、radius、neighbors、crop、erase、erase_brush；可选 `origin:{x,y,yaw}`，其中 yaw 为源坐标系中的弧度 |
 | GET `/jobs/{id}` | queued / running / success / failed，message 与 result |
 | GET `/mapping` | ROS 桥接、近 2 秒雷达点云、建图控制器订阅、定位与运动控制服务状态、建图状态 |
 | POST `/mapping/start` | `{manual_push_confirmed:true}`；要求定位与运动控制服务确认停止、实时雷达点云、建图控制器订阅和现场手动/自由轮确认，启动建图并等到点云就绪 |
 | POST `/mapping/save` | `{name}`，64 字符内字母数字横线下划线；保存并结束采集 |
 | POST `/mapping/stop` | 停止采集、恢复雷达，保持定位与运动控制停止锁定 |
 
-`crop` 为可选的 `{x_min,x_max,y_min,y_max}`，`erase` 为同结构数组，最多 100 个。异步任务持久化到 `RCS_DATA_DIR/map-jobs`；刷新页面继续查询最后任务。退出码不为零、超时或服务中断均失败，不以定时器推断成功。错误日志在任务目录的 `processor.log`。
+`crop` 为可选的 `{x_min,x_max,y_min,y_max}`，`erase` 为同结构数组，最多 100 个。`erase_brush` 为最多 100 笔的橡皮擦轨迹，每笔为 `{radius,points:[{x,y},...]}`；半径单位为米，坐标使用源地图 XY，单笔最多 4096 个点、总轨迹点不超过 20000。处理器使用 XY 邻域查询擦除笔刷覆盖区域内的三维点，避免重复扫描整张点云。异步任务持久化到 `RCS_DATA_DIR/map-jobs`；刷新页面继续查询最后任务。退出码不为零、超时或服务中断均失败，不以定时器推断成功。错误日志在任务目录的 `processor.log`。
 
 定位应用沿用 `/api/localization` 的真实 ROS 握手和 WebSocket。目录返回 `asset_id` 对齐工作台；存在已发布映射时使用该版本，否则读取同 ID 的 PGM 和 YAML（支持 origin yaw）。从主画布拖拽重新定位会在地图坐标系中设置机器人初始 X/Y/航向，并继续经过真实 ROS 地图加载、停车检查和停止锁定流程。尚未确认实际加载该地图时只显示底图预览，隐藏车辆叠加，避免把位置画在错误地图上。实时数值仍持续更新。
 

@@ -83,6 +83,18 @@ class CoordinateOrigin(BaseModel):
     yaw:float=Field(ge=-3.141592654,le=3.141592654)
 
 
+class BrushPoint(BaseModel):
+    model_config=ConfigDict(allow_inf_nan=False,extra='forbid')
+    x:float=Field(ge=-1000000,le=1000000)
+    y:float=Field(ge=-1000000,le=1000000)
+
+
+class EraseBrushStroke(BaseModel):
+    model_config=ConfigDict(allow_inf_nan=False,extra='forbid')
+    radius:float=Field(gt=0,le=5,description='橡皮擦半径，单位米')
+    points:list[BrushPoint]=Field(min_length=1,max_length=4096)
+
+
 class Process(BaseModel):
     model_config=ConfigDict(allow_inf_nan=False,extra='forbid')
     source:str
@@ -95,12 +107,15 @@ class Process(BaseModel):
     neighbors:int=Field(default=3,ge=1,le=128)
     crop:Box|None=None
     erase:list[Box]=Field(default_factory=list,max_length=100)
+    erase_brush:list[EraseBrushStroke]=Field(default_factory=list,max_length=100)
     origin:CoordinateOrigin|None=None
     @model_validator(mode='after')
     def valid(self):
         assets.identity(self.source);assets.identity(self.output)
         if self.source==self.output:raise ValueError('处理结果必须保存为新地图')
         if self.z_min>=self.z_max:raise ValueError('高度下限必须小于上限')
+        if sum(len(stroke.points) for stroke in self.erase_brush)>20000:
+            raise ValueError('橡皮擦笔画点数过多，请分批擦除后再处理')
         return self
 
 

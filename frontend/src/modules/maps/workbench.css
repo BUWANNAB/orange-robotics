@@ -70,6 +70,12 @@ body.drawer-mode .map-create-controls{top:0;max-height:none}
 .selection-tools button:hover,.selection-tools button.active{border-color:var(--orange);background:#fff1e6;color:#b84a08}
 .selection-tools #clear-boxes{grid-column:1/-1;background:#f5f7f8}
 .selection-summary{display:block;padding:9px 10px;border-left:3px solid #718da0;border-radius:4px;background:#eef3f6;color:#3d5669;font:11px/1.6 Consolas,"Microsoft YaHei",sans-serif;overflow-wrap:anywhere}
+.brush-size-control{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid #e2e8ed;border-radius:6px;background:#f8fafb;color:#40576a;font-size:11px}
+.brush-size-stepper{display:flex;align-items:center;gap:6px}
+.brush-size-stepper button{width:29px;height:27px;padding:0;border-color:#cbd7df;background:#fff;color:#365267;font-size:17px;line-height:1}
+.brush-size-stepper output{min-width:48px;text-align:center;color:#b84a08;font-weight:700;font-variant-numeric:tabular-nums}
+.brush-size-stepper button:disabled{opacity:.45;cursor:not-allowed}
+.selection-tools #undo-erase:disabled{background:#f4f6f8;color:#95a1aa;box-shadow:none}
 .map-create-controls .two{gap:8px}
 .map-create-controls label{font-size:11px}
 .map-create-controls input{padding:8px;font-size:12px}

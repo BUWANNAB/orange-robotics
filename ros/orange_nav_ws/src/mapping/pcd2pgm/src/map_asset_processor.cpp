@@ -2,6 +2,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/common/common.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/kdtree/kdtree_flann.h>
 #include <Eigen/Geometry>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -10,6 +11,11 @@
 #include <cmath>
 #include <vector>
 #include <stdexcept>
+
+struct EraseBrushStroke {
+  double radius{};
+  std::vector<pcl::PointXY> points;
+};
 
 int main(int argc, char **argv) {
   try {
@@ -25,6 +31,27 @@ int main(int argc, char **argv) {
     const double low=job.get<double>("z_min"), high=job.get<double>("z_max");
     const double resolution=job.get<double>("resolution"), radius=job.get<double>("radius");
     const int neighbors=job.get<int>("neighbors");
+    const auto brush_data=job.get_child_optional("erase_brush");
+    std::vector<EraseBrushStroke> brush_strokes;
+    size_t brush_point_count=0;
+    if (brush_data) for (const auto &entry : *brush_data) {
+      EraseBrushStroke stroke;
+      stroke.radius=entry.second.get<double>("radius");
+      const auto path=entry.second.get_child_optional("points");
+      if (!path || path->empty() || !std::isfinite(stroke.radius) || stroke.radius<=0 || stroke.radius>5)
+        throw std::runtime_error("Invalid point-cloud eraser stroke");
+      for (const auto &point_entry : *path) {
+        pcl::PointXY point;
+        point.x=point_entry.second.get<float>("x");
+        point.y=point_entry.second.get<float>("y");
+        if (!std::isfinite(point.x)||!std::isfinite(point.y)||std::abs(point.x)>1000000||std::abs(point.y)>1000000)
+          throw std::runtime_error("Point-cloud eraser coordinates must be finite and within +/- 1000000 m");
+        stroke.points.push_back(point);
+        if (++brush_point_count>20000) throw std::runtime_error("Too many point-cloud eraser path points");
+      }
+      brush_strokes.push_back(std::move(stroke));
+      if (brush_strokes.size()>100) throw std::runtime_error("Too many point-cloud eraser strokes");
+    }
     const auto coordinate_origin=job.get_child_optional("origin");
     double origin_x=0.0,origin_y=0.0,origin_yaw=0.0;
     if (coordinate_origin) {
@@ -52,11 +79,61 @@ int main(int argc, char **argv) {
       if (!erased) clipped->push_back(p);
     }
     if (clipped->empty()) throw std::runtime_error("Crop/erase removed every point");
+    Cloud::Ptr manually_filtered(new Cloud());
+    size_t manually_erased=0;
+    if (!brush_strokes.empty()) {
+      using XYCloud=pcl::PointCloud<pcl::PointXY>;
+      XYCloud::Ptr xy(new XYCloud());
+      xy->reserve(clipped->size());
+      for (const auto &p : clipped->points) {
+        pcl::PointXY point;point.x=p.x;point.y=p.y;xy->push_back(point);
+      }
+      pcl::KdTreeFLANN<pcl::PointXY> tree;tree.setInputCloud(xy);
+      std::vector<unsigned char> erased(clipped->size(),0);
+      std::vector<int> indices;std::vector<float> squared_distances;
+      size_t query_count=0;
+      const size_t max_query_count=100000;
+      for (const auto &stroke : brush_strokes) {
+        const double spacing=std::max(0.02,std::min(0.1,stroke.radius*0.25));
+        auto erase_circle=[&](double x,double y,double support_radius) {
+          if (++query_count>max_query_count)
+            throw std::runtime_error("橡皮擦路径过长，请分段擦除或调大橡皮尺寸");
+          pcl::PointXY query;query.x=static_cast<float>(x);query.y=static_cast<float>(y);
+          indices.clear();squared_distances.clear();
+          if (tree.radiusSearch(query,support_radius,indices,squared_distances)>0)
+            for (const int index : indices) if (index>=0) erased[static_cast<size_t>(index)]=1;
+        };
+        if (stroke.points.size()==1) {
+          erase_circle(stroke.points.front().x,stroke.points.front().y,stroke.radius);
+          continue;
+        }
+        for (size_t i=1;i<stroke.points.size();++i) {
+          const auto &a=stroke.points[i-1];const auto &b=stroke.points[i];
+          const double dx=static_cast<double>(b.x)-a.x,dy=static_cast<double>(b.y)-a.y;
+          const double length=std::hypot(dx,dy);
+          const size_t steps=std::max<size_t>(1,static_cast<size_t>(std::ceil(length/spacing)));
+          if (steps>max_query_count-query_count)
+            throw std::runtime_error("橡皮擦路径过长，请分段擦除或调大橡皮尺寸");
+          const double support_radius=std::sqrt(stroke.radius*stroke.radius+spacing*spacing*0.25);
+          for (size_t step=0;step<=steps;++step) {
+            if (i>1&&step==0) continue;
+            const double t=static_cast<double>(step)/steps;
+            erase_circle(a.x+dx*t,a.y+dy*t,support_radius);
+          }
+        }
+      }
+      manually_filtered->reserve(clipped->size());
+      for (size_t i=0;i<clipped->size();++i) {
+        if (erased[i]) ++manually_erased;
+        else manually_filtered->push_back(clipped->points[i]);
+      }
+    } else *manually_filtered=*clipped;
+    if (manually_filtered->empty()) throw std::runtime_error("橡皮擦删除了全部点，请撤销部分笔画或缩小橡皮尺寸");
     if (job.get<bool>("denoise")) {
       pcl::RadiusOutlierRemoval<Point> filter;
-      filter.setInputCloud(clipped);filter.setRadiusSearch(radius);filter.setMinNeighborsInRadius(neighbors);
+      filter.setInputCloud(manually_filtered);filter.setRadiusSearch(radius);filter.setMinNeighborsInRadius(neighbors);
       filter.filter(*result);
-    } else *result=*clipped;
+    } else *result=*manually_filtered;
     if (result->empty()) throw std::runtime_error("Denoising removed every point; adjust radius/neighbors");
     if (coordinate_origin) {
       // Re-express a copy of the filtered cloud in the selected origin and heading.
@@ -102,6 +179,8 @@ int main(int argc, char **argv) {
     yaml.close();if(!yaml)throw std::runtime_error("YAML write failed");
     boost::property_tree::ptree stats;
     stats.put("input_points",original->size());stats.put("after_crop",clipped->size());
+    stats.put("after_manual_erase",manually_filtered->size());stats.put("manual_erased_points",manually_erased);
+    stats.put("denoise_removed_points",manually_filtered->size()-result->size());
     stats.put("output_points",result->size());stats.put("removed_points",original->size()-result->size());
     stats.put("width",width);stats.put("height",height);stats.put("frame","map");
     stats.put("coordinate_transform",static_cast<bool>(coordinate_origin));

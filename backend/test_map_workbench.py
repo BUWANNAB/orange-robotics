@@ -122,6 +122,21 @@ class MapWorkbenchTests(unittest.TestCase):
         self.assertEqual(response.json()['code'],422)
         self.assertEqual(self.upload('../outside').status_code,409)
 
+    def test_process_accepts_manual_eraser_stroke_and_rejects_invalid_brush(self):
+        from app.api.map_workbench import Process
+        body=Process(source='source',output='clean',erase_brush=[{
+            'radius':.2,'points':[{'x':-1.25,'y':2.5},{'x':3.0,'y':2.5}]
+        }])
+        self.assertEqual(body.model_dump()['erase_brush'][0]['points'][1],{'x':3.0,'y':2.5})
+        for stroke in [
+            {'radius':0,'points':[{'x':0,'y':0}]},
+            {'radius':.2,'points':[]},
+            {'radius':.2,'points':[{'x':float('nan'),'y':0}]},
+            {'radius':.2,'points':[{'x':0,'y':0,'z':1}]},
+        ]:
+            with self.subTest(stroke=stroke),self.assertRaises(ValueError):
+                Process(source='source',output='clean',erase_brush=[stroke])
+
     def test_file_and_missing_processor(self):
         assets.write_grid('nested/map',PGM,YAML)
         response=self.client.get('/api/map-workbench/file/pgm/nested/map',headers=self.headers)
