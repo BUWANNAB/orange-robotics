@@ -10,7 +10,7 @@ from sqlalchemy import select
 import yaml
 from app.database import get_db
 from app.config import settings
-from app.models.operations import MapDocument, MapVersion, Robot, TaskRun
+from app.models.operations import MapDocument, MapVersion, Robot, TaskRun, TaskPlan, MissionRun
 from app.common.response import ok
 from app.services.operations_common import require, get_or_404, page, public, confirm, audit, device
 from app.services.map_editor import MapData, validate_map, acquire_lock, save_draft, publish, published_map
@@ -234,7 +234,9 @@ async def remove(map_id: int, confirmation: str, actor=Depends(require("map:edit
     confirm(confirmation, row.name)
     robot = await db.scalar(select(Robot.id).where(Robot.map_id == map_id, Robot.deleted == False).limit(1))
     task = await db.scalar(select(TaskRun.id).where(TaskRun.map_id == map_id, TaskRun.status.in_(["queued", "running", "dispatched"])).limit(1))
-    if robot or task: raise HTTPException(409, "地图已绑定机器人或任务，不能删除")
+    plan = await db.scalar(select(TaskPlan.id).where(TaskPlan.map_id == map_id).limit(1))
+    mission = await db.scalar(select(MissionRun.id).where(MissionRun.map_id == map_id).limit(1))
+    if robot or task or plan or mission: raise HTTPException(409, "地图已关联机器人、任务或任务链记录，不能删除")
     row.deleted = True
     audit(db, actor, "map", "删除地图 " + row.name)
     await db.commit()

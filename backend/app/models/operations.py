@@ -100,6 +100,52 @@ class TaskRun(Record, Base):
     __table_args__ = (UniqueConstraint("source", "external_id", name="uq_task_source_external"),)
 
 
+class TaskPlan(Record, Base):
+    """Reusable, map-version-independent chains of station navigation steps."""
+    __tablename__ = "rds_task_plan"
+    name = Column(String(128), nullable=False)
+    map_id = Column(Integer, nullable=False, index=True)
+    start_point = Column(String(80), nullable=False)
+    steps = Column(JSON, nullable=False, default=list)
+    repeat_count = Column(Integer, nullable=False, default=1)
+    priority = Column(Integer, nullable=False, default=5)
+    robot_id = Column(Integer, nullable=True)
+
+
+class MissionRun(Record, Base):
+    """Durable execution snapshot; child TaskRun rows retain existing device receipts."""
+    __tablename__ = "rds_mission_run"
+    plan_id = Column(Integer, nullable=False, index=True)
+    name = Column(String(128), nullable=False)
+    map_id = Column(Integer, nullable=False, index=True)
+    map_version = Column(Integer, nullable=False)
+    start_point = Column(String(80), nullable=False)
+    steps = Column(JSON, nullable=False)
+    repeat_count = Column(Integer, nullable=False)
+    priority = Column(Integer, nullable=False, default=5)
+    robot_id = Column(Integer, nullable=True, index=True)
+    task_mode = Column(String(16), nullable=False)
+    scheduled_at = Column(DateTime, nullable=True)
+    cycles_completed = Column(Integer, nullable=False, default=0)
+    step_index = Column(Integer, nullable=False, default=0)
+    active_task_id = Column(Integer, nullable=True)
+    next_at = Column(DateTime, nullable=True)
+    status = Column(String(24), nullable=False, default="queued", index=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    failure = Column(Text, nullable=False, default="")
+    timeline = Column(JSON, nullable=False, default=list)
+
+
+class MissionSettings(Base):
+    """Singleton operating mode for new task chains; this is not a vehicle mode command."""
+    __tablename__ = "rds_mission_settings"
+    id = Column(Integer, primary_key=True, default=1)
+    task_mode = Column(String(16), nullable=False, default="manual")
+    operator = Column(String(128), nullable=False, default="system")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class AuditLog(Record, Base):
     __tablename__ = "rcs_audit_log"
     level = Column(String(16), default="INFO", nullable=False, index=True)
@@ -197,4 +243,5 @@ class UpgradeDetail(Record, Base):
 TABLES = [Robot.__table__, BatterySample.__table__, Alarm.__table__, Command.__table__,
           TaskRun.__table__, AuditLog.__table__, MapDocument.__table__, MapVersion.__table__,
           IntegrationApp.__table__, Nonce.__table__, Callback.__table__, Firmware.__table__,
-          Upgrade.__table__, UpgradeDetail.__table__]
+          Upgrade.__table__, UpgradeDetail.__table__, TaskPlan.__table__, MissionRun.__table__,
+          MissionSettings.__table__]

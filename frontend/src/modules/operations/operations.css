@@ -74,6 +74,73 @@ html.embedded #content{height:100%;min-height:0;margin:0}
 .map-home-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 @media(max-width:520px){.map-home-actions{display:grid;width:100%}.map-home-actions button{width:100%}}
 
+/* RCS handbook task chain and operating modes. */
+.task-mode-switch{display:flex;align-items:center;gap:3px;flex:0 0 auto;padding:3px;border:1px solid #d5dfe8;border-radius:8px;background:#f7f9fb;white-space:nowrap}
+.task-mode-switch>span{padding:0 6px;color:#738195;font-size:10px}
+.task-mode-switch button{min-height:28px;padding:4px 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:#526276;font-size:11px;font-weight:650}
+.task-mode-switch button[aria-pressed=true]{border-color:#f3c6a7;background:#fff0e5;color:#c3520e;box-shadow:0 1px 3px #65320e12}
+.task-mode-switch button:disabled{opacity:.48;cursor:not-allowed}
+.map-mission-plans,.map-mission-runs{display:grid;gap:6px}
+.map-mission-runs{margin-top:8px;padding-top:8px;border-top:1px solid #e5eaef}
+.mission-plan-row,.mission-run-row{min-width:0;padding:8px;border:1px solid #e4e9ee;border-radius:7px;background:#fff}
+.mission-plan-row>div:first-child{display:grid;gap:3px;min-width:0}
+.mission-plan-row strong,.mission-run-row strong{overflow:hidden;color:#33475c;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.mission-plan-row small,.mission-run-row small{display:block;overflow:hidden;color:#8290a0;font-size:10px;line-height:1.5;text-overflow:ellipsis;white-space:nowrap}
+.mission-plan-actions,.mission-run-actions{display:flex;gap:5px;margin-top:6px}
+.mission-plan-actions button,.mission-run-actions button{min-height:25px;padding:3px 8px;font-size:10px}
+.mission-plan-actions button.primary{background:#ef6d1c;border-color:#ef6d1c;color:#fff}
+.mission-run-head{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.mission-run-head .badge{padding:3px 5px;font-size:9px}
+.mission-error{color:#b43d37!important}
+.mission-advance{border-color:#f1c39f;background:#fff5ec;color:#ad4a13;font-weight:700}
+.map-console-header .task-mode-switch{margin-left:auto}
+.map-console-header .map-console-status{margin-left:0}
+dialog:has(.mission-designer){width:min(1040px,96vw);max-height:92vh}
+dialog:has(.mission-designer) #dialog-body{max-height:calc(92vh - 150px);overflow:auto}
+.mission-designer>.help{margin:0 0 12px;padding:9px 11px;border-left:3px solid #e98a4a;background:#fff8f2;line-height:1.6}
+.mission-plan-fields{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px}
+.mission-plan-fields label,.mission-schedule-wrap label{display:grid;gap:5px;color:#5f6f81;font-size:11px}
+.mission-schedule-wrap{margin:0 0 12px;padding:10px;border:1px solid #e3e9ee;border-radius:7px;background:#f8fafb}
+.mission-schedule-wrap[hidden]{display:none}
+.mission-schedule-wrap input{max-width:320px}
+.mission-mode-note{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 10px;margin:0 0 14px;padding:9px 11px;border:1px solid #e2e8ed;border-radius:7px;background:#f8fafb}
+.mission-mode-note span{color:#778598;font-size:10px}
+.mission-mode-note strong{color:#334a61;font-size:11px}
+.mission-mode-note small{grid-column:2;color:#8b97a4;font-size:10px}
+.mission-execution-lock{display:grid;grid-template-columns:auto minmax(180px,320px) 1fr;align-items:center;gap:8px;margin:0 0 12px;padding:9px 11px;border:1px solid #f0ddcf;border-radius:7px;background:#fffaf6}
+.mission-execution-lock>strong{color:#99502b;font-size:11px}
+.mission-execution-lock>label{display:grid;gap:4px;color:#68798a;font-size:10px}
+.mission-execution-lock>label input{min-height:30px;padding:6px 8px;border:1px solid #dfe5ea;border-radius:6px;background:#fff;font-size:11px}
+.mission-execution-lock>small{color:#8b97a4;font-size:10px}
+.mission-chain-layout{display:grid;grid-template-columns:205px minmax(0,1fr);gap:12px;min-height:230px}
+.mission-action-palette,.mission-flow-area{min-width:0;padding:12px;border:1px solid #e1e7ec;border-radius:8px;background:#f8fafb}
+.mission-action-palette h3{margin:0 0 9px;color:#3f5267;font-size:12px}
+.mission-action-palette p{color:#7e8b99;font-size:10px;line-height:1.65}
+.mission-action-palette>button{width:100%;margin-bottom:7px;padding:8px;text-align:left;font-size:11px}
+.mission-action-palette>.mission-action-tile{border-color:#d9e4ec;background:#fff;color:#38516a;font-weight:650}
+.mission-action-palette>.mission-action-tile.disabled{color:#98a2ac;opacity:.65}
+.mission-flow-area{border-style:dashed;transition:border-color .15s,background .15s}
+.mission-flow-area:has(.drag-over),.mission-flow.drag-over{border-color:#eb792f;background:#fff8f2}
+.mission-flow-area>header{display:flex;justify-content:space-between;align-items:center;margin:0 0 9px;color:#45596e;font-size:11px}
+.mission-flow-area>header b{color:#d65d17}
+.mission-flow{display:grid;gap:7px;min-height:164px;align-content:start}
+.mission-flow-empty{display:grid;min-height:150px;place-items:center;padding:18px;border:1px dashed #cad4dd;border-radius:7px;color:#8492a0;text-align:center;font-size:11px}
+.mission-step{position:relative;padding:9px;border:1px solid #dfe6ec;border-radius:7px;background:#fff;box-shadow:0 2px 6px #25384a08;cursor:grab}
+.mission-step>header{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.mission-step>header i{display:grid;place-items:center;width:23px;height:23px;border-radius:6px;background:#fff0e5;color:#d45b12;font:700 10px/1 monospace}
+.mission-step>header strong{flex:1;color:#40546a;font-size:11px}
+.mission-step>header span{color:#8190a0;font-size:9px}
+.mission-step>header button{width:23px;height:23px;padding:0;color:#8793a1}
+.mission-step-fields{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:8px}
+.mission-step-fields label{display:grid;gap:4px;color:#788697;font-size:10px}
+.mission-step-fields select,.mission-step-fields input{width:100%;padding:7px 8px;font-size:11px}
+.mission-connector{padding:4px 0 0;color:#8492a0;text-align:center;font-size:9px}
+.mission-loop-hint{min-height:18px;margin:9px 0 5px;color:#788798;font-size:10px}
+.mission-save-only{padding:5px 8px;font-size:10px}
+@media(max-width:1300px){.map-console-header .task-mode-switch>span{display:none}.task-mode-switch button{padding-inline:7px}}
+@media(max-width:980px){.map-console-header{flex-wrap:wrap;min-height:52px;padding-block:5px}.map-editor#map-editor{grid-template-rows:auto auto minmax(0,1fr) 36px}.map-console-header .map-console-status{margin-left:auto}.mission-chain-layout{grid-template-columns:170px minmax(0,1fr)}}
+@media(max-width:760px){.map-console-header .task-mode-switch{order:4;margin-left:0}.map-console-header .map-console-status{width:auto;margin-left:auto}.mission-plan-fields{grid-template-columns:1fr 1fr}.mission-execution-lock{grid-template-columns:1fr}.mission-execution-lock>small{grid-column:1}.mission-chain-layout{grid-template-columns:1fr}.mission-action-palette{display:grid;grid-template-columns:1fr 1fr;gap:6px}.mission-action-palette h3,.mission-action-palette p{grid-column:1/-1}.mission-action-palette>button{margin:0}.mission-step-fields{grid-template-columns:minmax(0,1fr) 120px}}
+
 
 /* Manual-style map and task console additions. */
 .map-menu-button{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;border:1px solid var(--console-line);border-radius:7px;background:#fff;color:#42556a;font-size:18px;cursor:pointer}

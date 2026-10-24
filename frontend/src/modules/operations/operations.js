@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   const api = window.OpsAPI, $ = id => document.getElementById(id);
+  const newId = () => globalThis.crypto?.randomUUID?.() || `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const labels = {idle:'空闲',busy:'任务中',charging:'充电中',offline:'离线',disabled:'停用',maintenance:'维护',emergency:'急停',locked:'锁定',open:'未确认',acknowledged:'已确认',closed:'已关闭',queued:'排队',dispatched:'已下发',running:'执行中',stop_requested:'请求停止',success:'成功',failed:'失败',cancelled:'已取消',timeout:'超时',pending:'待执行',paused:'已暂停',completed:'已完成',partial_failed:'部分失败',uploading:'上传中',review:'待审核',released:'已发布',waiting:'等待',skipped:'跳过',retry:'等待重试',dead:'重试耗尽',sending:'发送中',rolled_back:'已回滚',rolling_back:'回滚中',downloading:'下载中',verifying:'校验中',flashing:'刷写中',rebooting:'重启中',critical:'严重',warning:'警告',info:'提示'};
   const modules = [
@@ -21,7 +22,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, mapMissionPlans:[], mapMissionRuns:[], taskMode:'manual', permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -148,6 +149,155 @@
     try{const data=await api.get('/api/task-history',{pageNo:1,pageSize:6});state.mapTasks=data.list||[];state.mapTaskTotal=Number(data.total)||0;renderMapTasks();}
     catch(error){const list=$('map-task-list');if(list)list.innerHTML=`<p class="map-list-empty">任务状态暂不可用：${escape(error.message)}</p>`;}
   }
+  function taskModeMarkup(){
+    const options=[['auto','自动'],['manual','手动'],['schedule','调度']];
+    return `<div class="task-mode-switch" role="group" aria-label="任务链执行方式"><span>任务模式</span>${options.map(([mode,label])=>`<button type="button" data-action="task-mode-set" data-id="${mode}" aria-pressed="${state.taskMode===mode}" ${!can('robot:control')?'disabled':''}>${label}</button>`).join('')}</div>`;
+  }
+  async function changeTaskMode(mode){
+    const labels={auto:'自动',manual:'手动',schedule:'调度'};
+    if(!labels[mode])throw new Error('不支持的任务模式');
+    return confirmation('切换任务模式','切换到'+labels[mode],'此设置仅决定新任务链是自动连续、手动逐步还是按时间调度；不会替机器人切换实体驾驶模式。正在执行的任务链继续使用创建时的方式。',async confirmation=>{
+      await api.post('/api/task-mode',{mode,confirmation});state.taskMode=mode;const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();notify(`新任务链将使用「${labels[mode]}」方式。`);
+    },'确认切换');
+  }
+  function missionStateLabel(run){
+    if(run.status==='waiting_manual')return '等待人工下一步';
+    if(run.status==='queued'&&run.task_mode==='schedule')return '等待调度';
+    return labels[run.status]||run.status;
+  }
+  function renderMapMissions(){
+    const plans=$('map-mission-plans'),runs=$('map-mission-runs');if(!plans||!runs)return;
+    if(!can('task:view')){plans.innerHTML=runs.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';return;}
+    plans.innerHTML=state.mapMissionPlans.map(plan=>{
+      const stops=[plan.start_point,...(plan.steps||[]).map(step=>step.point)].join(' → ');
+      const repeat=plan.repeat_count===-1?'∞':plan.repeat_count;
+      return `<article class="mission-plan-row"><div><strong>${escape(plan.name)}</strong><small>${escape(stops)}</small><small>${plan.steps?.length||0} 步 · 重复 ${repeat} 次</small></div><div class="mission-plan-actions">${button('编辑','mission-edit',plan.id,'task:edit')}${button('执行','mission-start-plan',plan.id,'robot:control','primary')}${button('删除','mission-delete-plan',plan.id,'task:edit','danger')}</div></article>`;
+    }).join('')||'<p class="map-list-empty">先添加站点并发布地图，再创建可重复使用的任务链。</p>';
+    runs.innerHTML=state.mapMissionRuns.map(run=>{
+      const total=run.repeat_count===-1?'∞':run.repeat_count;
+      const stepTotal=run.steps?.length||0;
+      const progress=`${run.cycles_completed||0}/${total} 轮 · ${Math.min((run.step_index||0)+1,stepTotal)}/${stepTotal} 步`;
+      const next=run.steps?.[run.step_index]?.point||run.start_point;
+      const waitSeconds=run.next_at?Math.max(0,Math.ceil((new Date(/[zZ]|[+-]\d\d:\d\d$/.test(run.next_at)?run.next_at:run.next_at+'Z')-Date.now())/1000)):0;
+      const terminalTasks=['success','failed','cancelled','timeout'],activeTask=run.active_task&&!terminalTasks.includes(run.active_task.status)?run.active_task:null;
+      const activeActions=activeTask?.status==='stop_requested'?'<button type="button" disabled>等待停车确认</button>':activeTask&&can('task:edit')&&can('robot:control')?button(activeTask.status==='queued'?'撤销当前步骤':'停止并锁定','mission-stop-step',run.id,'robot:control','danger'):'';
+      const actions=run.status==='waiting_manual'&&waitSeconds===0&&can('robot:control')?button('下发下一步','mission-advance',run.id,'robot:control','mission-advance'):
+        activeTask?activeActions:
+        ['queued','waiting_manual'].includes(run.status)||run.status==='running'&&!run.active_task_id?button('取消','mission-cancel',run.id,'robot:control','danger'):'';
+      const statusMarkup=`<span class="badge ${['failed','timeout'].includes(run.status)?'bad':['success','cancelled'].includes(run.status)?'good':'warn'}">${escape(missionStateLabel(run))}</span>`;
+      return `<article class="mission-run-row"><div class="mission-run-head"><strong>${escape(run.name)}</strong>${statusMarkup}</div><small>${escape(progress)} · ${run.task_mode==='schedule'?'定时':run.task_mode==='manual'?'手动逐步':'自动连续'}</small>${run.active_task?`<small>设备步骤：${escape(run.active_task.from_point)} → ${escape(run.active_task.to_point)} · ${escape(labels[run.active_task.status]||run.active_task.status)}</small>`:''}${run.status==='waiting_manual'?`<small>下一站：${escape(next)}${waitSeconds?` · 等待 ${waitSeconds} 秒` : ''}</small>`:''}${run.scheduled_at&&run.status==='queued'?`<small>计划时间：${stamp(run.scheduled_at)}</small>`:''}${run.failure?`<small class="mission-error">${escape(run.failure)}</small>`:''}<div class="mission-run-actions">${actions}${button('时间轴','mission-run-detail',run.id,'task:view')}</div></article>`;
+    }).join('')||'<p class="map-list-empty">暂无任务链执行记录</p>';
+  }
+  async function refreshMapMissions(){
+    if(!state.map||!can('task:view'))return;
+    try{
+      const [plans,runs,mode]=await Promise.all([
+        api.get('/api/task-plans',{map_id:state.mapRow.id}),
+        api.get('/api/mission-runs',{map_id:state.mapRow.id,page_size:8}),
+        api.get('/api/task-mode')
+      ]);
+      state.mapMissionPlans=plans||[];state.mapMissionRuns=runs||[];state.taskMode=mode.mode||'manual';
+      renderMapMissions();const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();
+    }catch(error){const panel=$('map-mission-plans');if(panel)panel.innerHTML=`<p class="map-list-empty">任务链状态暂不可用：${escape(error.message)}</p>`;}
+  }
+  async function missionDesigner(existing=null){
+    const map=state.mapRow;
+    if(!map?.published_version)throw new Error('请先保存、校验并发布这张地图，再创建任务链');
+    const versions=await api.get(`/api/maps/${map.id}/versions`);
+    const document=versions.find(version=>Number(version.version)===Number(map.published_version))?.document;
+    if(!document)throw new Error('没有找到当前已发布的地图版本，请刷新后重试');
+    const points=document.points||[],codes=new Set(points.map(point=>point.code));
+    if(points.length<2)throw new Error('已发布地图至少需要两个站点');
+    const pointLabel=code=>{const point=points.find(item=>item.code===code);return point?`${point.code} · ${point.name||'未命名站点'}`:code;};
+    const outgoing=code=>[...new Set(document.paths.flatMap(path=>path.start===code?[path.end]:path.bidirectional&&path.end===code?[path.start]:[]))].filter(next=>codes.has(next));
+    let nodes=existing?.steps?.map(step=>({...step}))||[];
+    const initial=existing?.start_point||points[0].code;
+    const pointOptions=points.map(point=>[point.code,pointLabel(point.code)]);
+    const robotOptions=[['','自动分配'],...state.robots.map(robot=>[robot.id,`${robot.code} · ${labels[robot.status]||robot.status}${robot.online?' · 在线':' · 离线'}`])];
+    const priorityOptions=Array.from({length:9},(_,index)=>[index+1,String(index+1)]);
+    const flowHtml=()=>{
+      if(!nodes.length)return '<div class="mission-flow-empty">把“移动到站点”拖到这里，或点动作卡添加第一步。</div>';
+      let previous=$('mission-start-point')?.value||initial;
+      return nodes.map((node,index)=>{
+        const choices=outgoing(previous);if(!choices.includes(node.point))node.point=choices[0]||'';
+        const selected=choices.includes(node.point)?node.point:'';
+        const html=`<article class="mission-step" draggable="true" data-node-index="${index}"><header><i>${String(index+1).padStart(2,'0')}</i><strong>移动到站点</strong><span>顺序连接</span><button type="button" data-node-remove="${index}" aria-label="删除第 ${index+1} 步">×</button></header><div class="mission-step-fields"><label>目标站点<select data-node-point="${index}" ${choices.length?'':'disabled'}>${choices.map(code=>`<option value="${escape(code)}" ${code===selected?'selected':''}>${escape(pointLabel(code))}</option>`).join('')}</select></label><label>到站等待（秒）<input data-node-delay="${index}" type="number" min="0" max="3600" step="1" value="${Number(node.delay_seconds)||0}"></label></div>${index<nodes.length-1?'<div class="mission-connector">↓ 自动连接到下一步</div>':''}</article>`;
+        previous=selected;
+        return html;
+      }).join('');
+    };
+    const modeLabels={manual:'手动 · 每一步由操作员确认',auto:'自动 · 按顺序连续执行',schedule:'调度 · 到设定时间开始'};
+    dialog(existing?'编辑任务链':'创建任务链',`<div class="mission-designer">
+      <p class="help">任务链只包含可验证的站点导航动作。叉取和货叉升降等设备动作保留到真实协议接入后再添加。</p>
+      <div class="form-grid mission-plan-fields">${field('name','任务链名称',existing?.name||'','text','required maxlength="128"')}${selectField('robot_id','执行机器人',robotOptions,existing?.robot_id||'')}${selectField('start_point','起始站点',pointOptions,initial)}${field('repeat_count','重复次数',existing?.repeat_count===-1?1:existing?.repeat_count??1,'number','min="1" max="1000" step="1" required')}<label class="check mission-repeat-toggle"><input id="mission-repeat-infinite" type="checkbox" ${existing?.repeat_count===-1?'checked':''}>无限循环</label>${selectField('priority','任务优先级',priorityOptions,String(existing?.priority??5))}</div>
+      <div id="mission-schedule-wrap" class="mission-schedule-wrap" ${state.taskMode==='schedule'?'':'hidden'}><label>计划执行时间<input id="mission-scheduled-at" name="scheduled_at" type="datetime-local" ${state.taskMode==='schedule'?'required':''}></label></div>
+      <div class="mission-mode-note"><span>当前任务模式</span><strong>${modeLabels[state.taskMode]||modeLabels.manual}</strong><small>在地图顶部切换；仅影响新建任务链。</small></div>
+      <div class="mission-execution-lock"><strong>执行确认</strong><label>输入任务链名称<input name="execute_confirmation" type="text" autocomplete="off" placeholder="仅保存模板时无需填写"></label><small>保存并执行前核对名称；单击“只保存任务链”不需要确认。</small></div>
+      <div class="mission-chain-layout"><section class="mission-action-palette"><h3>动作</h3><button type="button" class="mission-action-tile" draggable="true" id="mission-add-action">↗ 移动到站点</button><button type="button" class="mission-action-tile disabled" disabled title="货叉功能暂不加入">⇧ 叉取 / 升降（待后续接入）</button><p>拖动动作卡到右侧任务链，按路线顺序自动连接。每一步只能选择地图上有连通路线的站点。</p><button type="button" id="mission-add-step">＋ 添加移动动作</button></section><section class="mission-flow-area"><header><strong>任务链</strong><span>起点 <b id="mission-start-label">${escape(pointLabel(initial))}</b></span></header><div id="mission-flow" class="mission-flow" aria-label="按顺序连接的导航动作"></div></section></div>
+      <p id="mission-loop-hint" class="mission-loop-hint" aria-live="polite"></p>
+      <button type="button" id="mission-save-only" class="mission-save-only">只保存任务链</button>
+    </div>`,async form=>{
+      const serialized=Array.from(document.querySelectorAll('#mission-flow [data-node-index]')).map((element,index)=>({node_id:nodes[index]?.node_id||newId(),action:'navigate',point:element.querySelector(`[data-node-point="${index}"]`)?.value||'',delay_seconds:Number(element.querySelector(`[data-node-delay="${index}"]`)?.value||0)}));
+      if(!serialized.length)throw new Error('请至少添加一个移动到站点动作');
+      if(serialized.some(step=>!step.point))throw new Error('有步骤没有可达的目标站点，请检查路线是否连通');
+      const repeatCount=$('mission-repeat-infinite').checked?-1:Number(form.get('repeat_count'));
+      const payload={name:String(form.get('name')).trim(),map_id:map.id,start_point:form.get('start_point'),steps:serialized,repeat_count:repeatCount,priority:Number(form.get('priority')),robot_id:form.get('robot_id')?Number(form.get('robot_id')):null};
+      if(!payload.name)throw new Error('请填写任务链名称');
+      if(!Number.isInteger(repeatCount)||repeatCount!==-1&&(repeatCount<1||repeatCount>1000))throw new Error('重复次数请输入 1—1000，或选择无限循环');
+      if(!Number.isInteger(payload.priority)||payload.priority<1||payload.priority>9)throw new Error('任务优先级须为 1—9');
+      if(String(form.get('execute_confirmation')||'').trim()!==payload.name)throw new Error('执行确认名称与任务链名称不一致');
+      const scheduledInput=$('mission-scheduled-at')?.value;
+      let scheduledAt=null;
+      if(state.taskMode==='schedule'){
+        if(!scheduledInput)throw new Error('调度模式需要设置执行时间');
+        const scheduledDate=new Date(scheduledInput);
+        if(!Number.isFinite(scheduledDate.getTime()))throw new Error('计划执行时间格式无效');
+        scheduledAt=scheduledDate.toISOString();
+      }
+      let planId=Number($('dialog-body').dataset.missionPlanId)||existing?.id;
+      const saved=planId?await api.put(`/api/task-plans/${planId}`,payload):await api.post('/api/task-plans',payload);
+      $('dialog-body').dataset.missionPlanId=saved.id;
+      const run=await api.post(`/api/task-plans/${saved.id}/runs`,{confirmation:payload.name,repeat_count:repeatCount,robot_id:payload.robot_id,scheduled_at:scheduledAt});
+      notify(run.status==='waiting_manual'?'任务链已创建，等待手动下发第一步。':state.taskMode==='schedule'?'任务链已加入定时调度。':'任务链已加入自动执行队列。');
+      await refreshMapMissions();return true;
+    },'保存并执行');
+    const body=$('dialog-body');body.dataset.missionPlanId=existing?.id||'';
+    const flow=$('mission-flow'),startSelect=document.querySelector('#dialog-form [name="start_point"]');
+    startSelect.id='mission-start-point';
+    const renderFlow=()=>{
+      $('mission-start-label').textContent=pointLabel(startSelect.value);
+      $('mission-loop-hint').textContent=!$('mission-repeat-infinite').checked&&Number($('dialog-form').elements.repeat_count.value)===1?'单次执行：按任务链顺序完成所有导航步骤。':'重复执行必须形成闭环，最后一步必须回到起始站点。无限循环会持续执行，直到操作员停止。';
+      flow.innerHTML=flowHtml();
+    };
+    const addStep=()=>{const previous=nodes.length?nodes[nodes.length-1].point:startSelect.value,choices=outgoing(previous);if(!choices.length){notify('当前站点没有连通的后续路线，请先在地图上补齐路线。',true);return;}nodes.push({node_id:newId(),action:'navigate',point:choices[0],delay_seconds:0});renderFlow();};
+    renderFlow();
+    $('mission-add-action').ondragstart=event=>event.dataTransfer.setData('text/plain','navigate');
+    flow.ondragover=event=>{event.preventDefault();flow.classList.add('drag-over');};
+    flow.ondragleave=event=>{if(!flow.contains(event.relatedTarget))flow.classList.remove('drag-over');};
+    flow.ondrop=event=>{event.preventDefault();flow.classList.remove('drag-over');if(event.dataTransfer.getData('text/plain')==='navigate')addStep();};
+    $('mission-add-step').onclick=addStep;
+    startSelect.onchange=renderFlow;
+    $('dialog-form').elements.repeat_count.onchange=renderFlow;
+    $('mission-repeat-infinite').onchange=()=>{const input=$('dialog-form').elements.repeat_count;input.disabled=$('mission-repeat-infinite').checked;renderFlow();};
+    $('mission-repeat-infinite').onchange();
+    flow.onchange=event=>{const point=event.target.closest('[data-node-point]');if(point){nodes[Number(point.dataset.nodePoint)].point=point.value;renderFlow();return;}const delay=event.target.closest('[data-node-delay]');if(delay)nodes[Number(delay.dataset.nodeDelay)].delay_seconds=Number(delay.value)||0;};
+    flow.onclick=event=>{const remove=event.target.closest('[data-node-remove]');if(remove){nodes.splice(Number(remove.dataset.nodeRemove),1);renderFlow();return;}const move=event.target.closest('[data-node-move]');if(move){const from=Number(move.dataset.nodeMove),to=from+Number(move.dataset.direction);if(to>=0&&to<nodes.length){[nodes[from],nodes[to]]=[nodes[to],nodes[from]];renderFlow();}}};
+    flow.ondragstart=event=>{const node=event.target.closest('[data-node-index]');if(!node)return;event.dataTransfer.setData('text/plain',`reorder:${node.dataset.nodeIndex}`);};
+    flow.ondrop=event=>{event.preventDefault();flow.classList.remove('drag-over');const value=event.dataTransfer.getData('text/plain');if(value==='navigate'){addStep();return;}if(value.startsWith('reorder:')){const from=Number(value.slice(8)),to=Number(event.target.closest('[data-node-index]')?.dataset.nodeIndex);if(Number.isInteger(to)&&nodes[from]&&nodes[to]){const [node]=nodes.splice(from,1);nodes.splice(to,0,node);renderFlow();}}};
+    $('mission-save-only').onclick=async()=>{try{const form=new FormData($('dialog-form'));const steps=Array.from(flow.querySelectorAll('[data-node-index]')).map((element,index)=>({node_id:nodes[index]?.node_id||newId(),action:'navigate',point:element.querySelector(`[data-node-point="${index}"]`)?.value||'',delay_seconds:Number(element.querySelector(`[data-node-delay="${index}"]`)?.value||0)}));if(!steps.length||steps.some(step=>!step.point))throw new Error('请添加可达的站点步骤');const repeatCount=$('mission-repeat-infinite').checked?-1:Number(form.get('repeat_count')),priority=Number(form.get('priority'));if(!String(form.get('name')||'').trim())throw new Error('请填写任务链名称');if(!Number.isInteger(repeatCount)||repeatCount!==-1&&(repeatCount<1||repeatCount>1000))throw new Error('重复次数请输入 1—1000，或选择无限循环');if(!Number.isInteger(priority)||priority<1||priority>9)throw new Error('任务优先级须为 1—9');const payload={name:String(form.get('name')).trim(),map_id:map.id,start_point:form.get('start_point'),steps,repeat_count:repeatCount,priority,robot_id:form.get('robot_id')?Number(form.get('robot_id')):null};const id=Number(body.dataset.missionPlanId)||existing?.id;const saved=id?await api.put(`/api/task-plans/${id}`,payload):await api.post('/api/task-plans',payload);body.dataset.missionPlanId=saved.id;notify('任务链已保存，可以稍后从任务链列表执行。');await refreshMapMissions();}catch(error){$('dialog-error').textContent=error.message;}};
+  }
+  async function startSavedMission(plan){
+    const modes={manual:'手动逐步下发',auto:'自动连续执行',schedule:'按计划时间执行'};
+    const body={confirmation:plan.name,repeat_count:plan.repeat_count,robot_id:plan.robot_id||null};
+    if(state.taskMode==='schedule'){
+      return dialog('安排任务链',`<p>${escape(plan.name)} · ${escape(modes[state.taskMode])}</p><label>计划执行时间<input name="scheduled_at" type="datetime-local" required></label><label>执行确认（输入任务链名称）<input name="confirmation" type="text" required autocomplete="off"></label><p class="help">任务将在所选时间开始；设备离线或地图版本变化时会保留失败原因，不会重复执行未确认步骤。</p>`,async form=>{if(String(form.get('confirmation')||'').trim()!==plan.name)throw new Error('执行确认名称与任务链名称不一致');const scheduledAt=form.get('scheduled_at');if(!scheduledAt)throw new Error('请设置计划执行时间');const scheduledDate=new Date(scheduledAt);if(!Number.isFinite(scheduledDate.getTime()))throw new Error('计划执行时间格式无效');body.confirmation=plan.name;body.scheduled_at=scheduledDate.toISOString();const run=await api.post(`/api/task-plans/${plan.id}/runs`,body);notify('任务链已加入调度。');await refreshMapMissions();return true;},'确认调度');
+    }
+    return confirmation('执行任务链',plan.name,`模式：${modes[state.taskMode]}。起点 ${plan.start_point}，共 ${plan.steps.length} 步，重复 ${plan.repeat_count===-1?'无限':plan.repeat_count+' 次'}。执行前请确认地图、机器人和现场状态。`,async confirmation=>{body.confirmation=confirmation;const run=await api.post(`/api/task-plans/${plan.id}/runs`,body);notify(run.status==='waiting_manual'?'任务链已创建，等待手动下发第一步。':'任务链已加入自动执行队列。');await refreshMapMissions();});
+  }
+  async function advanceMission(id){
+    const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');
+    return confirmation('手动下发下一步',run.name,`将下发任务链下一段导航。当前已完成 ${run.cycles_completed} 轮，执行位置 ${run.step_index+1}/${run.steps.length}。确认机器人周围安全且定位正常后继续。`,async confirmation=>{const updated=await api.post(`/api/mission-runs/${id}/advance`,{confirmation});notify(updated.status==='failed'?updated.failure||'任务链无法继续。':'下一步导航已下发，等待设备回执。',updated.status==='failed');await refreshMapMissions();});
+  }
   function renderMapRobot(){
     const panel=$('map-robot-card');if(!panel)return;
     const robot=state.robots.find(item=>item.online)||state.robots[0];
@@ -164,6 +314,7 @@
         <button type="button" class="map-menu-button" data-action="map-open-navigation" aria-label="打开功能导航" title="调度与其他功能">☰</button>
         <div class="map-console-brand"><span class="map-brand-mark">O</span><strong>Orange Robotics</strong><i></i><b>地图与任务</b></div>
         <label class="map-console-select">地图<select id="map-switch">${options}</select></label>
+        ${taskModeMarkup()}
         <div class="map-console-status"><span class="map-state-chip" id="map-ros-chip"><i></i>ROS 连接检测中</span><span class="map-state-chip" id="map-loc-chip"><i></i>定位待确认</span></div>
         <button type="button" data-action="leave-map" class="map-back-button">地图列表</button>
       </header>
@@ -179,7 +330,8 @@
       </nav>
       <div class="map-workspace">
         <aside class="map-side-panel" aria-label="地图对象">
-          <section class="map-side-section map-task-list-section"><header><strong>任务列表</strong><span id="map-task-count">0</span>${button('＋','map-task-create','','task:edit','map-add-compact')}</header><div id="map-task-list" class="map-task-list"><p class="map-list-empty">正在读取任务…</p></div></section>
+          <section class="map-side-section map-task-list-section"><header><strong>单次任务</strong><span id="map-task-count">0</span>${button('＋','map-task-create','','task:edit','map-add-compact')}</header><div id="map-task-list" class="map-task-list"><p class="map-list-empty">正在读取任务…</p></div></section>
+          <section class="map-side-section map-mission-plan-section"><header><strong>任务链</strong><span>顺序 · 循环</span>${button('＋','map-mission-create','','task:edit','map-add-compact')}</header><div id="map-mission-plans" class="map-mission-plans"><p class="map-list-empty">正在读取任务链…</p></div><div id="map-mission-runs" class="map-mission-runs"></div></section>
           <section class="map-side-section map-robot-section"><header><strong>机器人</strong><span class="map-state-chip" id="map-robot-state"><i></i>状态同步中</span></header><div id="map-robot-card" class="map-robot-card"></div></section>
           <section class="map-side-section"><header><strong>地图图层</strong><button type="button" class="map-side-collapse" aria-label="折叠图层">⌃</button></header>
             <label class="map-layer-row"><input type="checkbox" data-map-layer="background" checked><span class="layer-color layer-background"></span>底图</label>
@@ -202,7 +354,7 @@
         <aside class="map-properties" aria-label="对象属性"><div class="map-inspector-heading"><span class="map-inspector-icon">⌖</span><div><h3>${escape(row.name)}</h3><p>路线与地图属性</p></div><button type="button" data-action="map-remove" aria-label="删除选中对象" title="删除选中对象">⌫</button></div>
           <div id="map-revision-card"><p id="map-revision-state" class="help">草稿 r${row.revision} · 已发布 v${row.published_version||0}</p><p class="map-inspector-note">编辑草稿不会改变正在执行的路线。发布前会重新校验站点边界、连通性和禁行区。</p></div>
           <div id="point-properties" class="map-object-properties">选择站点、路径或区域以编辑详细属性</div><div class="map-issues" id="map-issues" role="status"></div>
-          <section class="map-task-execution"><header><strong>任务执行</strong><span id="map-task-state">等待状态</span></header><div id="map-task-active" class="map-task-active"><span>正在读取任务状态…</span></div><p>新建任务后由已发布地图、在线空闲机器人和设备协议共同决定是否下发。</p>${button('新建导航任务','map-task-create','','task:edit','primary')}</section>
+          <section class="map-task-execution"><header><strong>任务执行</strong><span id="map-task-state">等待状态</span></header><div id="map-task-active" class="map-task-active"><span>正在读取任务状态…</span></div><p>任务链使用已发布地图和有效站点路线；设备未回执时会保留等待状态。</p>${button('创建任务链','map-mission-create','','task:edit','primary')} ${button('单次导航','map-task-create','','task:edit')}</section>
         </aside>
       </div>
       <footer class="map-statusbar" aria-label="机器人运行状态"><span class="map-status-brand"><i></i>ROS</span><span class="map-status-item" id="map-live-status">等待实时定位数据</span><span class="map-status-item" id="map-pose-readout">位姿：—</span><span class="map-status-item" id="map-nav-readout">任务：—</span><span class="map-status-item" id="map-plc-readout">PLC：—</span><span class="map-status-item" id="map-lock-readout">安全锁：未知</span></footer>
@@ -271,8 +423,8 @@
         state.map.setTool('select');document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
       });
     });
-    renderMapLists();renderMapRobot();renderMapTasks();refreshMapTasks();
-    state.mapTaskTimer=setInterval(refreshMapTasks,5000);
+    renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();
+    state.mapTaskTimer=setInterval(()=>{refreshMapTasks();refreshMapMissions();},5000);
     $('map-point-search').oninput=renderMapLists;
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
     $('map-path-list').onclick=event=>{const item=event.target.closest('[data-map-select-path]');if(item)state.map?.selectObject('paths',Number(item.dataset.mapSelectPath));};
@@ -433,7 +585,16 @@
     if(name==='cancel-task')return confirmation('取消排队任务',row.name,'仅取消尚未开始的任务。',async v=>{if(v!==row.name)throw new Error('任务名不一致');await api.post(`/api/task-history/${id}/cancel`);});
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
     if(name==='map-open-navigation'){window.top.postMessage({type:'orange-toggle-navigation'},location.origin);return;}
+    if(name==='task-mode-set')return changeTaskMode(id);
     if(name==='map-task-create')return taskForm();
+    if(name==='map-mission-create')return missionDesigner();
+    if(name==='mission-edit'){const plan=state.mapMissionPlans.find(item=>String(item.id)===String(id));if(!plan)throw new Error('任务链列表已更新，请刷新后重试');return missionDesigner(plan);}
+    if(name==='mission-start-plan'){const plan=state.mapMissionPlans.find(item=>String(item.id)===String(id));if(!plan)throw new Error('任务链列表已更新，请刷新后重试');return startSavedMission(plan);}
+    if(name==='mission-delete-plan'){const plan=state.mapMissionPlans.find(item=>String(item.id)===String(id));if(!plan)throw new Error('任务链列表已更新，请刷新后重试');return confirmation('删除任务链模板',plan.name,'删除只作用于任务链模板；历史执行记录会保留。存在排队或执行中的任务链时不能删除。',async confirmation=>{await api.post(`/api/task-plans/${id}/delete`,{confirmation});notify('任务链模板已删除。');await refreshMapMissions();});}
+    if(name==='mission-advance')return advanceMission(id);
+    if(name==='mission-run-detail'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');return dialog('任务链执行记录',`<p><strong>${escape(run.name)}</strong> · ${escape(missionStateLabel(run))}</p><p>${escape(run.start_point)} · ${run.cycles_completed}/${run.repeat_count===-1?'∞':run.repeat_count} 轮 · 第 ${Math.min(run.step_index+1,run.steps.length)}/${run.steps.length} 步</p>${run.active_task?`<p>当前设备任务：${escape(run.active_task.name)} · ${badge(run.active_task.status)}</p>`:''}${(run.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${escape(item.status)} · ${escape(item.note)}</p>`).join('')||'<p class="help">暂无执行记录</p>'}${run.failure?`<p class="mission-error">${escape(run.failure)}</p>`:''}`,null);}
+    if(name==='mission-stop-step'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));const task=run?.active_task;if(!task)throw new Error('没有正在执行的设备步骤');if(task.status==='queued')return confirmation('撤销待下发步骤',task.name,'当前步骤尚未被设备领取；撤销后任务链会停止，不会继续下发后续步骤。',async confirmation=>{if(confirmation!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${task.id}/cancel`);notify('待下发步骤已撤销，任务链将停止。');await refreshMapTasks();await refreshMapMissions();});return confirmation('停止当前导航并锁定',task.name,'停止当前任务链步骤并请求设备确认停车。确认回执前任务不会标记完成；软件停止不能代替物理急停。',async confirmation=>{const result=await api.post(`/api/task-history/${task.id}/stop`,{confirmation});notify(result.stop_status==='pending'?'停止请求已发出，等待设备确认。':'设备领取前任务已撤销。');await refreshMapTasks();await refreshMapMissions();});}
+    if(name==='mission-cancel'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');return confirmation('取消任务链',run.name,'取消后不会继续执行后续步骤。若某个导航段已由设备接收，请先在任务执行栏停止并锁定。',async confirmation=>{await api.post(`/api/mission-runs/${id}/cancel`,{confirmation});notify('任务链已取消。');await refreshMapMissions();});}
     if(name==='map-task-detail'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('任务记录已更新，请刷新后重试');return dialog('任务时间轴',`<p><strong>${escape(task.name)}</strong> · ${badge(task.status)}</p><p>${escape(task.from_point)} → ${escape(task.to_point)} · 机器人 ${escape(task.robot_id||'等待分配')}</p>${(task.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${badge(item.status)} ${escape(item.note)}</p>`).join('')||'<p class="help">暂无设备回执</p>'}<p>${escape(task.failure||'')}</p>`,null);}
     if(name==='map-task-cancel'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task||task.status!=='queued')throw new Error('该任务已不在排队状态');return confirmation('取消排队任务',task.name,'仅取消尚未开始的任务。',async value=>{if(value!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${id}/cancel`);await refreshMapTasks();});}
     if(name==='map-task-stop'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('没有可停止的任务记录');return confirmation('停止任务并锁定',task.name,'会向设备发送停止请求并保持软件停止锁。设备回执到达前仍显示执行中；这不代替物理急停。',async value=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:value});notify(result.stop_status==='pending'?'停止请求已发送，等待设备回执。':'任务已在设备领取前撤销。');await refreshMapTasks();});}

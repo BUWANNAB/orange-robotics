@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select, update, or_
-from app.models.operations import MapDocument, MapVersion, Robot, TaskRun
+from app.models.operations import MapDocument, MapVersion, Robot, TaskRun, MissionRun
 from app.services.operations_common import now, audit, get_or_404
 
 
@@ -213,10 +213,12 @@ async def publish(db, row, actor, revision, document=None):
     if errors:
         raise HTTPException(422, errors)
     active = await db.scalar(select(TaskRun.id).where(TaskRun.map_id == row.id, TaskRun.status.in_(["queued", "dispatched", "running"])).limit(1))
+    active_mission = await db.scalar(select(MissionRun.id).where(MissionRun.map_id == row.id,
+        MissionRun.status.in_(["queued", "running", "waiting_manual"])).limit(1))
     busy = await db.scalar(select(Robot.id).where(Robot.map_id == row.id, Robot.deleted == False, Robot.maintenance == True).limit(1))
     robots = (await db.scalars(select(Robot).where(Robot.map_id == row.id, Robot.deleted == False))).all()
     from app.services.operations_common import online
-    if active or busy or any(r.telemetry.get("busy") or (r.enabled and not online(r)) for r in robots):
+    if active or active_mission or busy or any(r.telemetry.get("busy") or (r.enabled and not online(r)) for r in robots):
         raise HTTPException(409, "地图有任务或维护中的机器人占用")
     await save_draft(db, row, actor, revision, draft_document)
     version = row.published_version + 1

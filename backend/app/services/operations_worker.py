@@ -11,6 +11,7 @@ from app.database import AsyncSessionLocal
 from app.models.operations import Robot, Alarm, Command, TaskRun, Callback, IntegrationApp, Nonce, Upgrade, UpgradeDetail, Firmware, BatterySample, AuditLog, MapDocument
 from app.services.operations_common import now, online, audit, public
 from app.services.fleet_service import raise_alarm, queue_command, TERMINAL
+from app.services.mission_service import mission_tick
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ async def tick():
                     if robot:
                         robot.locked, robot.lock_reason = True, "任务回执超时，需要人工核实设备状态"
         await upgrade_tick(db)
+        await mission_tick(db)
         await dispatch_tasks(db)
         await db.commit()
 

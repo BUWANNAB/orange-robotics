@@ -33,7 +33,7 @@ E:\CodexWork\rcs-rds-venv\Scripts\python.exe -m pip install -r requirements.txt
 E:\CodexWork\rcs-rds-venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8088 --workers 1
 ```
 
-局域网访问应使用实际网卡地址/反向代理；上面命令只监听本机。SQLite 开发模式自动创建缺少的表，不删旧表。已有数据库请先备份。生产 MySQL 先人工执行 `backend/migrations/001_operations_up.sql`；`down.sql` 会删除新增模块数据，只用于明确决定回退且已备份的情况。此交付未执行生产迁移。
+局域网访问应使用实际网卡地址/反向代理；上面命令只监听本机。SQLite 开发模式自动创建缺少的表，不删旧表。已有数据库请先备份。生产 MySQL 已安装的旧版先人工执行 `backend/migrations/002_mission_chains_up.sql`，新增空库使用 `scripts/init_fresh_db.py --init-empty`；对应 down 脚本会删除任务链数据，只能在明确决定回退且已备份时执行。本次只在本地开发环境完成代码变更，未连接或升级任何机器人/生产数据库。
 
 配置示例：`backend/.env.operations.example`。`RCS_DATABASE_URL` 用于 SQLite 独立测试数据库；MySQL 继续使用原有 `ROBOT_DB_*` 配置。固件、地图编辑图片、地图绑定和任务日志保存在 `RCS_DATA_DIR`；开发默认使用 `runtime_data/rcs`，生产示例为 `/var/lib/orange/rcs`。
 
@@ -130,7 +130,8 @@ OTA：上传并校验 → 审核 → 创建任务并确认名称 → 启动 → 
 | `backend/app/{main,database,config}.py` | 修改 | 路由/生命周期注册、独立测试库及 .env 配置 |
 | `backend/app/api/user.py` | 修改 | 数据库异常不再绕过管理员密码；生产注册约束 |
 | `backend/requirements.txt` | 修改 | SQLite、HTTP 客户端、图像、Excel 依赖 |
-| `backend/migrations/001_operations_{up,down}.sql` | 新增 | MySQL 建表/回滚 |
+| `backend/migrations/001_operations_{up,down}.sql` | 新增 | RCS/RDS 首次建表/回滚 |
+| `backend/migrations/002_mission_chains_up.sql` | 新增 | 既有 MySQL 增加可复用任务链、执行记录及任务模式 |
 | `backend/scripts/` 中本次新增三个脚本 | 新增 | DDL 生成、签名客户端、500MiB 上传检查 |
 | `frontend/operations.html` | 新增 | 管理入口 |
 | `frontend/src/api/operations.js` | 新增 | 复用 axiosClient 的接口封装 |
