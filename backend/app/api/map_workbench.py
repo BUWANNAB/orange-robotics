@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel,Field,ConfigDict,model_validator
 from app.config import settings
 from app.common.response import ok
-from app.services.operations_common import require
+from app.services.operations_common import require, public
 from app.services import map_assets as assets
 from app.services import mapping_control as mapping
 import yaml
