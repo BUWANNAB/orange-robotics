@@ -761,6 +761,7 @@
   document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
+    if(event.data?.type==='robot-model-close'&&event.source===$('robot-model-frame')?.contentWindow){$('dialog').close();return;}
     if(event.data?.type==='robot-model-updated'&&event.source===$('robot-model-frame')?.contentWindow){refreshRobotModel();return;}
     if(event.source!==parent)return;
     if(event.data?.type==='workbench-open-map-asset'){

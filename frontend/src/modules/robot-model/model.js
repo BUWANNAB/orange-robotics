@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 
 const $=id=>document.getElementById(id),api=window.OpsAPI,form=$('model-form'),viewport=$('model-viewport');
+if(parent!==window&&new URLSearchParams(location.search).has('embedded')){
+  $('model-home').textContent='← 返回地图';
+  $('model-home').onclick=event=>{event.preventDefault();parent.postMessage({type:'robot-model-close'},location.origin);};
+}
 let data,saved,renderer,scene,camera,controls,robot,animation,resizeObserver;
 const notice=(message,error=false)=>{$('model-notice').textContent=message;$('model-notice').classList.toggle('error',error);};
 function collect(){

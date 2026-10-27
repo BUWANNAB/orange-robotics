@@ -3,10 +3,10 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>车体坐标与模型 · Orange Robotics</title>
 <script>if(new URLSearchParams(location.search).has('embedded'))document.documentElement.classList.add('embedded');</script>
-<link rel="stylesheet" href="src/modules/robot-model/model.css?v=base-link-20261027-2">
+<link rel="stylesheet" href="src/modules/robot-model/model.css?v=model-home-20261027-1">
 <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script></head>
 <body>
-<header><div><span>ORANGE ROBOTICS</span><h1>车体坐标与模型</h1></div><strong id="model-status">读取配置…</strong></header>
+<header><div class="page-heading"><a id="model-home" class="home-link" href="index.html">← 返回首页</a><div><span>ORANGE ROBOTICS</span><h1>车体坐标与模型</h1></div></div><strong id="model-status">读取配置…</strong></header>
 <main><section class="model-view"><div id="model-viewport" aria-label="base_link 车体与雷达三维模型"></div>
 <div class="view-legend"><span class="axis-x">X 向前</span><span class="axis-y">Y 向左</span><span class="axis-z">Z 向上</span><span>圆点为 base_link 原点</span></div>
 <label class="heading-control">示意朝向 <input id="preview-yaw" type="range" min="-180" max="180" value="0"><output id="preview-yaw-value">0°</output><button id="fit-model" type="button">适应模型</button></label>
@@ -20,5 +20,5 @@
 <label class="confirmation">输入“保存车体模型”确认<input name="confirmation" autocomplete="off" required></label>
 <div class="actions"><button id="save-model" type="submit">保存模型</button><button id="reset-model" type="button">恢复已保存</button><button id="export-urdf" type="button">导出 URDF</button></div>
 <p id="model-notice" role="status"></p></form></aside></main>
-<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/robot-model/model.js?v=base-link-20261027-2"></script>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/robot-model/model.js?v=model-home-20261027-1"></script>
 </body></html>
