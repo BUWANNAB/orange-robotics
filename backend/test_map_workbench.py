@@ -40,6 +40,25 @@ class MapWorkbenchTests(unittest.TestCase):
         return self.client.post('/api/map-workbench/grid',headers=self.headers,
                                 data={'asset_id':key,**data},files={'pgm':('map.pgm',pgm),'metadata':('map.yaml',YAML)})
 
+    def test_existing_pgm_listing_opens_and_reuses_route_map_with_original_coordinates(self):
+        uploaded=self.upload('已有PGM路线验证',create_only='true')
+        self.assertEqual(uploaded.status_code,200,uploaded.text)
+        choices=self.client.get('/api/map-workbench/assets',headers=self.headers).json()['data']
+        self.assertTrue(next(row for row in choices if row['id']=='已有PGM路线验证')['grid'])
+        body={'asset_id':'已有PGM路线验证'}
+        self.assertEqual(self.client.post('/api/map-workbench/route-map',json=body).status_code,401)
+        first=self.client.post('/api/map-workbench/route-map',headers=self.headers,json=body)
+        self.assertEqual(first.status_code,200,first.text)
+        row=first.json()['data'];draft=row['draft']
+        self.assertAlmostEqual(draft['width'],.1)
+        self.assertAlmostEqual(draft['height'],.1)
+        self.assertEqual((draft['origin_x'],draft['origin_y'],draft['resolution']),(1,2,.05))
+        self.assertTrue(draft['image'])
+        again=self.client.post('/api/map-workbench/route-map',headers=self.headers,json=body)
+        self.assertEqual(again.status_code,200,again.text)
+        self.assertEqual(again.json()['data']['id'],row['id'])
+        self.assertEqual(again.json()['data']['draft'],draft)
+
     def test_binding_publish_validation_persistence_conflict_and_remove(self):
         from app.api.localization import catalog
         from app.services.ros2_service import ros2_service as bridge

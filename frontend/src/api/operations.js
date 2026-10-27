@@ -14,6 +14,7 @@
   window.OpsAPI = {
     get: (path, params) => request('GET', path, undefined, { params }),
     post: (path, data = {}) => request('POST', path, data),
+    form: (path, data) => request('POST', path, data, { headers: { 'Content-Type': undefined } }),
     put: (path, data) => request('PUT', path, data),
     delete: (path, params) => request('DELETE', path, undefined, { params }),
     upload: (path, data, params) => request('POST', path, data, { params, headers: { 'Content-Type': 'application/octet-stream' } }),

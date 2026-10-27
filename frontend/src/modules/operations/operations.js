@@ -56,7 +56,7 @@
     return `<div class="cards">${data.metrics.map(m=>`<article class="card" title="${escape(m.formula)}"><p>${escape(m.name)}</p><strong>${m.value??'—'}</strong><em>${escape(m.unit)}</em><small>${escape(m.formula)}</small></article>`).join('')}</div><div class="panels"><article class="panel"><h2>近七天任务趋势</h2>${Object.keys(data.trend).length?chart(data.trend):'<p class="empty">尚无任务执行记录</p>'}</article><article class="panel"><h2>机器人状态分布</h2>${Object.entries(data.status).map(([status,count])=>`<div class="bar-row"><span>${escape(labels[status]||status)}</span><div class="bar"><i style="width:${count/Math.max(1,state.robots.length)*100}%"></i></div><b>${count}</b></div>`).join('')||'<p class="empty">尚未添加机器人</p>'}</article><article class="panel"><h2>七天任务热力 · 周一至周日 / 0—23 时</h2><div class="heat">${Array.from({length:168},(_,i)=>{const count=data.heat[`${Math.floor(i/24)}-${i%24}`]||0;return `<i title="周${Math.floor(i/24)+1} ${i%24}时：${count} 单" style="${count?`background:rgba(235,117,40,${Math.min(1,.25+count/20)})`:''}"></i>`;}).join('')}</div><p class="help">业务日期统一按 Asia/Shanghai 统计；空分母显示 —。${data.trend_truncated?'趋势超过 10 万条，已截断。':''}</p></article><article class="panel"><h2>运行提示</h2><p class="help">设备状态来自已认证心跳。操作指令需要设备回执后才会显示成功。断线时自动使用 3 秒快照轮询。</p><p class="help">上次统计：${stamp(data.updated_at)}</p></article></div>`;
   }
   function controls(){
-    const actions={robots:button('导出档案','export-robots','','robot:view')+button('导入档案','import-robots','','robot:import')+button('新增机器人','add-robot','', 'robot:edit')+button('批量回充','batch-charge','','robot:control'),battery:button('低电量回充','batch-charge','','robot:control'),tasks:button('统计分析','task-stats','','task:view')+button('创建任务','add-task','','task:edit'),logs:button('下载 CSV','export-logs','','log:export'),maps:button(state.preferredAssetKey?'基于当前 PGM 新建地图':'新建地图','add-map','','map:edit','primary'),integration:button('新增应用','add-app','','integration:manage')+button('回调记录','callbacks','','integration:manage')+button('接口文档','api-doc','','integration:manage'),firmware:button('上传固件','upload-firmware','','firmware:upload'),upgrades:button('创建升级任务','add-upgrade','','firmware:upgrade')};
+    const actions={robots:button('导出档案','export-robots','','robot:view')+button('导入档案','import-robots','','robot:import')+button('新增机器人','add-robot','', 'robot:edit')+button('批量回充','batch-charge','','robot:control'),battery:button('低电量回充','batch-charge','','robot:control'),tasks:button('统计分析','task-stats','','task:view')+button('创建任务','add-task','','task:edit'),logs:button('下载 CSV','export-logs','','log:export'),maps:button('选择已有 PGM','open-pgm-map','','map:edit')+button(state.preferredAssetKey?'基于当前 PGM 新建地图':'新建地图','add-map','','map:edit','primary'),integration:button('新增应用','add-app','','integration:manage')+button('回调记录','callbacks','','integration:manage')+button('接口文档','api-doc','','integration:manage'),firmware:button('上传固件','upload-firmware','','firmware:upload'),upgrades:button('创建升级任务','add-upgrade','','firmware:upgrade')};
     $('actions').innerHTML=actions[state.tab]||'';
   }
   async function load(){
@@ -86,7 +86,7 @@
         state.mapChoices=choices.list||[];
         if(!state.mapChoices.some(map=>String(map.id)===String(state.selectedMapId)))state.selectedMapId='';
         html=!data.list.length&&document.documentElement.classList.contains('embedded')
-          ?`<section class="map-empty-state"><span class="eyebrow">MAP / ROUTE WORKSPACE</span><h2>${state.preferredAssetKey?'这张地图还没有二维栅格':'先建立一张二维地图'}</h2><p>${state.preferredAssetKey?`当前地图「${escape(state.preferredAssetKey)}」还没有可用于路线的 PGM / YAML。可以从点云裁切生成栅格，或开始新一轮实时建图。`:'实时建图、点云裁切与路线设置会在同一工作台完成。选择已有 PGM 地图，或先采集点云。'}</p><div class="map-home-actions">${button('开始实时建图','workbench-build','','map:edit','primary')}${state.preferredAssetKey?button('裁切点云 / 设定原点','workbench-point','','map:edit'):''}${button('从已有 PGM 创建路线地图','add-map','','map:edit')}</div></section>`
+          ?`<section class="map-empty-state"><span class="eyebrow">MAP / ROUTE WORKSPACE</span><h2>${state.preferredAssetKey?'这张地图还没有二维栅格':'先建立一张二维地图'}</h2><p>${state.preferredAssetKey?`当前地图「${escape(state.preferredAssetKey)}」还没有可用于路线的 PGM / YAML。可以从点云裁切生成栅格，或开始新一轮实时建图。`:'实时建图、点云裁切与路线设置会在同一工作台完成。选择已有 PGM 地图，或先采集点云。'}</p><div class="map-home-actions">${button('开始实时建图','workbench-build','','map:edit','primary')}${state.preferredAssetKey?button('裁切点云 / 设定原点','workbench-point','','map:edit'):''}${button('从已有 PGM 创建路线地图','open-pgm-map','','map:edit')}</div></section>`
           :window.OperationsMapPicker.render(state.mapChoices,can('map:edit'),state.selectedMapId)+table(['地图名称','草稿修订','发布版本','点位 / 路径 / 区域','更新人','操作'],data.list.map(r=>[escape(r.name),r.revision,r.published_version||'未发布',`${r.draft.points.length} / ${r.draft.paths.length} / ${r.draft.areas.length}`,escape(r.operator),button('打开编辑器','edit-map',r.id,'map:edit')+button('版本','map-versions',r.id,'map:view')+button('导出','export-map',r.id,'map:view')+button('删除','delete-map',r.id,'map:edit','danger')]));
       }else if(tab==='integration'){
         data=await api.get('/api/integration/apps');
@@ -517,6 +517,53 @@
       notify(`已应用 ${asset.id} 的 PGM 底图；请检查点位是否仍在地图边界内。`);
     },'应用底图');
   }
+  async function existingPgmForm(){
+    let assets=[],listRequest=0;
+    dialog('选择已有 PGM 地图',`<div class="pgm-map-picker"><p class="help">选择已生成的二维地图，直接打开路线画布。已有站点和路线会保留，尺寸与原点自动读取。</p><div class="pgm-picker-row"><label>已创建的 PGM 地图<select id="pgm-asset-select" name="asset_key" required disabled><option value="">正在读取地图…</option></select></label><button id="pgm-assets-refresh" type="button">刷新列表</button></div><p id="pgm-assets-status" class="help" role="status"></p><details id="pgm-import"><summary>从本机导入 PGM / YAML</summary><p class="help">选择已有的 PGM 和对应 YAML 文件。YAML 提供分辨率与原点；导入使用新名称，不覆盖原地图。</p>${field('import_name','导入地图名称','','text','id="pgm-import-name" maxlength="100"')}${field('pgm','PGM 地图文件','','file','id="pgm-import-file" accept=".pgm"')}${field('metadata','配套 YAML 文件','','file','id="pgm-import-yaml" accept=".yaml,.yml"')}<button id="pgm-import-submit" type="button">导入地图</button></details></div>`,async form=>{
+      const key=form.get('asset_key');
+      if(!assets.some(asset=>asset.id===key&&asset.grid))throw new Error('请先选择一张可用的 PGM 地图');
+      await openAssetMap(key);$('dialog').close();return false;
+    },'打开并设置路线');
+    const selector=$('pgm-asset-select'),refresh=$('pgm-assets-refresh'),status=$('pgm-assets-status'),submit=$('dialog-submit');
+    function selection(){
+      const asset=assets.find(item=>item.id===selector.value&&item.grid);
+      submit.disabled=!asset;
+      if(asset)status.textContent=`已选 ${asset.id} · 分辨率 ${asset.resolution} 米/像素 · 原点 ${(asset.origin||[]).join('，')}。打开后可直接设置站点和路线。`;
+      else if(assets.some(item=>item.grid))status.textContent='请从列表选择一张已创建的 PGM 地图。';
+    }
+    async function reload(preferred=selector.value||state.preferredAssetKey){
+      const request=++listRequest;
+      refresh.disabled=selector.disabled=submit.disabled=true;status.textContent='正在读取已生成的地图…';
+      try{
+        const result=await api.get('/api/map-workbench/assets');
+        if(request!==listRequest||$('pgm-asset-select')!==selector||!$('dialog').open)return;
+        assets=result;
+        const grids=assets.filter(asset=>asset.grid);
+        selector.innerHTML='<option value="">请选择已创建的 PGM 地图</option>'+grids.map(asset=>`<option value="${escape(asset.id)}">${escape(asset.id)}</option>`).join('');
+        selector.value=grids.some(asset=>asset.id===preferred)?preferred:grids.length===1?grids[0].id:'';
+        selector.disabled=!grids.length;
+        status.textContent=grids.length?`找到 ${grids.length} 张 PGM 地图，请选择后打开。`:'当前服务没有找到可用的 PGM 地图。若地图在另一台电脑或机器人上，请将 PGM 和配套 YAML 导入这里。';
+        selection();
+      }catch(error){
+        if(request!==listRequest||$('pgm-asset-select')!==selector||!$('dialog').open)return;
+        assets=[];selector.innerHTML='<option value="">地图列表读取失败</option>';status.textContent=error.message+'。请点击“刷新列表”重试。';
+      }finally{if(request===listRequest)refresh.disabled=false;}
+    }
+    selector.onchange=selection;refresh.onclick=()=>reload();
+    $('pgm-import-file').onchange=()=>{if(!$('pgm-import-name').value)$('pgm-import-name').value=($('pgm-import-file').files[0]?.name||'').replace(/\.pgm$/i,'');};
+    $('pgm-import-submit').onclick=async()=>{
+      const button=$('pgm-import-submit');button.disabled=true;$('dialog-error').textContent='';
+      try{
+        const pgm=$('pgm-import-file').files[0],metadata=$('pgm-import-yaml').files[0],name=$('pgm-import-name').value.trim();
+        if(!name||!pgm||!metadata)throw new Error('请填写地图名称，并选择 PGM 和配套 YAML 文件');
+        if(pgm.size>80*1024*1024||metadata.size>65536)throw new Error('PGM 不能超过 80MB，YAML 不能超过 64KB');
+        const body=new FormData();body.append('asset_id',name);body.append('create_only','true');body.append('pgm',pgm);body.append('metadata',metadata);
+        const imported=await api.form('/api/map-workbench/grid',body);
+        await reload(imported.id);
+      }catch(error){if($('pgm-asset-select')===selector&&$('dialog').open)$('dialog-error').textContent=error.message;}finally{button.disabled=false;}
+    };
+    await reload();
+  }
   async function newMapForm(){
     const assets=await api.get('/api/map-workbench/assets');
     const preferredAsset=assets.find(asset=>asset.id===state.preferredAssetKey&&asset.grid);
@@ -648,6 +695,7 @@
     if(name==='map-task-stop'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('没有可停止的任务记录');return confirmation('停止任务并锁定',task.name,'会向设备发送停止请求并保持软件停止锁。设备回执到达前仍显示执行中；这不代替物理急停。',async value=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:value});notify(result.stop_status==='pending'?'停止请求已发送，等待设备回执。':'任务已在设备领取前撤销。');await refreshMapTasks();});}
     if(name==='export-logs'){const params=filterParams();params.level=params.state;saveBlob(await api.download('/api/logs/export',params),'运行日志.csv');return;}
     if(name==='add-map')return newMapForm();
+    if(name==='open-pgm-map')return existingPgmForm();
     if(name==='open-selected-map'){
       if(!id)throw new Error('请先从已有地图列表中选择一张地图。');
       return openMap(await api.get(`/api/maps/${id}`));
