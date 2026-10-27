@@ -51,6 +51,29 @@ test('fit resets the displayed relative zoom to 100 percent at the current viewp
   assert.equal(editor.scale, 28.5);
 });
 
+test('viewport resize refits the overview but preserves a manually zoomed view', () => {
+  const { editor, canvas } = viewport();
+  canvas.clientWidth = 600; editor.resize();
+  near(editor.scale, Math.min((600 - 70) / 40, (640 - 70) / 20));
+  assert.equal(editor.zoomPercent(), 100);
+  editor.zoomBy(1.5); const scale = editor.scale, pan = { ...editor.pan };
+  canvas.clientWidth = 1200; editor.resize();
+  near(editor.scale, scale); near(editor.pan.x, pan.x); near(editor.pan.y, pan.y);
+});
+
+test('fit centers the map with nonzero origin in wide and tall viewports', () => {
+  for (const [width, height] of [[1000, 640], [320, 900]]) {
+    const { editor, canvas } = viewport();
+    canvas.clientWidth = width; canvas.clientHeight = height; editor.fit();
+    const center = editor.screen({ x: -8.25 + 40 / 2, y: 12.75 + 20 / 2 });
+    near(center.x, width / 2); near(center.y, height / 2);
+    const lower = editor.screen({ x: -8.25, y: 12.75 });
+    const upper = editor.screen({ x: -8.25 + 40, y: 12.75 + 20 });
+    assert.ok(lower.x >= 35 - 1e-9 && upper.x <= width - 35 + 1e-9);
+    assert.ok(upper.y >= 35 - 1e-9 && lower.y <= height - 35 + 1e-9);
+  }
+});
+
 test('wheel zoom preserves the cursor world coordinate without rounding or a vertical sign flip', () => {
   const { editor, listeners } = viewport();
   const x = 723.4567, y = 187.6543;
@@ -110,7 +133,7 @@ test('the handbook palette is scoped to the RCS console and draw reports the act
   const reports = []; editor.onViewChange = percent => reports.push(percent);
   editor.zoomBy(1.25);
   assert.equal(fills[0], '#fff');
-  assert.ok(strokes.includes('#f3f5f9'));
+  assert.ok(strokes.includes('#f8f9fc'));
   assert.ok(strokes.includes('#1476FB'));
   assert.ok(strokes.includes('#f36a14'), 'coordinate origin retains its orange reference');
   assert.equal(reports.at(-1), 125);

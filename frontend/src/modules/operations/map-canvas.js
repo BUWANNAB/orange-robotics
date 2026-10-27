@@ -1,7 +1,7 @@
 (function () {
   const clampScale = value => Math.max(0.1, Math.min(100, value));
   const defaultTheme = { background: '#fbfcfe', grid: '#edf0f5', route: '#58748b', station: '#3976ad', selected: '#e87832', selectedLabel: '#e9a16f', measure: '#ed6b16', relocalize: '#ec6d1c', relocalizeText: '#c44e0c' };
-  const handbookTheme = { ...defaultTheme, background: '#fff', grid: '#f3f5f9', route: '#1476FB', station: '#1476FB', selected: '#015EE7', selectedLabel: '#a8c7ff', measure: '#0a8f9b', relocalize: '#1476FB', relocalizeText: '#015EE7' };
+  const handbookTheme = { ...defaultTheme, background: '#fff', grid: '#f8f9fc', route: '#1476FB', station: '#1476FB', selected: '#015EE7', selectedLabel: '#a8c7ff', measure: '#0a8f9b', relocalize: '#1476FB', relocalizeText: '#015EE7' };
   function pathSampleCount(start, end) {
     return Math.max(8, Math.min(24, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / 0.35)));
   }
@@ -47,7 +47,7 @@
         const box = canvas.getBoundingClientRect();
         this.zoomAt(event.deltaY < 0 ? 1.15 : 1 / 1.15, event.clientX - box.left, event.clientY - box.top);
       }, { ...options, passive: false });
-      this.resizeObserver = new ResizeObserver(() => this.draw()); this.resizeObserver.observe(canvas);
+      this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(canvas);
       this.fit();
     }
     setTool(tool) { this.tool = tool; this.drag = null; this.relocalization = null; if (tool !== 'measure') this.measure = null; this.draw(); }
@@ -75,14 +75,21 @@
       this.history.push(structuredClone(this.document)); this.document = this.future.pop(); this.selected = null; this.shape = null; this.changed(); this.onSelect(null);
     }
     fit() {
+      this.fitView = true;
       this.scale = clampScale(Math.min((this.canvas.clientWidth - 70) / this.document.width, (this.canvas.clientHeight - 70) / this.document.height));
-      this.fitScale = this.scale; this.pan = { x: 35 - this.document.origin_x * this.scale, y: 35 - this.document.origin_y * this.scale };
+      this.fitScale = this.scale;
+      this.pan = {
+        x: (this.canvas.clientWidth - this.document.width * this.scale) / 2 - this.document.origin_x * this.scale,
+        y: (this.canvas.clientHeight - this.document.height * this.scale) / 2 - this.document.origin_y * this.scale
+      };
       this.draw();
     }
+    resize() { if (this.fitView) this.fit(); else this.draw(); }
     zoomAt(factor, x, y) {
       if (!Number.isFinite(factor) || factor <= 0 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
       const next = clampScale(this.scale * factor);
       if (next === this.scale) return false;
+      this.fitView = false;
       const worldX = (x - this.pan.x) / this.scale;
       const worldY = (this.canvas.clientHeight - y - this.pan.y) / this.scale;
       this.scale = next;
@@ -101,7 +108,7 @@
     }
     nearest(point) { return this.layers.stations ? this.document.points.findIndex(p => Math.hypot(p.x - point.x, p.y - point.y) * this.scale < 13) : -1; }
     down(event) {
-      if (event.button === 1 || this.tool === 'pan') { this.drag = { pan: true, x: event.clientX, y: event.clientY }; this.canvas.setPointerCapture(event.pointerId); return; }
+      if (event.button === 1 || this.tool === 'pan') { this.fitView = false; this.drag = { pan: true, x: event.clientX, y: event.clientY }; this.canvas.setPointerCapture(event.pointerId); return; }
       const point = this.world(event, this.tool === 'relocalize' ? 1000 : 10), index = this.nearest(point);
       if (this.tool === 'relocalize') {
         this.relocalization = { start: point, end: point }; this.drag = { relocalize: true };

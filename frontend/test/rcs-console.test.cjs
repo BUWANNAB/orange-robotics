@@ -93,3 +93,19 @@ test('an active single task marks the execution panel as active instead of showi
   h.controller.state.mapTasks=[];h.controller.renderMapTasks();
   assert.equal(h.element('map-task-active').classList.contains('has-active-task'),false);
 });
+
+test('deleting a selection keeps its button disabled until another object is selected',async()=>{
+  const source=fs.readFileSync('frontend/src/modules/operations/operations.js','utf8');
+  const delegatedClick=source.split('\n').find(line=>line.includes("document.addEventListener('click',async event"));
+  const map={selected:0,shape:null},target={disabled:false,dataset:{action:'map-remove'}};
+  let click,calls=0;
+  vm.runInNewContext(delegatedClick,{
+    document:{addEventListener:(_type,listener)=>{click=listener;}},state:{map},
+    action:async()=>{calls++;map.selected=null;},notify:()=>{}
+  });
+  const event={target:{closest:()=>target}};
+  await click(event);
+  assert.equal(target.disabled,true);
+  await click(event);
+  assert.equal(calls,1,'disabled actions are ignored');
+});

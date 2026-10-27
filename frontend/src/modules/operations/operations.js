@@ -195,7 +195,7 @@
     const activeStates=['queued','running','waiting_manual','paused','pausing','finishing'];
     const run=state.mapMissionRuns.find(item=>String(item.id)===String(state.selectedMissionId))||state.mapMissionRuns.find(item=>activeStates.includes(item.status))||state.mapMissionRuns[0];
     panel.hidden=!run;single.hidden=!!run;
-    const repeatReadout=$('map-repeat-readout');if(repeatReadout)repeatReadout.textContent=run?(run.repeat_count===-1?'无限':String(run.repeat_count)):'—';
+    const repeatReadout=$('map-repeat-readout');if(repeatReadout)repeatReadout.textContent=run?(run.repeat_count===-1?'无限':String(run.repeat_count)):'未执行';
     if(!run)return;
     state.selectedMissionId=run.id;
     $('map-task-state').textContent=missionStateLabel(run);
@@ -206,10 +206,11 @@
   function renderMapMissions(){
     const plans=$('map-mission-plans'),runs=$('map-mission-runs');if(!plans||!runs)return;
     if(!can('task:view')){plans.innerHTML=runs.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';return;}
+    const expandedPlans=new Set(Array.from(plans.querySelectorAll('details[open][data-plan-id]')).map(item=>item.dataset.planId));
     plans.innerHTML=state.mapMissionPlans.map(plan=>{
       const stops=[plan.start_point,...(plan.steps||[]).map(step=>step.point)].join(' → ');
       const repeat=plan.repeat_count===-1?'∞':plan.repeat_count;
-      return `<article class="mission-plan-row"><div><strong>${escape(plan.name)}</strong><small>${escape(stops)}</small><small>${plan.steps?.length||0} 步 · 重复 ${repeat} 次</small></div><div class="mission-plan-actions">${button('编辑','mission-edit',plan.id,'task:edit')}${button('执行','mission-start-plan',plan.id,'robot:control','primary')}${button('删除','mission-delete-plan',plan.id,'task:edit','danger')}</div></article>`;
+      return `<details class="mission-plan-row" data-plan-id="${plan.id}" ${expandedPlans.has(String(plan.id))?'open':''}><summary><strong>${escape(plan.name)}</strong><span>${repeat} 次</span></summary><div class="mission-plan-detail"><small>${escape(stops)}</small><small>${plan.steps?.length||0} 步 · 重复 ${repeat} 次</small><div class="mission-plan-actions">${button('编辑','mission-edit',plan.id,'task:edit')}${button('执行','mission-start-plan',plan.id,'robot:control','primary')}${button('删除','mission-delete-plan',plan.id,'task:edit','danger')}</div></div></details>`;
     }).join('')||'<p class="map-list-empty">先添加站点并发布地图，再创建可重复使用的任务链。</p>';
     runs.innerHTML=state.mapMissionRuns.map(run=>{
       const total=run.repeat_count===-1?'∞':run.repeat_count;
@@ -219,7 +220,7 @@
       const waitSeconds=missionWaitSeconds(run);
       const statusMarkup=`<span class="badge ${['failed','timeout'].includes(run.status)?'bad':['success','cancelled'].includes(run.status)?'good':'warn'}">${escape(missionStateLabel(run))}</span>`;
       return `<article class="mission-run-row"><div class="mission-run-head">${button(run.name,'mission-select',run.id,'task:view','mission-select')}${statusMarkup}</div><small>${escape(progress)} · ${run.task_mode==='schedule'?'定时':run.task_mode==='manual'?'手动逐步':'自动连续'}</small>${run.active_task?`<small>设备步骤：${escape(run.active_task.from_point)} → ${escape(run.active_task.to_point)} · ${escape(labels[run.active_task.status]||run.active_task.status)}</small>`:''}${run.status==='waiting_manual'?`<small>下一站：${escape(next)}${waitSeconds?` · 等待 ${waitSeconds} 秒` : ''}</small>`:''}${run.status==='finishing'?`<small>末站等待：剩余 ${waitSeconds} 秒</small>`:''}${run.scheduled_at&&run.status==='queued'?`<small>计划时间：${stamp(run.scheduled_at)}</small>`:''}${run.failure?`<small class="mission-error">${escape(run.failure)}</small>`:''}<div class="mission-run-actions">${missionControls(run)}</div></article>`;
-    }).join('')||'<p class="map-list-empty">暂无任务链执行记录</p>';
+    }).join('');
     renderMapMissionExecution();
   }
   async function refreshMapMissions(){
@@ -397,6 +398,7 @@
     },point=>{
       renderMapLists();
       const inspector=$('map-object-inspector');if(inspector)inspector.open=!!point;
+      const remove=document.querySelector('[data-action="map-remove"]');if(remove)remove.disabled=!point;
       if(point?.kind==='paths'){
         $('map-tool-hint').textContent=`路线 ${point.start} → ${point.end}`;
         $('point-properties').innerHTML=`<p class="inspector-title">${escape(point.start)} → ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','速度上限（米/秒）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">曲线会保存为三次贝塞尔中心线，并以采样路线点发送给 ROS。发布校验仍会检查曲线越界与禁行区。</p>${button('应用路径设置','map-shape-apply','paths')}`;return;
@@ -761,7 +763,7 @@
   }
   $('nav').onclick=event=>{const button=event.target.closest('[data-tab]');if(button)selectTab(button.dataset.tab);};
   document.addEventListener('fullscreenchange',()=>{const button=document.querySelector('#map-editor [data-action="map-fullscreen"]');if(button)button.textContent=document.fullscreenElement===document.getElementById('map-editor')?'退出大图':'大图显示';if(state.map)state.map.fit();});
-  document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=false;}});
+  document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target||target.disabled)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=target.dataset.action==='map-remove'&&state.map?.selected==null&&!state.map?.shape;}});
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();
   $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notify(e.message,true));};
   $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
