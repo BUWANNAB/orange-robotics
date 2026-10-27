@@ -1,4 +1,7 @@
 (function () {
+  const clampScale = value => Math.max(0.1, Math.min(100, value));
+  const defaultTheme = { background: '#fbfcfe', grid: '#edf0f5', route: '#58748b', station: '#3976ad', selected: '#e87832', selectedLabel: '#e9a16f', measure: '#ed6b16', relocalize: '#ec6d1c', relocalizeText: '#c44e0c' };
+  const handbookTheme = { ...defaultTheme, background: '#fff', grid: '#f3f5f9', route: '#1476FB', station: '#1476FB', selected: '#015EE7', selectedLabel: '#a8c7ff', measure: '#0a8f9b', relocalize: '#1476FB', relocalizeText: '#015EE7' };
   function pathSampleCount(start, end) {
     return Math.max(8, Math.min(24, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / 0.35)));
   }
@@ -41,11 +44,8 @@
       canvas.addEventListener('dblclick', () => this.closeArea(), options);
       canvas.addEventListener('wheel', event => {
         event.preventDefault();
-        const before = this.world(event);
-        this.scale = Math.max(0.1, Math.min(100, this.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-        const after = this.screen(before), box = canvas.getBoundingClientRect();
-        this.pan.x += event.clientX - box.left - after.x; this.pan.y += event.clientY - box.top - after.y;
-        this.draw();
+        const box = canvas.getBoundingClientRect();
+        this.zoomAt(event.deltaY < 0 ? 1.15 : 1 / 1.15, event.clientX - box.left, event.clientY - box.top);
       }, { ...options, passive: false });
       this.resizeObserver = new ResizeObserver(() => this.draw()); this.resizeObserver.observe(canvas);
       this.fit();
@@ -75,10 +75,23 @@
       this.history.push(structuredClone(this.document)); this.document = this.future.pop(); this.selected = null; this.shape = null; this.changed(); this.onSelect(null);
     }
     fit() {
-      this.scale = Math.min((this.canvas.clientWidth - 70) / this.document.width, (this.canvas.clientHeight - 70) / this.document.height);
-      this.scale = Math.max(0.1, this.scale); this.pan = { x: 35 - this.document.origin_x * this.scale, y: 35 - this.document.origin_y * this.scale };
+      this.scale = clampScale(Math.min((this.canvas.clientWidth - 70) / this.document.width, (this.canvas.clientHeight - 70) / this.document.height));
+      this.fitScale = this.scale; this.pan = { x: 35 - this.document.origin_x * this.scale, y: 35 - this.document.origin_y * this.scale };
       this.draw();
     }
+    zoomAt(factor, x, y) {
+      if (!Number.isFinite(factor) || factor <= 0 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+      const next = clampScale(this.scale * factor);
+      if (next === this.scale) return false;
+      const worldX = (x - this.pan.x) / this.scale;
+      const worldY = (this.canvas.clientHeight - y - this.pan.y) / this.scale;
+      this.scale = next;
+      this.pan = { x: x - worldX * next, y: this.canvas.clientHeight - y - worldY * next };
+      this.draw();
+      return true;
+    }
+    zoomBy(factor) { return this.zoomAt(factor, this.canvas.clientWidth / 2, this.canvas.clientHeight / 2); }
+    zoomPercent() { return Math.round(this.scale / this.fitScale * 1000) / 10; }
     setAreaType(type) { this.areaType = type; }
     screen(point) { return { x: point.x * this.scale + this.pan.x, y: this.canvas.clientHeight - point.y * this.scale - this.pan.y }; }
     world(event, precision = 10) {
@@ -196,13 +209,14 @@
     updateShape(values) { if (!this.shape) return; this.checkpoint(); const kind = this.shape.kind; Object.assign(this.document[kind][this.shape.index], values); this.changed(); this.onSelect({ ...this.document[kind][this.shape.index], kind }); }
     draw() {
       const width = this.canvas.clientWidth, height = this.canvas.clientHeight, ratio = window.devicePixelRatio || 1;
+      const theme = this.canvas.closest?.('.rcs-console') ? handbookTheme : defaultTheme;
       this.canvas.width = width * ratio; this.canvas.height = height * ratio;
       const ctx = this.ctx; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#fbfcfe'; ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = theme.background; ctx.fillRect(0, 0, width, height);
       if (this.layers.background && this.image) { const corner = this.screen({ x: this.document.origin_x, y: this.document.origin_y + this.document.height }); ctx.drawImage(this.image, corner.x, corner.y, this.document.width * this.scale, this.document.height * this.scale); }
       const step = Math.max(1, Math.pow(10, Math.ceil(Math.log10(25 / this.scale)))) * this.scale;
       if (this.layers.coordinates) {
-        ctx.strokeStyle = '#edf0f5'; ctx.lineWidth = 1;
+        ctx.strokeStyle = theme.grid; ctx.lineWidth = 1;
         for (let x = this.pan.x % step; x < width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
         for (let y = (height - this.pan.y) % step; y < height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
         const zero = this.screen({ x: 0, y: 0 }); ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = '#f36a14'; ctx.lineWidth = 1.25;
@@ -227,7 +241,7 @@
         if (!polygon?.length) return;
         const style = areaStyles[type] || areaStyles.forbidden;
         ctx.beginPath(); polygon.forEach(([x, y], i) => { const p = this.screen({ x, y }); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
-        ctx.closePath(); ctx.fillStyle = style.fill; ctx.fill(); ctx.strokeStyle = selected ? '#e87832' : style.stroke; ctx.lineWidth = selected ? 2.5 : 1.5; ctx.stroke();
+        ctx.closePath(); ctx.fillStyle = style.fill; ctx.fill(); ctx.strokeStyle = selected ? theme.selected : style.stroke; ctx.lineWidth = selected ? 2.5 : 1.5; ctx.stroke();
         const center = polygon.reduce((sum, [x, y]) => [sum[0] + x / polygon.length, sum[1] + y / polygon.length], [0, 0]);
         const label = this.document.areas.find(a => a.polygon === polygon)?.name || style.label, p = this.screen({ x: center[0], y: center[1] });
         ctx.font = '600 12px Microsoft YaHei, sans-serif'; ctx.fillStyle = style.stroke; ctx.fillText(label, p.x, p.y);
@@ -239,7 +253,7 @@
         const pointA = points.get(path.start), pointB = points.get(path.end); if (!pointA || !pointB) continue;
         const a = this.screen(pointA), b = this.screen(pointB), controls = curveControls(path, pointA, pointB);
         const selected = this.shape?.kind === 'paths' && this.shape.index === index;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = selected ? '#e87832' : '#58748b'; ctx.lineWidth = selected ? 2.8 : 1.7;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = selected ? theme.selected : theme.route; ctx.lineWidth = selected ? 2.8 : 1.7;
         ctx.beginPath(); ctx.moveTo(a.x, a.y);
         if (controls) { const c1 = this.screen(controls[0]), c2 = this.screen(controls[1]); ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, b.x, b.y); }
         else ctx.lineTo(b.x, b.y);
@@ -253,8 +267,8 @@
       window.drawLiveMap?.(this);
       if (this.layers.stations) this.document.points.forEach((point, index) => {
         const p = this.screen(point); if (p.x < -120 || p.x > width + 120 || p.y < -50 || p.y > height + 50) return;
-        const selected = index === this.selected, color = point.type === 'charger' ? '#25835d' : point.type === 'shelf' ? '#8564aa' : point.type === 'waiting' ? '#bc7a27' : point.type === 'elevator' ? '#287fa0' : '#3976ad';
-        ctx.save(); ctx.translate(p.x, p.y); ctx.fillStyle = color; ctx.strokeStyle = selected ? '#e87832' : '#fff'; ctx.lineWidth = selected ? 3 : 1.5;
+        const selected = index === this.selected, color = point.type === 'charger' ? '#25835d' : point.type === 'shelf' ? '#8564aa' : point.type === 'waiting' ? '#bc7a27' : point.type === 'elevator' ? '#287fa0' : theme.station;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.fillStyle = color; ctx.strokeStyle = selected ? theme.selected : '#fff'; ctx.lineWidth = selected ? 3 : 1.5;
         if (point.type === 'charger' || point.type === 'shelf' || point.type === 'elevator') {
           const sides = point.type === 'elevator' ? 6 : 4; ctx.beginPath();
           for (let i = 0; i < sides; i++) { const angle = (i / sides) * Math.PI * 2 - Math.PI / 2, radius = selected ? 9 : 7; const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
@@ -268,33 +282,34 @@
           ctx.font = `${selected ? '600 ' : ''}12px Microsoft YaHei, sans-serif`;
           const labelWidth = ctx.measureText(label).width, x = p.x + 11, y = p.y - 11;
           ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.fillRect(x - 3, y - 12, labelWidth + 7, 18);
-          ctx.strokeStyle = selected ? '#e9a16f' : '#d9e2e9'; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 12, labelWidth + 7, 18);
+          ctx.strokeStyle = selected ? theme.selectedLabel : '#d9e2e9'; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 12, labelWidth + 7, 18);
           ctx.fillStyle = '#263d52'; ctx.fillText(label, x, y + 1);
         }
       });
       if (this.measure) {
         const start = this.screen(this.measure.start), end = this.screen(this.measure.end), distance = Math.hypot(this.measure.end.x - this.measure.start.x, this.measure.end.y - this.measure.start.y);
-        ctx.save(); ctx.strokeStyle = '#ed6b16'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = '#ed6b16'; ctx.font = '600 12px Segoe UI, Microsoft YaHei, sans-serif'; ctx.fillText(`${distance.toFixed(2)} m`, (start.x + end.x) / 2 + 8, (start.y + end.y) / 2 - 8); ctx.restore();
+        ctx.save(); ctx.strokeStyle = theme.measure; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = theme.measure; ctx.font = '600 12px Segoe UI, Microsoft YaHei, sans-serif'; ctx.fillText(`${distance.toFixed(2)} m`, (start.x + end.x) / 2 + 8, (start.y + end.y) / 2 - 8); ctx.restore();
       }
       if (this.edgeStart) {
         const p = points.get(this.edgeStart), s = p && this.screen(p);
-        if (s) { ctx.fillStyle = '#e87832'; ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI * 2); ctx.strokeStyle = '#e87832'; ctx.lineWidth = 2; ctx.stroke(); }
+        if (s) { ctx.fillStyle = theme.selected; ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI * 2); ctx.strokeStyle = theme.selected; ctx.lineWidth = 2; ctx.stroke(); }
       }
       if (this.relocalization) {
         const start = this.screen(this.relocalization.start), end = this.screen(this.relocalization.end);
         const angle = Math.atan2(end.y - start.y, end.x - start.x), head = 11;
-        ctx.save();ctx.strokeStyle='#ec6d1c';ctx.fillStyle='#ec6d1c';ctx.lineWidth=3;ctx.lineCap='round';
+        ctx.save();ctx.strokeStyle=theme.relocalize;ctx.fillStyle=theme.relocalize;ctx.lineWidth=3;ctx.lineCap='round';
         ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();
         ctx.beginPath();ctx.moveTo(end.x,end.y);ctx.lineTo(end.x-head*Math.cos(angle-.55),end.y-head*Math.sin(angle-.55));
         ctx.lineTo(end.x-head*Math.cos(angle+.55),end.y-head*Math.sin(angle+.55));ctx.closePath();ctx.fill();
-        ctx.beginPath();ctx.arc(start.x,start.y,8,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#ec6d1c';ctx.lineWidth=3;ctx.stroke();
-        ctx.fillStyle='#c44e0c';ctx.font='600 12px Segoe UI, Microsoft YaHei, sans-serif';
+        ctx.beginPath();ctx.arc(start.x,start.y,8,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=theme.relocalize;ctx.lineWidth=3;ctx.stroke();
+        ctx.fillStyle=theme.relocalizeText;ctx.font='600 12px Segoe UI, Microsoft YaHei, sans-serif';
         ctx.fillText(`新车位 (${this.relocalization.start.x.toFixed(2)}, ${this.relocalization.start.y.toFixed(2)})`,start.x+12,start.y-12);ctx.restore();
       }
       const curves = this.document.paths.filter(path => path.curve_mode === 'smooth').length;
       ctx.fillStyle = '#63788b'; ctx.font = '12px Microsoft YaHei, sans-serif';
       ctx.fillText(`世界坐标 / 米 · 0.1m 网格 · ${this.document.points.length} 个站点 · ${this.document.paths.length} 条路线（曲线 ${curves}）`, 15, height - 14);
+      this.onViewChange?.(this.zoomPercent());
     }
     destroy() { this.liveController?.destroy(); this.abort.abort(); this.resizeObserver.disconnect(); }
   }
