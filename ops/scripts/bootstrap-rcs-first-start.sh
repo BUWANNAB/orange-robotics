@@ -127,6 +127,7 @@ ORANGE_DATA_DIR=/var/lib/orange
 ROBOT_FILES_DIR=/var/lib/orange/files
 ROBOT_STATIC_MAPS_DIR=/var/lib/orange/static-maps
 RCS_DATA_DIR=/var/lib/orange/rcs
+ORANGE_ROBOT_MODEL_FILE=/var/lib/orange/rcs/robot_model.json
 MID360_CONFIG_FILE=/var/lib/orange/lidar/active.json
 ROBOT_PLC_HOST=192.168.8.30
 ROBOT_PLC_PORT=502

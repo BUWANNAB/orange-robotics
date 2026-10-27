@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 class ROS2BridgeService:
     def __init__(self):
         self.node = None
+        self.tf_buffer = self.tf_listener = None
         self.is_simulation = False
         self.error = ""
         self._running = False
@@ -57,6 +58,9 @@ class ROS2BridgeService:
             rclpy.init()
             self._ros_initialized = True
             self.node = rclpy.create_node("orange_agv_web_bridge")
+            from tf2_ros import Buffer, TransformListener
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self.node, spin_thread=False)
             from app.services.mapping_control import receive as mapping_receive
             self.node.create_subscription(String, "/buildmap_status", lambda m: self._schedule(mapping_receive, m), 10)
             self.node.create_subscription(OccupancyGrid, "/orange/mapping/live_grid", self._on_live_grid, 10)
@@ -96,6 +100,33 @@ class ROS2BridgeService:
     def _schedule(self, callback, *args):
         if self._loop and not self._loop.is_closed():
             self._loop.call_soon_threadsafe(callback, *args)
+
+    def transform_snapshot(self, parent, child):
+        self.require_ros()
+        if self.tf_buffer is None:
+            raise RuntimeError("尚未建立 TF 监听")
+        try:
+            from rclpy.time import Time
+            transform = self.tf_buffer.lookup_transform(parent, child, Time())
+            p, q = transform.transform.translation, transform.transform.rotation
+            values = [p.x, p.y, p.z, q.x, q.y, q.z, q.w]
+            if not all(math.isfinite(value) for value in values) or math.hypot(*values[3:]) < 1e-12:
+                raise ValueError("TF 包含无效位置或姿态")
+            stamp = transform.header.stamp.sec + transform.header.stamp.nanosec / 1e9
+            age = self.node.get_clock().now().nanoseconds / 1e9 - stamp if stamp else None
+            return {"translation": values[:3], "quaternion": values[3:], "age_seconds": age}
+        except Exception as exc:
+            raise RuntimeError(f"无法读取 {parent} → {child}: {exc}") from exc
+
+    def frame_parents(self):
+        self.require_ros()
+        if self.tf_buffer is None:
+            return {}
+        import yaml
+        frames = yaml.safe_load(self.tf_buffer.all_frames_as_yaml()) or {}
+        if not isinstance(frames, dict):
+            raise RuntimeError("TF 坐标树数据格式无效")
+        return {key: value.get("parent") for key, value in frames.items() if isinstance(value, dict)}
 
     def _event(self, topic, value):
         self.event_seq += 1
@@ -467,6 +498,12 @@ class ROS2BridgeService:
 
     def stop(self):
         self._running = False
+        if self.tf_listener:
+            try:
+                self.tf_listener.unregister()
+            except Exception:
+                log.exception("TF listener cleanup failed")
+        self.tf_listener = self.tf_buffer = None
         if self._sim_task:
             self._sim_task.cancel()
             self._sim_task = None

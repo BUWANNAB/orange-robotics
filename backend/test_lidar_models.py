@@ -252,12 +252,13 @@ class LidarModelTests(unittest.TestCase):
                      patch("app.services.ros_runtime.unit_state", new_callable=AsyncMock,
                            return_value={"state": "active"}), \
                      patch("app.services.ros_runtime.command", new_callable=AsyncMock) as command, \
-                     patch("app.services.ros_runtime.graph", return_value=["livox_mount_tf"]), \
+                     patch("app.services.ros_runtime.graph", return_value=["livox_mount_tf"]) as graph, \
                      patch.object(ros2_service, "lidar_received", time.monotonic()), \
                      patch.object(ros2_service, "is_simulation", False):
                     command.return_value = str(int(marker["saved_monotonic"] * 1_000_000))
                     with self.assertRaisesRegex(ValueError, "尚未重启"):
                         asyncio.run(LidarService.verify_applied())
+                    graph.return_value = ["orange_robot_state_publisher"]
                     command.side_effect = [str(int(marker["saved_monotonic"] * 1_000_000) + 2_000_000),
                                            f"String value is: {path}"]
                     verified = asyncio.run(LidarService.verify_applied())

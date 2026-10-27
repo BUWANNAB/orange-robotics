@@ -43,7 +43,10 @@
     }
     if(editor.layers?.liveTrail!==false)for(let i=1;i<live.trail.length;i++)line(live.trail[i-1],live.trail[i],'#168aab',2);
     ctx.setLineDash([]);
-    if(editor.layers?.liveRobot!==false&&live.pose){const p=editor.screen({x:live.pose.LocalX,y:live.pose.LocalY});ctx.translate(p.x,p.y);ctx.rotate(-live.pose.Heading*Math.PI/180);ctx.fillStyle='#df5728';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(17,0);ctx.lineTo(-11,-10);ctx.lineTo(-6,0);ctx.lineTo(-11,10);ctx.closePath();ctx.fill();ctx.stroke();}
+    if(editor.layers?.liveRobot!==false&&live.pose){
+      const drawn=root.OrangeRobotModel?.drawMap(editor,live.pose,editor.robotModel);
+      if(!drawn){const p=editor.screen({x:live.pose.LocalX,y:live.pose.LocalY});ctx.translate(p.x,p.y);ctx.rotate(-live.pose.Heading*Math.PI/180);ctx.fillStyle='#df5728';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(17,0);ctx.lineTo(-11,-10);ctx.lineTo(-6,0);ctx.lineTo(-11,10);ctx.closePath();ctx.fill();ctx.stroke();}
+    }
     ctx.restore();
   }
   if(typeof module==='object')module.exports={view};

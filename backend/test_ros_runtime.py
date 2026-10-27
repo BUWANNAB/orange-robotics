@@ -29,7 +29,7 @@ class RuntimeTests(unittest.TestCase):
             response=self.client.get('/api/ros-runtime/status',headers=self.headers)
             self.assertEqual(response.status_code,200)
             self.assertFalse(response.json()['data']['control_enabled'])
-            self.assertEqual(len(response.json()['data']['services']),4)
+            self.assertEqual(len(response.json()['data']['services']),len(runtime.SERVICES))
             denied=self.client.post('/api/ros-runtime/services/core/action',headers=self.headers,json={'action':'start','reason':'测试启动'})
             self.assertEqual(denied.status_code,409)
 
@@ -163,6 +163,8 @@ class RuntimeTests(unittest.TestCase):
         launch_actions.Node = lambda **kwargs: types.SimpleNamespace(**kwargs)
         launch_ros.actions = launch_actions
         modules = {'launch':launch,'launch_ros':launch_ros,'launch_ros.actions':launch_actions}
+        from app.services.robot_model import contract
+        modules.update({'orange_runtime':types.ModuleType('orange_runtime'),'orange_runtime.robot_model':contract})
         root=Path(__file__).resolve().parents[1]/'ros/orange_nav_ws/src/runtime/orange_runtime/launch'
         with tempfile.TemporaryDirectory() as tmp:
             config=Path(tmp)/'active.json'
@@ -177,6 +179,15 @@ class RuntimeTests(unittest.TestCase):
                 core=importlib.util.module_from_spec(core_spec);core_spec.loader.exec_module(core)
                 core_nodes=core.generate_launch_description()
                 self.assertNotIn('ros2plc',[node.package for node in core_nodes])
+                publishers=[node for node in core_nodes if node.package=='robot_state_publisher']
+                self.assertEqual(len(publishers),1)
+                self.assertIn('livox_mount',publishers[0].parameters[0]['robot_description'])
+                self.assertFalse(any(node.executable=='static_transform_publisher' for node in core_nodes))
+                visual_config=Path(tmp)/'body.json'
+                visual_config.write_text('{invalid JSON',encoding='utf-8')
+                with patch.dict(os.environ,{'ORANGE_ROBOT_MODEL_FILE':str(visual_config)}):
+                    fallback=core.generate_launch_description()
+                    self.assertIn('UNMEASURED',fallback[0].parameters[0]['robot_description'])
 
                 plc_spec=importlib.util.spec_from_file_location('plc_launch_under_test',root/'plc.launch.py')
                 plc=importlib.util.module_from_spec(plc_spec);plc_spec.loader.exec_module(plc)

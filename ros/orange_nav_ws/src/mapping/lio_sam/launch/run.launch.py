@@ -26,7 +26,8 @@ def generate_launch_description():
         params_declare,
         DeclareLaunchArgument('pointcloud_topic',default_value='/livox/lidar'),
         DeclareLaunchArgument('use_rviz',default_value='true'),
-        DeclareLaunchArgument('publish_robot_description',default_value='true'),
+        DeclareLaunchArgument('publish_robot_description',default_value='false',
+                              description='Legacy standalone visualization only; Orange core owns the robot TF model'),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',

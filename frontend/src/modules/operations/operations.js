@@ -151,6 +151,11 @@
     try{const data=await api.get('/api/task-history',{pageNo:1,pageSize:6,map_id:mapId,exclude_missions:true});if(!state.map||state.mapRow?.id!==mapId)return;state.mapTasks=data.list||[];state.mapTaskTotal=Number(data.total)||0;renderMapTasks();}
     catch(error){const list=$('map-task-list');if(list&&state.mapRow?.id===mapId)list.innerHTML=`<p class="map-list-empty">任务状态暂不可用：${escape(error.message)}</p>`;}
   }
+  async function refreshRobotModel(){
+    const editor=state.map;if(!editor)return;
+    try{const model=await api.get('/api/robot-model');if(state.map===editor){editor.robotModel=model;editor.draw();}}
+    catch(error){if(state.map===editor)editor.robotModel=null;}
+  }
   function taskModeMarkup(){
     const options=[['auto','自动'],['manual','手动'],['schedule','调度']];
     return `<div class="task-mode-switch" role="group" aria-label="任务链执行方式"><span>任务模式</span>${options.map(([mode,label])=>`<button type="button" data-action="task-mode-set" data-id="${mode}" aria-pressed="${state.taskMode===mode}" ${!can('robot:control')?'disabled':''}>${label}</button>`).join('')}</div>`;
@@ -360,7 +365,7 @@
           <span class="map-tool-separator"></span>${button('撤销','map-undo','')}${button('重做','map-redo','')}${button('选择','tool-select','','','map-tool-active')}${button('平移','tool-pan','')}${button('测距','tool-measure','')}
         </div>
         <div class="map-toolbar-row map-toolbar-actions">
-          ${button('编辑二维地图','workbench-grid','')}${button('更换地图底图','map-asset','','','')}${button('重新定位','tool-relocalize','')}${button('自动重定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
+          ${button('编辑二维地图','workbench-grid','')}${button('更换地图底图','map-asset','','','')}${button('车体模型','robot-model-open','','map:view')}${button('重新定位','tool-relocalize','')}${button('自动重定位','workbench-locate','')}<span class="map-tool-spacer"></span>${button('保存草稿','map-save','')}${button('验证路线','map-validate','')}${button('发布到机器人','map-publish',row.id,'map:publish','primary')}
         </div>
       </nav>
       <div class="map-workspace">
@@ -459,7 +464,7 @@
         state.map.setTool('select');document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
       });
     });
-    renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();
+    renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();refreshRobotModel();
     state.mapTaskTimer=setInterval(()=>{refreshMapTasks();refreshMapMissions();},5000);
     $('map-point-search').oninput=renderMapLists;
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
@@ -623,6 +628,7 @@
     if(name==='map-open-navigation'){window.top.postMessage({type:'orange-toggle-navigation'},location.origin);return;}
     if(name==='task-mode-set')return changeTaskMode(id);
     if(name==='map-task-create')return taskForm();
+    if(name==='robot-model-open')return dialog('车体坐标与模型','<iframe id="robot-model-frame" class="robot-model-frame" src="robot-model.html?embedded=1" title="base_link 车体坐标与三维模型"></iframe>',null);
     if(name==='map-mission-create')return missionDesigner();
     if(name==='mission-edit'){const plan=state.mapMissionPlans.find(item=>String(item.id)===String(id));if(!plan)throw new Error('任务链列表已更新，请刷新后重试');return missionDesigner(plan);}
     if(name==='mission-start-plan'){const plan=state.mapMissionPlans.find(item=>String(item.id)===String(id));if(!plan)throw new Error('任务链列表已更新，请刷新后重试');return startSavedMission(plan);}
@@ -754,7 +760,9 @@
   window.addEventListener('pagehide',()=>{state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);state.map?.destroy();});
   document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
   window.addEventListener('message',event=>{
-    if(event.origin!==location.origin||event.source!==parent)return;
+    if(event.origin!==location.origin)return;
+    if(event.data?.type==='robot-model-updated'&&event.source===$('robot-model-frame')?.contentWindow){refreshRobotModel();return;}
+    if(event.source!==parent)return;
     if(event.data?.type==='workbench-open-map-asset'){
       openAssetMap(event.data.asset).catch(error=>notify(error.message,true));return;
     }

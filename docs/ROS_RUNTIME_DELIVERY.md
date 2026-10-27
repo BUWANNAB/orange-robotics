@@ -14,7 +14,7 @@
 
 | 服务 | 内容 | 运行方式 |
 | --- | --- | --- |
-| orange-ros-core | 一个 Livox 驱动、点云转换、安装 TF | 雷达/建图基础服务；不依赖 PLC |
+| orange-ros-core | 一个 Livox 驱动、点云转换、车体 robot_state_publisher 与安装 TF | 雷达/建图基础服务；不依赖 PLC |
 | orange-ros-plc | ros2plc Modbus 通信 | 单独启动；PLC 协议确认前保持停止 |
 | orange-ros-localization | global_relocalization、lidar_localization、tf_to_pose | 只依赖 core；不绑定 PLC 或底盘使能服务。自动全局重定位需要 PLC 提供新鲜里程计和停车反馈 |
 | orange-ros-navigation | vehicle_navigation、可选点云防护链 | 依赖 core、定位和 PLC 通信；只运行运动控制节点，不发送底盘使能脉冲 |
@@ -28,7 +28,7 @@
 - 新 mapping launch 显式 `manage_livox=false`，只拥有自身 LIO-SAM 进程。停止回执为 `mapping_stopped`；旧模式 `rviz_livox_started` 仍兼容。
 - `build_map_manager` 把建图/保存工作放到可等待回收的 worker 中，只向自己启动的进程组发停止信号；保存先写隐藏临时目录，校验非空 `GlobalMap.pcd` 后再发布正式目录。已有同名地图不覆盖；保存服务超时且请求仍在执行时会先停止所属 LIO-SAM 进程，再清理临时文件。
 - `orange_runtime/live_grid_preview` 订阅注册点云并发布 `/orange/mapping/live_grid` 与低频状态心跳。它只提供建图期间的端点占用预览，未观测区域保留为 unknown；它不替代最终 PGM 生成或导航代价地图。
-- 新模式关闭 LIO-SAM 的 RViz 和重复 robot_state_publisher。核心服务从共享雷达 JSON 的 `robot_mount` 发布唯一的 `base_link → livox_frame` 静态 TF；Livox 驱动外参必须保持零，防止点云重复变换。首次复制型号模板后，先在 Web 页面填入现场实测安装外参，才能启动核心服务。定位启动链不再重复发布该 TF。
+- 新模式关闭 LIO-SAM 的 RViz 和重复 robot_state_publisher。核心服务的 `orange_robot_state_publisher` 从共享车体模型生成 URDF，并从雷达 JSON 的 `robot_mount` 发布唯一的 `base_link → livox_frame` 静态 TF；Livox 驱动外参必须保持零，防止点云重复变换。首次复制型号模板后，先在 Web 页面填入现场实测安装外参，才能启动核心服务。定位启动链不再重复发布该 TF。
 - 人工推车建图前，Web 检查 localization 和 navigation systemd 服务均已加载且 inactive、ROS 图中没有定位或运动控制节点、近 2 秒收到 `/livox/lidar` 点云且 `/buildmap` 至少有一个建图控制器订阅者；无需 `/vehicle_run_status`、`/odom_topic` 或 PLC 回读。页面要求操作者现场确认底盘厂家允许的手动/自由轮状态。建图开始与结束不会发布底盘路线/停止/启动脉冲，也不依赖定位 lifecycle 服务。建图期间定位与运动控制服务保持停止，保存 PCD 后由操作者检查结果，再启动 PLC 通信（如未启动）、定位并重新定位。软件无法验证物理牵引使能。
 - 安装外参写在雷达 JSON 顶层 `robot_mount`，位置用毫米、姿态用度；`lidar_configs[0].extrinsic_parameter` 保持为零是预期行为，不代表外参没保存。配置页读取不会写文件；保存时六个实测值、现场确认框和共享文件路径必须通过校验。
 - 暂存雷达型号、IP、安装外参和点云防护参数时，必须确认建图已结束、LIO-SAM 采集节点以及定位、运动控制服务均已停止。此操作只写共享配置与待验证标记，不控制 PLC 或底盘，因此不要求 PLC 停车回读；配置需按维护流程重启相关 ROS 服务后才会生效。
@@ -88,3 +88,5 @@
 Windows 已完成维护 API、固定命令参数、核心保护、停车反馈门控、建图互斥、重复节点拒绝、点云坐标转换的隔离测试。点云防护的配置校验和 Humble 参数生成有独立单元测试；本地没有重编 ROS C++ 工作区或启动 Collision Monitor，也没有验证真实车体的避障、刹停距离和绕障行为。systemd 调用使用测试替身，没有执行真实服务启停。
 
 本机 WSL 挂载权限已修复，Livox SDK 及驱动已完成 ROS 2 Humble 编译；整套 ROS 工作区、真实消息链吞吐、用户服务权限、传感器安装外参和硬件行为仍待机器人现场验收。当前方案与页面已实现，不能据此宣称机器人已完成常驻模式迁移。
+
+车体示意模型、安装外参和运行时坐标检查见 [车体坐标与可视模型](ROBOT_FRAME_MODEL.md)。新增运行依赖 `robot_state_publisher`；未标定外形仅用于显示，不作为碰撞或控制参数。

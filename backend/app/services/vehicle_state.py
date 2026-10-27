@@ -4,6 +4,10 @@ from typing import Dict, Any, Optional
 
 def quaternion_to_heading(x: float, y: float, z: float, w: float) -> float:
     """四元数计算平面航向角 Yaw (度, -180 ~ 180)"""
+    norm = math.hypot(x, y, z, w)
+    if not math.isfinite(norm) or norm < 1e-12:
+        raise ValueError("姿态四元数必须有限且长度非零")
+    x, y, z, w = (value / norm for value in (x, y, z, w))
     siny_cosp = 2.0 * (w * z + x * y)
     cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
     rad = math.atan2(siny_cosp, cosy_cosp)
@@ -73,6 +77,11 @@ class VehicleState:
 
     def update_pose(self, x: float, y: float, z: float, qx: float, qy: float, qz: float, qw: float):
         """更新位姿 (供 ROS 话题或模拟器纳秒级写入)"""
+        if not all(math.isfinite(value) for value in (x, y, z, qx, qy, qz, qw)):
+            raise ValueError("位姿包含非有限数值")
+        heading = quaternion_to_heading(qx, qy, qz, qw)
+        norm = math.hypot(qx, qy, qz, qw)
+        qx, qy, qz, qw = (value / norm for value in (qx, qy, qz, qw))
         self.x = x
         self.y = y
         self.z = z
@@ -80,7 +89,7 @@ class VehicleState:
         self.qy = qy
         self.qz = qz
         self.qw = qw
-        self.heading = quaternion_to_heading(qx, qy, qz, qw)
+        self.heading = heading
         
         if self.origin_lat != 0.0 and self.origin_lon != 0.0:
             self.lat, self.lon = local_to_wgs84(x, y, self.origin_lat, self.origin_lon)

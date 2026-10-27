@@ -6,6 +6,7 @@
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend><exec_depend>sensor_msgs</exec_depend><exec_depend>livox_ros_driver2</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>pcl_ros</exec_depend><exec_depend>nav2_collision_monitor</exec_depend><exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>orange_pointcloud_filter</exec_depend>
   <exec_depend>launch_ros</exec_depend><exec_depend>ament_index_python</exec_depend>

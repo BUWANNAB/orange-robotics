@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>车体坐标与模型 · Orange Robotics</title>
+<script>if(new URLSearchParams(location.search).has('embedded'))document.documentElement.classList.add('embedded');</script>
+<link rel="stylesheet" href="src/modules/robot-model/model.css?v=base-link-20261027-2">
+<script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script></head>
+<body>
+<header><div><span>ORANGE ROBOTICS</span><h1>车体坐标与模型</h1></div><strong id="model-status">读取配置…</strong></header>
+<main><section class="model-view"><div id="model-viewport" aria-label="base_link 车体与雷达三维模型"></div>
+<div class="view-legend"><span class="axis-x">X 向前</span><span class="axis-y">Y 向左</span><span class="axis-z">Z 向上</span><span>圆点为 base_link 原点</span></div>
+<label class="heading-control">示意朝向 <input id="preview-yaw" type="range" min="-180" max="180" value="0"><output id="preview-yaw-value">0°</output><button id="fit-model" type="button">适应模型</button></label>
+<p class="note">拖动旋转查看 · 滚轮缩放。模型按米绘制；未标定尺寸只用于显示。</p></section>
+<aside><form id="model-form"><h2>车体外形</h2><p>默认示意原点位于车体底部中心。实车 base_link 的位置由车体与控制系统约定；车体中心偏移不会移动这个原点。</p>
+<div class="fields"><label>长度 / X（米）<input name="length" type="number" min="0.05" max="20" step="0.001" required></label><label>宽度 / Y（米）<input name="width" type="number" min="0.05" max="20" step="0.001" required></label><label>高度 / Z（米）<input name="height" type="number" min="0.05" max="20" step="0.001" required></label></div>
+<h2>车体中心相对原点</h2><div class="fields"><label>中心 X（米）<input name="center_x" type="number" min="-20" max="20" step="0.001" required></label><label>中心 Y（米）<input name="center_y" type="number" min="-20" max="20" step="0.001" required></label><label>中心 Z（米）<input name="center_z" type="number" min="-20" max="20" step="0.001" required></label></div>
+<label class="check"><input id="dimensions-confirmed" type="checkbox">上述尺寸和原点位置已经现场实测</label>
+<section class="mount"><h2>雷达相对 base_link</h2><p id="mount-status">读取安装外参…</p><a href="radar-settings.html" target="_blank" rel="noopener">在雷达配置中修改安装外参 ↗</a></section>
+<details><summary>坐标链检查</summary><div id="tf-notes"></div><button id="check-tf" type="button">核对运行中 TF</button><p id="tf-result" role="status">尚未核对运行中 TF</p></details>
+<label class="confirmation">输入“保存车体模型”确认<input name="confirmation" autocomplete="off" required></label>
+<div class="actions"><button id="save-model" type="submit">保存模型</button><button id="reset-model" type="button">恢复已保存</button><button id="export-urdf" type="button">导出 URDF</button></div>
+<p id="model-notice" role="status"></p></form></aside></main>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/robot-model/model.js?v=base-link-20261027-2"></script>
+</body></html>

@@ -92,6 +92,10 @@ html.embedded #content{height:100%;min-height:0;margin:0}
 .mission-run-head{display:flex;align-items:center;justify-content:space-between;gap:5px}
 .mission-run-head .badge{padding:3px 5px;font-size:9px}
 .mission-error{color:#b43d37!important}
+dialog:has(.robot-model-frame){width:min(1150px,97vw);max-height:92vh;overflow:hidden}
+dialog:has(.robot-model-frame) #dialog-body{padding:0;max-height:none;overflow:hidden}
+dialog:has(.robot-model-frame) .dialog-footer,dialog:has(.robot-model-frame) #dialog-error:empty{display:none}
+.robot-model-frame{display:block;width:100%;height:76vh;border:0}
 .mission-select{max-width:65%;padding:0;border:0;background:transparent;color:#40546a;font-size:11px;font-weight:700;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .map-mission-execution{display:grid;gap:9px;padding:12px;border:1px solid #f0d5c2;border-radius:8px;background:#fffaf6;color:#536779;font-size:12px}
 .map-mission-execution[hidden],#map-task-active[hidden]{display:none}

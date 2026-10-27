@@ -389,7 +389,7 @@ class LidarService:
         active_path = output.strip().removeprefix("String value is:").strip()
         if Path(active_path).resolve() != cfg_path.resolve():
             raise ValueError(f"ROS 驱动正在读取其他文件：{active_path}")
-        if "livox_mount_tf" not in ros_runtime.graph():
+        if not ({"livox_mount_tf", "orange_robot_state_publisher"} & set(ros_runtime.graph())):
             raise ValueError("未发现从共享外参文件启动的雷达静态 TF 节点")
         if (ros2_service.is_simulation or not ros2_service.lidar_received or
                 time.monotonic() - ros2_service.lidar_received >= 2):
