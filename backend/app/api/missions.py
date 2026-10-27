@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 
 from app.common.response import ok
 from app.database import get_db
-from app.models.operations import MapDocument, MissionRun, MissionSettings, Robot, TaskPlan, TaskRun
+from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MissionRun, MissionSettings, Robot, TaskPlan, TaskRun
 from app.services.mission_service import create_current_step, validate_chain
 from app.services.map_editor import published_map
 from app.services.operations_common import audit, confirm, get_or_404, now, public, require
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api")
 
 
 class MissionStep(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     node_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12], min_length=1, max_length=40)
     action: Literal["navigate"] = "navigate"
     point: str = Field(min_length=1, max_length=80)
@@ -49,7 +49,9 @@ class TaskModeInput(BaseModel):
 
 
 class MissionStartInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     confirmation: str = Field(min_length=1, max_length=128)
+    task_mode: Literal["manual", "auto", "schedule"] | None = None
     scheduled_at: datetime | None = None
     repeat_count: int | None = Field(default=None, ge=-1, le=1000)
     robot_id: int | None = None
@@ -131,7 +133,7 @@ async def create_task_plan(body: TaskPlanInput, actor=Depends(require("task:edit
 async def update_task_plan(plan_id: int, body: TaskPlanInput, actor=Depends(require("task:edit")), db=Depends(get_db)):
     row = await get_or_404(db, TaskPlan, plan_id)
     active = await db.scalar(select(MissionRun.id).where(MissionRun.plan_id == row.id,
-        MissionRun.status.in_(["queued", "running", "waiting_manual"])).limit(1))
+        MissionRun.status.in_(ACTIVE_MISSION_STATES)).limit(1))
     if active:
         raise HTTPException(409, "任务链正在等待或执行，暂不能修改")
     steps, _ = await validate_plan_data(db, body)
@@ -150,7 +152,7 @@ async def delete_task_plan(plan_id: int, body: MissionConfirm,
     row = await get_or_404(db, TaskPlan, plan_id)
     confirm(body.confirmation, row.name)
     active = await db.scalar(select(MissionRun.id).where(MissionRun.plan_id == row.id,
-        MissionRun.status.in_(["queued", "running", "waiting_manual"])).limit(1))
+        MissionRun.status.in_(ACTIVE_MISSION_STATES)).limit(1))
     if active:
         raise HTTPException(409, "任务链正在等待或执行，不能删除")
     await db.delete(row)
@@ -166,6 +168,8 @@ async def start_task_plan(plan_id: int, body: MissionStartInput,
     confirm(body.confirmation, plan.name)
     setting = await read_mode(db)
     mode = setting.task_mode if setting else "manual"
+    if body.task_mode is not None and body.task_mode != mode:
+        raise HTTPException(409, "任务模式已改变，请重新打开执行确认窗口")
     repeat_count = body.repeat_count if body.repeat_count is not None else plan.repeat_count
     if repeat_count == 0:
         raise HTTPException(400, "重复次数不能为 0；无限循环请选择 -1")
@@ -224,7 +228,7 @@ async def mission_runs(map_id: int = Query(gt=0), page_size: int = Query(20, ge=
 @router.post("/mission-runs/{run_id}/advance")
 async def advance_manual_run(run_id: int, body: MissionConfirm,
                              actor=Depends(require("robot:control")), db=Depends(get_db)):
-    run = await get_or_404(db, MissionRun, run_id)
+    run = await locked_run(db, run_id)
     confirm(body.confirmation, run.name)
     if run.task_mode != "manual" or run.status != "waiting_manual":
         raise HTTPException(409, "只有手动模式下等待操作的任务链可以下发下一步")
@@ -242,7 +246,7 @@ async def advance_manual_run(run_id: int, body: MissionConfirm,
         task = await create_current_step(db, run)
     except HTTPException as exc:
         run.status, run.finished_at, run.failure = "failed", now(), str(exc.detail)
-        run.timeline = run.timeline + [{"at": now().isoformat() + "Z", "status": "failed", "note": run.failure}]
+        run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": "failed", "note": run.failure}]
         audit(db, actor, "mission", f"手动任务链 #{run.id} 无法继续：{run.failure}")
         await db.commit()
         await db.refresh(run)
@@ -260,9 +264,9 @@ async def advance_manual_run(run_id: int, body: MissionConfirm,
 @router.post("/mission-runs/{run_id}/cancel")
 async def cancel_mission_run(run_id: int, body: MissionConfirm,
                              actor=Depends(require("robot:control")), db=Depends(get_db)):
-    run = await get_or_404(db, MissionRun, run_id)
+    run = await locked_run(db, run_id)
     confirm(body.confirmation, run.name)
-    if run.status not in {"queued", "waiting_manual", "running"}:
+    if run.status not in ACTIVE_MISSION_STATES:
         raise HTTPException(409, "任务链已经结束")
     if run.active_task_id:
         task = await db.get(TaskRun, run.active_task_id)
@@ -270,8 +274,44 @@ async def cancel_mission_run(run_id: int, body: MissionConfirm,
             raise HTTPException(409, "当前步骤正在设备上执行，请在任务执行栏停止并锁定设备")
     run.status, run.finished_at = "cancelled", now()
     run.failure = ""
-    run.timeline = run.timeline + [{"at": now().isoformat() + "Z", "status": "cancelled", "note": "操作员取消任务链"}]
+    run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": "cancelled", "note": "操作员取消任务链"}]
     audit(db, actor, "mission", f"取消任务链 #{run.id}")
     await db.commit()
     await db.refresh(run)
+    return ok(public(run))
+
+
+async def locked_run(db, run_id):
+    run = await db.scalar(select(MissionRun).where(MissionRun.id == run_id).with_for_update())
+    if run is None:
+        raise HTTPException(404, "任务链执行记录不存在")
+    return run
+
+
+@router.post("/mission-runs/{run_id}/pause")
+async def pause_mission_run(run_id: int, body: MissionConfirm,
+                            actor=Depends(require("robot:control")), db=Depends(get_db)):
+    run = await locked_run(db, run_id)
+    confirm(body.confirmation, run.name)
+    if run.status not in {"queued", "running", "waiting_manual"}:
+        raise HTTPException(409, "当前任务链不能暂停，请刷新执行状态")
+    run.status = "pausing" if run.active_task_id else "paused"
+    note = "当前导航段到站后暂停后续步骤" if run.active_task_id else "后续步骤已暂停"
+    run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": run.status, "note": note}]
+    audit(db, actor, "mission", f"任务链 #{run.id}：{note}")
+    await db.commit()
+    return ok(public(run))
+
+
+@router.post("/mission-runs/{run_id}/resume")
+async def resume_mission_run(run_id: int, body: MissionConfirm,
+                             actor=Depends(require("robot:control")), db=Depends(get_db)):
+    run = await locked_run(db, run_id)
+    confirm(body.confirmation, run.name)
+    if run.status != "paused" or run.active_task_id:
+        raise HTTPException(409, "只有已暂停且当前步骤已结束的任务链可以继续")
+    run.status = "waiting_manual" if run.task_mode == "manual" else "queued" if not run.started_at else "running"
+    run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": run.status, "note": "操作员确认继续任务链"}]
+    audit(db, actor, "mission", f"继续任务链 #{run.id}")
+    await db.commit()
     return ok(public(run))

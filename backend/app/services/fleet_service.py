@@ -3,7 +3,7 @@ import uuid
 from datetime import timedelta
 from fastapi import HTTPException
 from sqlalchemy import select, update
-from app.models.operations import Robot, Alarm, Command, BatterySample, TaskRun
+from app.models.operations import ACTIVE_MISSION_STATES, MissionRun, Robot, Alarm, Command, BatterySample, TaskRun
 from app.services.operations_common import now, online, audit, public
 
 TERMINAL = {"success", "failed", "cancelled", "timeout"}
@@ -62,6 +62,11 @@ async def ingest(db, robot, data):
     return {"accepted": True}
 
 
+async def reserved_mission(db, robot_id):
+    return await db.scalar(select(MissionRun.id).where(MissionRun.robot_id == robot_id,
+        MissionRun.status.in_(ACTIVE_MISSION_STATES), MissionRun.started_at.is_not(None)).limit(1))
+
+
 async def queue_command(db, robot, command, params, actor, key=None):
     if command not in COMMANDS | {"execute-task", "upgrade", "rollback", "load-map"}:
         raise HTTPException(400, "不支持的指令")
@@ -78,6 +83,8 @@ async def queue_command(db, robot, command, params, actor, key=None):
         raise HTTPException(409, "机器人维护中")
     if (robot.emergency or robot.locked) and command in {"goto-charge", "goto-point", "execute-task", "reboot", "set-mode"}:
         raise HTTPException(409, "机器人急停或锁定中，请先显式解除")
+    if command in {"goto-charge", "goto-point", "reboot", "set-mode", "upgrade", "rollback", "load-map"} and await reserved_mission(db, robot.id):
+        raise HTTPException(409, "机器人被任务链占用，请先结束或取消任务链")
     task = await db.scalar(select(TaskRun.id).where(TaskRun.robot_id == robot.id, TaskRun.status.in_(["dispatched", "running"])).limit(1))
     if command in {"goto-charge", "goto-point", "reboot", "upgrade", "load-map"} and (task or robot.telemetry.get("busy")):
         raise HTTPException(409, "机器人任务占用中")

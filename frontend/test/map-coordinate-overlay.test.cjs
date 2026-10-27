@@ -12,7 +12,8 @@ test('coordinate frame updates call the overlay renderer that is actually define
   assert.doesNotMatch(source, /updateCoordinateOverlay\s*\(/);
 });
 
-test('embedded map editor and renderer use the coordinate overlay fix cache key', () => {
-  assert.match(editor, /handle_map\.js\?v=20261008-coordinate-overlay-fix/);
-  assert.match(workbench, /ui=20261008-coordinate-overlay-fix/);
+test('embedded map editor and renderer use the same versioned cache key', () => {
+  const version=editor.match(/handle_map\.js\?v=([\w-]+)/)?.[1];
+  assert.ok(version,'the renderer must have an explicit asset version');
+  assert.ok(workbench.includes('ui='+version),'the iframe must load the matching renderer version');
 });

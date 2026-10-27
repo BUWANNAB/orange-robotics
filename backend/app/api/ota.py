@@ -188,6 +188,9 @@ async def new_upgrade(body: UpgradeInput, actor=Depends(require("firmware:upgrad
     db.add(row); await db.flush()
     for identity in dict.fromkeys(body.robot_ids):
         robot = await get_or_404(db, Robot, identity)
+        from app.services.fleet_service import reserved_mission
+        if await reserved_mission(db, identity):
+            raise HTTPException(409, f"机器人 {robot.code} 被任务链占用")
         existing = await db.scalar(select(UpgradeDetail.id).join(Upgrade, UpgradeDetail.task_id == Upgrade.id)
             .where(UpgradeDetail.robot_id == identity, Upgrade.status.in_(["pending", "running", "paused"])).limit(1))
         if existing or robot.maintenance: raise HTTPException(409, f"机器人 {robot.code} 已有升级或维护占用")

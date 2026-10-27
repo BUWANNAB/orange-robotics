@@ -86,20 +86,36 @@ html.embedded #content{height:100%;min-height:0;margin:0}
 .mission-plan-row>div:first-child{display:grid;gap:3px;min-width:0}
 .mission-plan-row strong,.mission-run-row strong{overflow:hidden;color:#33475c;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 .mission-plan-row small,.mission-run-row small{display:block;overflow:hidden;color:#8290a0;font-size:10px;line-height:1.5;text-overflow:ellipsis;white-space:nowrap}
-.mission-plan-actions,.mission-run-actions{display:flex;gap:5px;margin-top:6px}
+.mission-plan-actions,.mission-run-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .mission-plan-actions button,.mission-run-actions button{min-height:25px;padding:3px 8px;font-size:10px}
 .mission-plan-actions button.primary{background:#ef6d1c;border-color:#ef6d1c;color:#fff}
 .mission-run-head{display:flex;align-items:center;justify-content:space-between;gap:5px}
 .mission-run-head .badge{padding:3px 5px;font-size:9px}
 .mission-error{color:#b43d37!important}
+.mission-select{max-width:65%;padding:0;border:0;background:transparent;color:#40546a;font-size:11px;font-weight:700;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-mission-execution{display:grid;gap:9px;padding:12px;border:1px solid #f0d5c2;border-radius:8px;background:#fffaf6;color:#536779;font-size:12px}
+.map-mission-execution[hidden],#map-task-active[hidden]{display:none}
+.map-mission-execution>strong{color:#344b60;font-size:14px}
+.map-mission-execution p{margin:0;line-height:1.5}
+.mission-execution-progress{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mission-execution-progress>b{color:#b9551a;font-size:24px;font-variant-numeric:tabular-nums}
+.mission-execution-progress small{color:#84919e;font-size:11px;font-weight:400}
+.mission-execution-progress>span{color:#718394;font-size:11px}
+.map-mission-execution .mission-run-actions button{min-height:32px;padding:5px 9px;font-size:11px}
 .mission-advance{border-color:#f1c39f;background:#fff5ec;color:#ad4a13;font-weight:700}
 .map-console-header .task-mode-switch{margin-left:auto}
 .map-console-header .map-console-status{margin-left:0}
-dialog:has(.mission-designer){width:min(1040px,96vw);max-height:92vh}
-dialog:has(.mission-designer) #dialog-body{max-height:calc(92vh - 150px);overflow:auto}
+dialog:has(.mission-designer){width:min(1040px,96vw);max-height:92vh;overflow:hidden}
+dialog:has(.mission-designer) #dialog-form{display:flex;flex-direction:column;max-height:92vh;min-height:0}
+dialog:has(.mission-designer) #dialog-body{flex:1 1 auto;min-height:0;max-height:none;overflow:auto}
+dialog:has(.mission-designer) .dialog-head,dialog:has(.mission-designer) .dialog-footer{flex:none}
+dialog:has(.mission-designer) #dialog-error{flex:none;margin:0}
+dialog:has(.mission-designer) #dialog-error:empty{display:none}
 .mission-designer>.help{margin:0 0 12px;padding:9px 11px;border-left:3px solid #e98a4a;background:#fff8f2;line-height:1.6}
 .mission-plan-fields{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px}
 .mission-plan-fields label,.mission-schedule-wrap label{display:grid;gap:5px;color:#5f6f81;font-size:11px}
+.mission-plan-fields .mission-repeat-toggle{display:flex;flex-direction:row;align-items:center;align-self:end;min-height:36px;padding:8px 10px;gap:8px;border:1px solid #dfe5ea;border-radius:6px;background:#f8fafb}
+.mission-repeat-toggle input{flex:0 0 16px;width:16px;height:16px;margin:0;padding:0}
 .mission-schedule-wrap{margin:0 0 12px;padding:10px;border:1px solid #e3e9ee;border-radius:7px;background:#f8fafb}
 .mission-schedule-wrap[hidden]{display:none}
 .mission-schedule-wrap input{max-width:320px}

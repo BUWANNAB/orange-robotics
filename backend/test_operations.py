@@ -412,9 +412,10 @@ class OperationsTests(unittest.TestCase):
 
     def test_17_new_home_and_legacy_assets(self):
         self.assertEqual(self.client.get('/',follow_redirects=False).headers['location'],
-                         '/ui/operations.html')
-        self.assertEqual(self.client.get('/ui/index.html',follow_redirects=False).headers['location'],
-                         '/ui/operations.html')
+                         '/ui/index.html')
+        home = self.client.get('/ui/index.html',follow_redirects=False)
+        self.assertEqual(home.status_code,200)
+        self.assertIn('/ui/map-workbench.html?console=1',home.text)
         self.assertEqual(self.client.get('/ui/operations.html').status_code,200)
         asset = self.client.get('/src/api/ApiManager.js')
         self.assertEqual(asset.status_code, 200)

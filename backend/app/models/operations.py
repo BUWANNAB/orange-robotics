@@ -3,6 +3,8 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, JSON, Text, UniqueConstraint, Index
 from app.database import Base
 
+ACTIVE_MISSION_STATES = ("queued", "running", "waiting_manual", "pausing", "paused", "finishing")
+
 
 class Record:
     id = Column(Integer, primary_key=True, autoincrement=True)

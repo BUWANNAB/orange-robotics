@@ -133,6 +133,9 @@ async def robot_detail(robot_id: int, actor=Depends(require("robot:view")), db=D
 @router.put("/robots/{robot_id}")
 async def edit_robot(robot_id: int, body: RobotInput, actor=Depends(require("robot:edit")), db=Depends(get_db)):
     row = await get_or_404(db, Robot, robot_id)
+    from app.services.fleet_service import reserved_mission
+    if await reserved_mission(db, robot_id):
+        raise HTTPException(409, "机器人被任务链占用，请先结束或取消任务链")
     if row.maintenance or row.upgrade_reservation or await db.scalar(select(TaskRun.id).where(TaskRun.robot_id == robot_id, TaskRun.status.in_(["dispatched", "running"]))):
         raise HTTPException(409, "任务或维护占用中，不能修改档案")
     if await db.scalar(select(Robot.id).where(Robot.code == body.code, Robot.id != robot_id)):
@@ -152,6 +155,9 @@ async def edit_robot(robot_id: int, body: RobotInput, actor=Depends(require("rob
 async def delete_robot(robot_id: int, confirmation: str, actor=Depends(require("robot:edit")), db=Depends(get_db)):
     row = await get_or_404(db, Robot, robot_id)
     confirm(confirmation, row.code)
+    from app.services.fleet_service import reserved_mission
+    if await reserved_mission(db, robot_id):
+        raise HTTPException(409, "机器人被任务链占用，请先结束或取消任务链")
     active = await db.scalar(select(TaskRun.id).where(TaskRun.robot_id == robot_id, TaskRun.status.in_(["queued", "dispatched", "running"])).limit(1))
     alarm = await db.scalar(select(Alarm.id).where(Alarm.robot_id == robot_id, Alarm.status != "closed").limit(1))
     if active or alarm or row.maintenance:

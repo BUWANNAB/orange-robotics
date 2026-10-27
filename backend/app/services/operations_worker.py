@@ -6,19 +6,49 @@ import secrets
 import time
 from datetime import timedelta
 import httpx
-from sqlalchemy import select, delete, update, or_
+from sqlalchemy import select, delete, update, or_, case
+from sqlalchemy.orm import aliased
 from app.database import AsyncSessionLocal
-from app.models.operations import Robot, Alarm, Command, TaskRun, Callback, IntegrationApp, Nonce, Upgrade, UpgradeDetail, Firmware, BatterySample, AuditLog, MapDocument
+from app.models.operations import ACTIVE_MISSION_STATES, MissionRun, Robot, Alarm, Command, TaskRun, Callback, IntegrationApp, Nonce, Upgrade, UpgradeDetail, Firmware, BatterySample, AuditLog, MapDocument
 from app.services.operations_common import now, online, audit, public
-from app.services.fleet_service import raise_alarm, queue_command, TERMINAL
+from app.services.fleet_service import raise_alarm, queue_command, reserved_mission, TERMINAL
 from app.services.mission_service import mission_tick
 
 logger = logging.getLogger(__name__)
 
 
 async def dispatch_tasks(db):
-    tasks = (await db.scalars(select(TaskRun).where(TaskRun.status == "queued").order_by(TaskRun.priority.desc(), TaskRun.id).limit(100))).all()
+    await db.flush()
+    missions = (await db.scalars(select(MissionRun).where(MissionRun.status.in_(ACTIVE_MISSION_STATES))
+        .order_by(MissionRun.id))).all()
+    owners = {run.active_task_id: run for run in missions if run.active_task_id}
+    reservations = {}
+    for run in missions:
+        if run.robot_id and run.started_at:
+            reservations.setdefault(run.robot_id, run.id)
+    continuations = [run.active_task_id for run in missions if run.active_task_id and run.started_at
+                     and reservations.get(run.robot_id) == run.id]
+    await db.execute(update(TaskRun).where(TaskRun.status == "queued", TaskRun.deadline < now())
+        .values(status="timeout", finished_at=now(), failure="排队超时"))
+    executing = aliased(TaskRun)
+    available_robot = select(Robot.id).where(
+        Robot.map_id == TaskRun.map_id, Robot.deleted == False, Robot.enabled == True,
+        Robot.maintenance == False, Robot.locked == False, Robot.emergency == False,
+        Robot.upgrade_reservation.is_(None), Robot.heartbeat > now() - timedelta(seconds=60),
+        Robot.telemetry["busy"].as_boolean().is_not(True), Robot.telemetry["charging"].as_boolean().is_not(True),
+        or_(TaskRun.robot_id.is_(None), Robot.id == TaskRun.robot_id),
+        or_(Robot.id.not_in(list(reservations)), TaskRun.id.in_(continuations)),
+        ~select(executing.id).where(executing.robot_id == Robot.id,
+            executing.status.in_(["running", "dispatched"])).correlate(Robot).exists(),
+        ~select(Command.id).where(Command.robot_id == Robot.id,
+            Command.status.in_(["queued", "accepted", "running"]), Command.expires_at > now()).correlate(Robot).exists(),
+    ).correlate(TaskRun).exists()
+    tasks = (await db.scalars(select(TaskRun).where(TaskRun.status == "queued", available_robot)
+        .order_by(case((TaskRun.id.in_(continuations), 1), else_=0).desc(), TaskRun.priority.desc(), TaskRun.id).limit(100))).all()
     for task in tasks:
+        owner = owners.get(task.id)
+        if task.source == "mission" and (owner is None or owner.status not in {"running", "pausing"}):
+            continue
         if task.deadline and task.deadline < now():
             task.status, task.finished_at, task.failure = "timeout", now(), "排队超时"
             continue
@@ -27,6 +57,10 @@ async def dispatch_tasks(db):
         if task.robot_id: query = query.where(Robot.id == task.robot_id)
         robots = (await db.scalars(query.order_by(Robot.id))).all()
         for robot in robots:
+            reservation = reservations.get(robot.id)
+            if reservation is not None and (owner is None or reservation != owner.id):
+                task.failure = "等待当前任务链释放机器人"
+                continue
             if not online(robot) or robot.telemetry.get("busy") or robot.telemetry.get("charging"): continue
             map_row = await db.get(MapDocument, task.map_id)
             if robot.telemetry.get("map_version") != map_row.published_version:
@@ -42,6 +76,10 @@ async def dispatch_tasks(db):
                 if isinstance(exc, HTTPException): continue
                 raise
             task.robot_id, task.status, task.failure = robot.id, "dispatched", ""
+            if owner:
+                owner.robot_id = robot.id
+                owner.started_at = owner.started_at or now()
+                reservations[robot.id] = owner.id
             task.timeline = task.timeline + [{"at": now().isoformat()+"Z", "status": "dispatched", "note": f"command:{command.id}"}]
             await db.flush()
             break
@@ -85,6 +123,7 @@ async def upgrade_tick(db):
             reason = eligibility(robot, package)
             busy = await db.scalar(select(TaskRun.id).where(TaskRun.robot_id == robot.id, TaskRun.status.in_(["running", "dispatched"])).limit(1))
             if busy: reason = "机器人正在执行任务"
+            if await reserved_mission(db, robot.id): reason = "机器人被任务链占用"
             pending = await db.scalar(select(Command.id).where(Command.robot_id == robot.id,
                 Command.status.in_(["queued","accepted","running"]), Command.expires_at > now()).limit(1))
             if pending: reason = "机器人尚有未完成指令"

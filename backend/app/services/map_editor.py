@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select, update, or_
-from app.models.operations import MapDocument, MapVersion, Robot, TaskRun, MissionRun
+from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MapVersion, Robot, TaskRun, MissionRun
 from app.services.operations_common import now, audit, get_or_404
 
 
@@ -155,26 +155,17 @@ def validate_map(data):
         if crosses_forbidden: error("路径穿越禁行区", str(i))
         reverse[path.end].add(path.start)
         if path.bidirectional: reverse[path.start].add(path.end)
-    chargers = {p.code for p in points.values() if p.type == "charger"}
-    if not chargers: error("至少需要一个充电点")
-    reached, pending = set(chargers), list(chargers)
-    while pending:
-        for neighbor in reverse[pending.pop()]:
-            if neighbor not in reached:
-                reached.add(neighbor); pending.append(neighbor)
-    for code in points:
-        if code not in reached: error("点位无法到达充电点或为孤立点", code)
     if points:
         first = next(iter(points))
         forward = {code:set() for code in points}
         for end, starts in reverse.items():
             for start in starts: forward[start].add(end)
-        for graph in (forward, reverse):
-            visited, pending = {first}, [first]
-            while pending:
-                for neighbor in graph[pending.pop()]:
-                    if neighbor not in visited: visited.add(neighbor); pending.append(neighbor)
-            for code in points.keys()-visited: error("有向路径不能保证站点往返可达", code)
+        visited, pending = {first}, [first]
+        while pending:
+            current = pending.pop()
+            for neighbor in forward[current] | reverse[current]:
+                if neighbor not in visited: visited.add(neighbor); pending.append(neighbor)
+        for code in points.keys()-visited: error("点位未连接到路线网络", code)
     return errors
 
 
@@ -214,7 +205,7 @@ async def publish(db, row, actor, revision, document=None):
         raise HTTPException(422, errors)
     active = await db.scalar(select(TaskRun.id).where(TaskRun.map_id == row.id, TaskRun.status.in_(["queued", "dispatched", "running"])).limit(1))
     active_mission = await db.scalar(select(MissionRun.id).where(MissionRun.map_id == row.id,
-        MissionRun.status.in_(["queued", "running", "waiting_manual"])).limit(1))
+        MissionRun.status.in_(ACTIVE_MISSION_STATES)).limit(1))
     busy = await db.scalar(select(Robot.id).where(Robot.map_id == row.id, Robot.deleted == False, Robot.maintenance == True).limit(1))
     robots = (await db.scalars(select(Robot).where(Robot.map_id == row.id, Robot.deleted == False))).all()
     from app.services.operations_common import online
