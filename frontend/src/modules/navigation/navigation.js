@@ -11,44 +11,57 @@
   if(typeof module!=='undefined'){module.exports=exported;return;}
   root.OrangeNavigation=exported;
   const params=new URLSearchParams(location.search),embedded=params.has('embedded')||params.get('drawer')==='1';
-  let drawer,trigger,lastFocus;
-  function close(){if(drawer?.open)drawer.close();trigger?.setAttribute('aria-expanded','false');lastFocus?.focus();}
+  let drawer,trigger;
+  function setExpanded(expanded,remember=true){
+    if(!drawer)return;
+    drawer.hidden=!expanded;
+    document.documentElement.classList.toggle('orange-navigation-collapsed',!expanded);
+    trigger?.setAttribute('aria-expanded',String(expanded));
+    trigger?.setAttribute('aria-label',expanded?'收起功能菜单':'展开功能菜单');
+    if(remember)localStorage.setItem('orange.navigation.collapsed',String(!expanded));
+    // The content uses the remaining layout space; nested maps resize through ResizeObserver.
+    window.dispatchEvent(new Event('resize'));
+  }
+  function close(){setExpanded(false);trigger?.focus();}
+  function syncCurrentPage(){
+    if(!drawer)return;
+    const frame=document.querySelector('#app iframe[name="iframe"]');let current=location;
+    try{if(frame)current=frame.contentWindow.location;}catch(_){}
+    for(const link of drawer.querySelectorAll('nav a')){const url=new URL(link.href);if(url.pathname===current.pathname&&(!url.hash||url.hash===current.hash))link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
+  }
   function open(){
     if(window!==window.top&&window.top.OrangeNavigation?.open){window.top.OrangeNavigation.open();return;}
-    if(drawer&&!drawer.open){
-      const frame=document.querySelector('#app iframe[name="iframe"]');let current=location;
-      try{if(frame)current=frame.contentWindow.location;}catch(_){}
-      for(const link of drawer.querySelectorAll('nav a')){const url=new URL(link.href);if(url.pathname===current.pathname&&(!url.hash||url.hash===current.hash))link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
-      lastFocus=document.activeElement;drawer.showModal();trigger?.setAttribute('aria-expanded','true');
-    }
+    syncCurrentPage();setExpanded(true);drawer?.querySelector('nav a')?.focus();
   }
   exported.open=open;
+  exported.close=close;
   async function mount(){
     if(window!==window.top){document.documentElement.classList.add('orange-navigation-child');return;}
     if(embedded)return;
     exported.ownsBar=true;document.documentElement.classList.add('orange-navigation-host');
     const shell=document.getElementById('app'),bar=document.createElement('div');bar.className='orange-app-bar';bar.setAttribute('role','banner');
-    trigger=document.createElement('button');trigger.type='button';trigger.className='orange-navigation-trigger';trigger.textContent='☰ 功能菜单';trigger.setAttribute('aria-label','打开全站功能菜单');trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-controls','orange-navigation');trigger.onclick=open;bar.append(trigger);
+    trigger=document.createElement('button');trigger.type='button';trigger.className='orange-navigation-trigger';trigger.textContent='☰ 功能菜单';trigger.setAttribute('aria-label','收起功能菜单');trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-controls','orange-navigation');trigger.onclick=()=>drawer?.hidden?open():close();bar.append(trigger);
     const brand=document.createElement('span');brand.className='orange-app-brand';brand.innerHTML='Orange <b>Robotics</b>';bar.append(brand);
     const title=document.createElement('span');title.className='orange-page-label';title.textContent=document.title.split('·')[0].trim();bar.append(title);document.body.prepend(bar);
     const frame=shell?.querySelector('iframe[name="iframe"]');
-    if(frame)frame.addEventListener('load',()=>{try{title.textContent=frame.contentDocument.title.split('·')[0].trim();}catch(_){title.textContent='Orange Robotics';}});
-    drawer=document.createElement('dialog');drawer.id='orange-navigation';drawer.className='orange-navigation';
-    const heading=document.createElement('header');heading.innerHTML='<div><strong>Orange <b>Robotics</b></strong><p>功能菜单</p></div><button type="button" aria-label="关闭功能菜单">×</button>';drawer.append(heading);heading.querySelector('button').onclick=close;
-    const content=document.createElement('nav');content.setAttribute('aria-label','全站功能');drawer.append(content);document.body.append(drawer);
-    drawer.addEventListener('close',()=>{trigger.setAttribute('aria-expanded','false');lastFocus?.focus();});
-    drawer.addEventListener('click',event=>{const rect=drawer.getBoundingClientRect();if(event.clientX>rect.right||event.clientY>rect.bottom||event.clientX<rect.left||event.clientY<rect.top)close();});
+    if(frame)frame.addEventListener('load',()=>{try{title.textContent=frame.contentDocument.title.split('·')[0].trim();}catch(_){title.textContent='Orange Robotics';}syncCurrentPage();});
+    drawer=document.createElement('aside');drawer.id='orange-navigation';drawer.className='orange-navigation';drawer.setAttribute('aria-label','功能菜单');
+    const heading=document.createElement('header');heading.innerHTML='<div><strong>Orange <b>Robotics</b></strong><p>功能菜单</p></div><button type="button" aria-label="收起功能菜单">‹</button>';drawer.append(heading);heading.querySelector('button').onclick=close;
+    const content=document.createElement('nav');content.setAttribute('aria-label','全站功能');drawer.append(content);bar.after(drawer);
+    const saved=localStorage.getItem('orange.navigation.collapsed');
+    setExpanded(params.get('navigation')==='open'||(saved!==null?saved!=='true':!matchMedia('(max-width:780px)').matches),false);
     try{
-      const response=await fetch('/ui/src/config/sidebar.json?v=integrated-mapping-20261028-1');if(!response.ok)throw Error('读取失败');
+      const response=await fetch('/ui/src/config/sidebar.json?v=docked-workspace-20261028-1');if(!response.ok)throw Error('读取失败');
       const config=await response.json();
       for(const group of navigationGroups(config.sidebar)){
         const section=document.createElement('section'),title=document.createElement('h2');title.textContent=group.title;section.append(title);
         for(const item of group.items){
           const link=document.createElement('a');link.textContent=item.title;link.href=withMap(item.url,localStorage.getItem('orange.currentRouteMap'));link.target=shell?'iframe':'_top';
-          link.addEventListener('click',()=>{link.href=withMap(item.url,localStorage.getItem('orange.currentRouteMap'));if(shell)close();});
+          link.addEventListener('click',()=>{link.href=withMap(item.url,localStorage.getItem('orange.currentRouteMap'));drawer.querySelectorAll('a').forEach(item=>item.removeAttribute('aria-current'));link.setAttribute('aria-current','page');});
           if(new URL(link.href).pathname===location.pathname&&(!new URL(link.href).hash||new URL(link.href).hash===location.hash))link.setAttribute('aria-current','page');section.append(link);
         }content.append(section);
       }
+      syncCurrentPage();
       if(params.get('navigation')==='open')open();
     }catch(error){const message=document.createElement('p');message.textContent='功能菜单读取失败，请刷新页面。';content.append(message);const home=document.createElement('a');home.href='/ui/index.html';home.target='_top';home.textContent='返回地图主页';content.append(home);}
   }

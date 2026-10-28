@@ -77,6 +77,7 @@
     }
     fit() {
       this.fitView = true;
+      this.viewport = { width: this.canvas.clientWidth, height: this.canvas.clientHeight };
       this.scale = clampScale(Math.min((this.canvas.clientWidth - 70) / this.document.width, (this.canvas.clientHeight - 70) / this.document.height));
       this.fitScale = this.scale;
       this.pan = {
@@ -85,7 +86,21 @@
       };
       this.draw();
     }
-    resize() { if (this.fitView) this.fit(); else this.draw(); }
+    resize() {
+      const width = this.canvas.clientWidth, height = this.canvas.clientHeight;
+      if (!width || !height) return; // Hidden tabs must not erase the last usable viewport.
+      if (this.fitView || !this.viewport) { this.fit(); return; }
+      const previous = this.viewport;
+      if (width === previous.width && height === previous.height) { this.draw(); return; }
+      const center = { x: (previous.width / 2 - this.pan.x) / this.scale,
+        y: (previous.height / 2 - this.pan.y) / this.scale };
+      const relativeZoom = this.scale / this.fitScale;
+      this.fitScale = clampScale(Math.min((width - 70) / this.document.width, (height - 70) / this.document.height));
+      this.scale = clampScale(this.fitScale * relativeZoom);
+      this.pan = { x: width / 2 - center.x * this.scale, y: height / 2 - center.y * this.scale };
+      this.viewport = { width, height };
+      this.draw();
+    }
     zoomAt(factor, x, y) {
       if (!Number.isFinite(factor) || factor <= 0 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
       const next = clampScale(this.scale * factor);

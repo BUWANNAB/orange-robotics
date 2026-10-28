@@ -118,3 +118,22 @@ body.mapping-workflow .workflow-sheet{width:360px;pointer-events:auto}
 body.mapping-controls-only .build-layout{display:block;padding:20px}
 body.mapping-controls-only .build-layout>div{display:none}
 @media(max-width:760px){body.mapping-workflow #panel-route{padding-right:0;padding-bottom:45dvh}body.mapping-workflow .workflow-sheet{inset:auto 0 0;width:100%;height:45dvh}.mapping-workflow .workflow-sheet-head{min-height:50px}}
+
+/* Workflow controls are a grid cell beside/below the route frame, never an overlay. */
+body.route-mode>main{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-width:0;min-height:0}
+body.route-mode.drawer-open>main{grid-template-columns:minmax(0,1fr) minmax(320px,35%)}
+body.route-mode #panel-route{grid-column:1;grid-row:1;width:100%;height:100%!important;min-height:0;padding:0!important;min-width:0;overflow:hidden}
+body.route-mode #panel-route iframe{width:100%;height:100%!important;min-height:0}
+body.route-mode .workflow-docked{position:static;inset:auto;grid-column:2;grid-row:1;min-width:0;min-height:0;height:100%;width:100%;display:block;z-index:auto;pointer-events:auto}
+body.route-mode .workflow-docked[hidden]{display:none}
+body.route-mode .workflow-docked .workflow-sheet{position:static;inset:auto;width:100%;height:100%;box-shadow:none;border-left:1px solid #dce4ea;pointer-events:auto}
+body.route-mode .workflow-docked .workflow-sheet-head{min-height:54px;padding:9px 12px;gap:8px}
+body.route-mode .workflow-docked .workflow-sheet-head .eyebrow{display:none}
+body.route-mode .workflow-docked .workflow-sheet-head button{width:auto;padding:6px 10px;font-size:12px;white-space:nowrap}
+body.route-mode .job-strip{grid-column:1/-1;grid-row:2}
+@media(max-width:1280px){
+  body.route-mode.drawer-open>main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) min(42dvh,360px)}
+  body.route-mode .workflow-docked{grid-column:1;grid-row:2}
+  body.route-mode .workflow-docked .workflow-sheet{border-left:0;border-top:1px solid #dce4ea}
+  body.route-mode.drawer-open .job-strip{grid-row:3}
+}

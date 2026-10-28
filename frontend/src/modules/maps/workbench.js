@@ -24,13 +24,13 @@ function openWorkflowDrawer(next,requestedAsset=''){
   if(!['binding','locate','build','point','grid'].includes(next))return;
   const drawer=$('workflow-drawer'),frame=$('workflow-frame'),asset=requestedAsset||$('asset').value;
   document.body.classList.toggle('mapping-workflow',next==='build');
-  const sheet=drawer.querySelector('.workflow-sheet');sheet.setAttribute('role',next==='build'?'region':'dialog');if(next==='build')sheet.removeAttribute('aria-modal');else sheet.setAttribute('aria-modal','true');
+  const sheet=drawer.querySelector('.workflow-sheet');sheet.setAttribute('role','region');sheet.removeAttribute('aria-modal');
   if(next==='build'){mainMappingPreview=true;$('route-frame').contentWindow?.postMessage({type:'workbench-mapping-preview',visible:true},location.origin);}
   workflowReturnFocus=document.activeElement;
   const titles={binding:'地图绑定',locate:'重新定位',build:'实时建图',point:'裁切与坐标原点',grid:'二维地图编辑'};
   $('workflow-title').textContent=titles[next];
   const src=['build','point','grid'].includes(next)
-    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=route-pause-20261028-1`
+    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=docked-workspace-20261028-1`
     :`${next==='binding'?'map-bindings.html':'localization.html'}?embedded=1${asset?'&asset='+encodeURIComponent(asset):''}`;
   frame.onload=()=>frame.contentWindow?.postMessage({type:'workbench-drawer-visibility',visible:!drawer.hidden},location.origin);
   if(frame.getAttribute('src')!==src)frame.src=src;
@@ -127,7 +127,7 @@ async function show(next,reload=false){
     if(!row?.grid)notice('请选择含 PGM / YAML 的地图，或先从点云处理生成栅格。');
   }else if(next==='route'){
     const routeFrame=$('route-frame'),asset=key,readyForRoutes=!!row?.grid;
-    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?ui=route-pause-20261028-1&embedded=1'+(query.get('mapId')?'&mapId='+encodeURIComponent(query.get('mapId')):'')+['point','object','uid','planId'].filter(key=>query.get(key)).map(key=>'&'+key+'='+encodeURIComponent(query.get(key))).join('')+(asset&&!query.get('mapId')?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
+    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?ui=docked-workspace-20261028-1&embedded=1'+(query.get('mapId')?'&mapId='+encodeURIComponent(query.get('mapId')):'')+['point','object','uid','planId'].filter(key=>query.get(key)).map(key=>'&'+key+'='+encodeURIComponent(query.get(key))).join('')+(asset&&!query.get('mapId')?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
     else if(asset&&readyForRoutes)routeFrame.contentWindow?.postMessage({type:'workbench-open-map-asset',asset},location.origin);
     else if(asset)routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset},location.origin);
     else routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset:''},location.origin);
@@ -243,8 +243,8 @@ $('mapping-stop').onclick=async()=>{if(!await confirmCriticalAction('停止建�
 $('asset').onchange=()=>selected().catch(e=>notice(e.message,true));$('refresh').onclick=()=>refresh().catch(e=>notice(e.message,true));
 $('grid-route-action').onclick=()=>show('route').catch(e=>notice(e.message,true));
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab).catch(e=>notice(e.message,true)));
-$('workflow-close').onclick=$('workflow-scrim').onclick=closeWorkflowDrawer;
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('workflow-drawer').hidden)closeWorkflowDrawer();});
+$('workflow-close').onclick=closeWorkflowDrawer;
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.querySelector('dialog[open]')&&!$('workflow-drawer').hidden)closeWorkflowDrawer();});
 $('fit').onclick=()=>viewer?.fit();$('live-grid-fit').onclick=drawLiveGrid;$('clear-boxes').onclick=()=>{viewer?.clearBoxes();document.querySelectorAll('[data-draw]').forEach(button=>button.classList.remove('active'));$('draw-origin').classList.remove('active');$('erase-brush').classList.remove('active');};
 document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先选择并加载一张 PCD 点云。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.toggle('active',button===b));$('draw-origin').classList.remove('active');$('erase-brush').classList.remove('active');viewer?.drawBox(b.dataset.draw);notice('已进入框选模式：在点云上按住左键拖动，松开完成选区。');});
 window.addEventListener('message',e=>{

@@ -51,14 +51,29 @@ test('fit resets the displayed relative zoom to 100 percent at the current viewp
   assert.equal(editor.scale, 28.5);
 });
 
-test('viewport resize refits the overview but preserves a manually zoomed view', () => {
+test('docked layout resize preserves the world center and relative manual zoom', () => {
   const { editor, canvas } = viewport();
   canvas.clientWidth = 600; editor.resize();
   near(editor.scale, Math.min((600 - 70) / 40, (640 - 70) / 20));
   assert.equal(editor.zoomPercent(), 100);
-  editor.zoomBy(1.5); const scale = editor.scale, pan = { ...editor.pan };
-  canvas.clientWidth = 1200; editor.resize();
-  near(editor.scale, scale); near(editor.pan.x, pan.x); near(editor.pan.y, pan.y);
+  editor.zoomBy(1.5); editor.pan.x+=27; editor.pan.y-=16;
+  const center=worldAt(editor,canvas.clientWidth/2,canvas.clientHeight/2);
+  const original=JSON.stringify(editor.document);
+  for(const [width,height] of [[1200,640],[450,500],[1000,640]]){
+    canvas.clientWidth=width;canvas.clientHeight=height;editor.resize();
+    near(editor.zoomPercent(),150);
+    const projected=editor.screen(center);
+    near(projected.x,width/2);near(projected.y,height/2);
+  }
+  assert.equal(JSON.stringify(editor.document),original,'resizing only changes the view');
+});
+
+test('temporarily hidden canvases retain their usable viewport and recover on reveal',()=>{
+  const {editor,canvas}=viewport();editor.zoomBy(1.5);
+  const center=worldAt(editor,500,320),before=editor.scale;
+  canvas.clientWidth=0;canvas.clientHeight=0;editor.resize();near(editor.scale,before);
+  canvas.clientWidth=700;canvas.clientHeight=500;editor.resize();
+  near(editor.zoomPercent(),150);near(editor.screen(center).x,350);near(editor.screen(center).y,250);
 });
 
 test('fit centers the map with nonzero origin in wide and tall viewports', () => {

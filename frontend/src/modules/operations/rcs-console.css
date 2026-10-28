@@ -75,3 +75,37 @@ html.orange-theme button.task-resume:hover { background:#1e6246; }
   #map-editor.rcs-console{grid-template-rows:auto auto minmax(calc(360 * var(--rcs-px, 1px)),60dvh) calc(30 * var(--rcs-px, 1px)) auto auto}
   .rcs-console .map-toolbar-row{flex-wrap:wrap;justify-content:flex-start;row-gap:5px}
 }
+
+/* Four docked edges: controls take layout space, never cover the working map. */
+#map-editor.docked-console{min-height:0;grid-template-columns:minmax(184px,18%) minmax(0,1fr) minmax(210px,20%);grid-template-rows:auto auto minmax(0,1fr) auto;gap:5px}
+#map-editor.docked-console .map-console-header{grid-column:1/-1;grid-row:1;min-height:60px;height:auto;padding-block:8px;flex-wrap:wrap;gap:8px}
+#map-editor.docked-console .task-mode-switch{position:static;transform:none;margin-inline:auto}
+#map-editor.docked-console .task-mode-feedback{position:static;white-space:normal}
+#map-editor.docked-console .rcs-header-status{flex-wrap:wrap;max-width:100%;gap:6px}
+#map-editor.docked-console .rcs-header-status .map-state-chip{display:inline-flex}
+#map-editor.docked-console .rcs-header-map{display:flex;max-width:100%}
+#map-editor.docked-console .map-tools{grid-column:1/-1;grid-row:2;min-height:44px;border-block:1px solid #dce5ef;padding:5px 10px}
+#map-editor.docked-console .map-toolbar-row{justify-content:flex-start;flex-wrap:wrap;gap:7px}
+#map-editor.docked-console .map-tool-spacer{display:block;flex:1}
+#map-editor.docked-console .map-side-panel{grid-column:1;grid-row:3;margin:0;max-height:none;border-right:1px solid #dce5ef;border-radius:0}
+#map-editor.docked-console .map-properties{grid-column:3;grid-row:3;margin:0;min-height:0;border-left:1px solid #dce5ef;border-radius:0}
+#map-editor.docked-console .map-center-panel{grid-column:2;grid-row:3;min-height:0}
+#map-editor.docked-console .map-statusbar{grid-column:1/-1;grid-row:4;min-height:32px;flex-wrap:wrap;white-space:normal;border-top:1px solid #dce5ef;padding:5px 8px;gap:4px}
+.docked-console .map-docked-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding-block:5px}
+#map-editor.docked-console .map-docked-tools .rcs-tool{height:auto;min-height:32px;min-width:0;justify-content:flex-start;white-space:normal;font-size:11px;padding:6px;gap:4px}
+.docked-console .map-toolbar-select{grid-column:1/-1;display:grid;gap:5px;font-size:11px;padding:5px 0}
+.docked-console .map-toolbar-select select{width:100%;max-width:100%}
+.docked-console .map-layers-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.docked-console .map-layers-section>header{grid-column:1/-1}
+.docked-console .map-layers-section .map-layer-row{min-height:28px;min-width:0;font-size:10px;gap:4px}
+.docked-console .map-robot-section{flex:none;min-height:220px}
+.docked-console .rcs-vehicle-stage>svg{max-height:160px}
+.docked-console .map-view-toolbar{flex:none;display:flex;align-items:center;gap:8px;min-height:40px;border-top:1px solid #dce5ef;background:#f6f8fb;padding:4px 8px;flex-wrap:wrap}
+#map-editor.docked-console .rcs-view-controls{position:static;display:flex;width:auto;padding:0;gap:6px;border-radius:0;background:transparent}
+#map-editor.docked-console .rcs-measure-readout{position:static;margin:0;font-size:11px}
+@media(max-width:780px){
+  #map-editor.docked-console{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:auto auto minmax(360px,55dvh) auto auto auto;overflow:visible}
+  #map-editor.docked-console .map-center-panel{grid-column:1;grid-row:3;min-height:360px}
+  #map-editor.docked-console .map-side-panel{grid-column:1;grid-row:4;max-height:540px;border-right:0;border-top:1px solid #dce5ef}
+  #map-editor.docked-console .map-properties{grid-column:1;grid-row:5;max-height:none;border-left:0}
+  #map-editor.docked-console .map-statusbar{grid-column:1;grid-row:6}
+}

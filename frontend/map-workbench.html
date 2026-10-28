@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=route-pause-20261028-1">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=docked-workspace-20261028-1">
   <script>if(new URLSearchParams(location.search).get('console')==='1')document.documentElement.classList.add('console-mode');</script>
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
-<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=route-pause-20261028-1"><script src="src/modules/navigation/navigation.js?v=route-pause-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=route-pause-20261028-1"></head>
+<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=docked-workspace-20261028-1"><script src="src/modules/navigation/navigation.js?v=docked-workspace-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=docked-workspace-20261028-1"></head>
 <body>
   <header class="masthead">
     <div><span class="eyebrow">ORANGE AGV / MAP OPERATIONS</span><h1>地图工作台</h1></div>
@@ -50,14 +50,13 @@
     <section id="panel-binding" class="panel embedded-panel" hidden><div class="embedded-note">选好定位点云和已发布路线地图，确认坐标系后保存；只有重新定位成功，绑定才会用于后续任务。</div><iframe id="binding-frame" title="定位点云与路线地图绑定"></iframe></section>
     <section id="panel-locate" class="panel embedded-panel" hidden><div class="embedded-note">地图会显示当前位姿；可在画布上拖动机器人模型设定位置与朝向，或使用真实定位自动重定位。成功后仍保持软件停止锁定。</div><iframe id="locate-frame" title="实时定位与地图切换"></iframe></section>
     <section class="job-strip" id="job-strip" hidden><strong id="job-state">处理中</strong><span id="job-message"></span><code id="job-id"></code></section>
-  </main>
-  <div class="workflow-drawer" id="workflow-drawer" hidden>
-    <button class="workflow-scrim" id="workflow-scrim" type="button" aria-label="关闭操作面板"></button>
-    <section class="workflow-sheet" role="dialog" aria-modal="true" aria-labelledby="workflow-title">
-      <header class="workflow-sheet-head"><div><span class="eyebrow">MAP WORKSPACE</span><h2 id="workflow-title">地图操作</h2></div><button id="workflow-close" type="button" aria-label="关闭">×</button></header>
+  <div class="workflow-drawer workflow-docked" id="workflow-drawer" hidden>
+    <section class="workflow-sheet" role="region" aria-labelledby="workflow-title">
+      <header class="workflow-sheet-head"><div><span class="eyebrow">MAP WORKSPACE</span><h2 id="workflow-title">地图操作</h2></div><button id="workflow-close" type="button" aria-label="收起地图操作栏">收起</button></header>
       <iframe id="workflow-frame" title="建图、裁切或重新定位"></iframe>
     </section>
   </div>
+  </main>
   <dialog id="operation-lock" class="operation-lock" aria-labelledby="operation-lock-title">
     <form method="dialog">
       <h2 id="operation-lock-title">确认操作</h2>
@@ -66,6 +65,6 @@
       <footer><button value="cancel">取消</button><button id="operation-lock-confirm" class="primary" value="confirm" disabled>确认继续</button></footer>
     </form>
   </dialog>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js?v=map-home-login-20261024-1"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=route-pause-20261028-1"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js?v=map-home-login-20261024-1"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=docked-workspace-20261028-1"></script>
 </body>
 </html>

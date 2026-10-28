@@ -424,7 +424,7 @@
       state.saveTimer=setTimeout(()=>saveMap().catch(error=>notify(error.message,true)),10000);
     },point=>{
       renderMapLists();
-      const inspector=$('map-object-inspector');if(inspector)inspector.open=!!point;
+      const inspector=$('map-object-inspector');if(inspector)inspector.open=true;
       const remove=document.querySelector('[data-action="map-remove"]');if(remove)remove.disabled=!point;
       if(point?.kind==='paths'){
         $('map-tool-hint').textContent=`路线 ${point.start} → ${point.end}`;
@@ -461,7 +461,7 @@
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
     $('map-path-list').onclick=event=>{const item=event.target.closest('[data-map-select-path]');if(item)state.map?.selectObject('paths',Number(item.dataset.mapSelectPath));};
     document.querySelectorAll('[data-map-layer]').forEach(input=>input.onchange=()=>state.map?.setLayerVisible(input.dataset.mapLayer,input.checked));
-    document.querySelector('.map-side-collapse').onclick=event=>{const section=event.currentTarget.closest('.map-side-section'),collapsed=section.classList.toggle('collapsed');event.currentTarget.textContent=collapsed?'⌄':'⌃';event.currentTarget.setAttribute('aria-label',collapsed?'展开图层':'折叠图层');};
+
     $('map-switch').onchange=async event=>{
       const nextId=event.target.value;if(String(nextId)===String(state.mapRow?.id))return;
       try{const next=await api.get(`/api/maps/${nextId}`);if(!leaveMap()){event.target.value=String(state.mapRow.id);return;}await openMap(next);}

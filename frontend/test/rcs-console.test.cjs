@@ -14,7 +14,7 @@ test('handbook layout preserves unique live-map, mission, layer and property hoo
   for(const layer of ['background','paths','stations','areas','coordinates','liveRoute','liveTrail','liveRobot'])assert.match(html,new RegExp(`data-map-layer="${layer}"`));
   assert.ok(html.indexOf('任务执行')<html.indexOf('id="map-object-inspector"'));
   assert.match(html,/id="map-object-inspector"[^>]*>/);
-  assert.doesNotMatch(html,/id="map-object-inspector"[^>]*\bopen\b/);
+  assert.match(html,/<details\b[^>]*\bopen\b[^>]*id="map-object-inspector"/);
 });
 
 test('empty workspace retains the console and disables tools requiring a map',()=>{
@@ -140,4 +140,16 @@ test('deleting a selection keeps its button disabled until another object is sel
   assert.equal(target.disabled,true);
   await click(event);
   assert.equal(calls,1,'disabled actions are ignored');
+});
+
+
+test('map tools and layers are docked and visible without opening popover menus',()=>{
+  const html=markup();
+  assert.match(html,/docked-console/);
+  assert.doesNotMatch(html,/rcs-menu-panel|rcs-tool-menu/);
+  assert.match(html,/map-layers-section/);
+  assert.match(html,/map-edit-section/);
+  assert.match(html,/<\/div><div class="map-view-toolbar"><div class="rcs-view-controls"/);
+  for(const action of ['tool-select','tool-curve','tool-area','map-undo','map-redo','tool-measure'])
+    assert.match(html,new RegExp(`data-action="${action}"`));
 });
