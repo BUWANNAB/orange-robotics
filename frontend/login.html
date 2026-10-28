@@ -1,11 +1,9 @@
 <html lang="zh-CN" class="orange-theme">
 <head>
     <meta charset="utf-8">
-    <title>智驾系统</title>
+    <title>登录 · 橙智机器人</title>
     <link rel="icon" href="./src/assets/logo/favicon.svg" type="image/svg+xml" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
- 	<!-- <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script> -->
-	 <script src="./src/libs/particles.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="./src/libs/css/boxicons.min.css" rel="stylesheet">
 	<script type="text/javascript" src="./src/libs/jquery-3.1.0.min.js"></script>
     <script type="text/javascript" src="./src/libs/coco-message.js"></script>
@@ -23,16 +21,6 @@
             min-height: 100vh;
             color: #333;
             overflow-x: hidden;
-        }
-        
-        /* 粒子背景 */
-        #particles-js {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
         }
         
         /* 加载动画 */
@@ -311,10 +299,8 @@
             }
         }
     </style>
-<link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
-<body>
-    <!-- 粒子背景容器 -->
-    <div id="particles-js"></div>
+<link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"><link rel="preload" as="image" href="src/assets/backgrounds/orange-warehouse-login-v1.png"><link rel="stylesheet" href="src/modules/theme/login-background.css?v=warehouse-login-20261028-1"></head>
+<body class="login-page">
     
     <!-- 加载动画容器 -->
     <div id="loader">
@@ -337,8 +323,8 @@
                 <div class="login-logo">
                     <span style="font-size: 36px; line-height: 1;">🍊</span>
                 </div>
-                <h1 class="login-title"><!-- 待填写系统名称 --></h1>
-                <p class="login-subtitle"><!-- 待填写副标题 --></p>
+                <h1 class="login-title">橙智机器人</h1>
+                <p class="login-subtitle">地图 · 路线 · 调度</p>
             </div>
             
             <!-- 表单 -->
@@ -393,92 +379,7 @@
 
     <script type="module">
 		import axiosClient from "./src/api/ApiManager.js"
-        // 初始化粒子背景
         document.addEventListener('DOMContentLoaded', function() {
-            particlesJS('particles-js', {
-                "particles": {
-                    "number": {
-                        "value": 80,
-                        "density": {
-                            "enable": true,
-                            "value_area": 800
-                        }
-                    },
-                    "color": {
-                        "value": "#ffffff"
-                    },
-                    "shape": {
-                        "type": "circle",
-                        "stroke": {
-                            "width": 0,
-                            "color": "#000000"
-                        }
-                    },
-                    "opacity": {
-                        "value": 0.5,
-                        "random": true,
-                        "anim": {
-                            "enable": true,
-                            "speed": 1,
-                            "opacity_min": 0.1,
-                            "sync": false
-                        }
-                    },
-                    "size": {
-                        "value": 3,
-                        "random": true,
-                        "anim": {
-                            "enable": true,
-                            "speed": 2,
-                            "size_min": 0.1,
-                            "sync": false
-                        }
-                    },
-                    "line_linked": {
-                        "enable": true,
-                        "distance": 150,
-                        "color": "#ffffff",
-                        "opacity": 0.2,
-                        "width": 1
-                    },
-                    "move": {
-                        "enable": true,
-                        "speed": 1,
-                        "direction": "none",
-                        "random": true,
-                        "straight": false,
-                        "out_mode": "out",
-                        "bounce": false
-                    }
-                },
-                "interactivity": {
-                    "detect_on": "canvas",
-                    "events": {
-                        "onhover": {
-                            "enable": true,
-                            "mode": "grab"
-                        },
-                        "onclick": {
-                            "enable": true,
-                            "mode": "push"
-                        },
-                        "resize": true
-                    },
-                    "modes": {
-                        "grab": {
-                            "distance": 140,
-                            "line_linked": {
-                                "opacity": 0.5
-                            }
-                        },
-                        "push": {
-                            "particles_nb": 4
-                        }
-                    }
-                },
-                "retina_detect": true
-            });
-            
             // 密码显示/隐藏切换
             const togglePassword = document.getElementById('togglePassword');
             const passwordInput = document.querySelector('input[name="password"]');

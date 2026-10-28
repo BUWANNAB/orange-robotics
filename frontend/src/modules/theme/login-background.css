@@ -1,0 +1,22 @@
+/* Static, locally served warehouse scene. Flat color remains if the image is unavailable. */
+.orange-theme body.login-page{
+  background-color:var(--ui-bg);
+  background-image:linear-gradient(180deg,#f3f5f812,#f3f5f805 60%,#e8eef533),url('../../assets/backgrounds/orange-warehouse-login-v1.png');
+  background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed;
+}
+.login-page .login-container{padding:32px 16px;min-height:100dvh}
+.orange-theme .login-page .login-card{background:#fffffff5;border:1px solid #ffffffeb;border-radius:20px;box-shadow:0 18px 60px #2038541c,0 2px 8px #2038540a;backdrop-filter:blur(12px)}
+.login-page .login-header{padding:26px 32px 20px}
+.orange-theme .login-page .login-title{font-size:23px;letter-spacing:2px;margin-bottom:8px;color:var(--ui-text)}
+.orange-theme .login-page .login-subtitle{font-size:12px;letter-spacing:3px;color:var(--ui-muted)}
+.login-page .login-form{background:transparent;border-radius:0;padding:20px 32px 32px}
+.login-page .login-logo{width:52px;height:52px;border-radius:15px;margin-bottom:16px}
+.login-page .form-title{font-size:18px;margin-bottom:22px}
+.login-page .form-input{background:#fff}
+@media(max-width:600px){
+  .orange-theme body.login-page{background-position:12% center;background-attachment:scroll}
+  .login-page .login-container{max-width:400px;padding:24px}
+  .login-page .login-header{padding:24px 24px 18px}
+  .login-page .login-form{padding:16px 24px 26px}
+}
+@media(max-height:600px){.login-page .login-container{justify-content:flex-start;padding-block:20px}}
