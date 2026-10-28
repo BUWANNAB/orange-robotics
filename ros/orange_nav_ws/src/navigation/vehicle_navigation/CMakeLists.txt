@@ -56,6 +56,13 @@ ament_target_dependencies(vehicle_navigation_node
   tf2_geometry_msgs
 )
 
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME retained_route_pause COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_route_pause.py $<TARGET_FILE:vehicle_navigation_node>)
+  set_tests_properties(retained_route_pause PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+endif()
+
 install(TARGETS
   vehicle_navigation_node
   DESTINATION lib/${PROJECT_NAME}

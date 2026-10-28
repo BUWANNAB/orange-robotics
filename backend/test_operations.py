@@ -314,13 +314,29 @@ class OperationsTests(unittest.TestCase):
                 db.add(task);await db.flush()
                 command=await queue_command(db,row,'execute-task',{'task_id':task.id,'from_point':'A','to_point':'C'},'admin')
                 state=VehicleState();state.x=state.y=1
-                send=AsyncMock(return_value={'status':'running'})
+                send=AsyncMock(return_value={'id':'adapter-route','status':'running'})
                 with patch.object(ros2_service,'switch',{'status':'ready','map_id':identity,'version':1}),patch.object(ros2_service,'route',send),patch('app.services.local_robot.state',state):
                     status,result=await execute(db,row,command)
                 self.assertEqual(status,'running');send.assert_awaited_once()
                 self.assertEqual(len(send.call_args.args[0]),18)
                 await finish_command(db,row,command,status,result)
                 self.assertEqual(task.status,'running')
+                self.assertEqual(command.params['navigation_id'],'adapter-route')
+                from app.services.task_motion import request_task_motion
+                from app.services.operations_common import task_motion_state
+                row.telemetry={'capabilities':['execute-task','pause-task','resume-task']}
+                await db.commit()
+                for action in ('pause','resume'):
+                    control=await request_task_motion(db,task,action,'admin')
+                    await db.commit()
+                    with patch.object(ros2_service,'control_navigation',AsyncMock(return_value={'status':'paused' if action=='pause' else 'running'})) as control_ros:
+                        status,result=await execute(db,row,control)
+                    self.assertEqual(control_ros.call_args.args[:2],(action,'adapter-route'))
+                    await finish_command(db,row,control,status,result)
+                    self.assertEqual(task_motion_state(task),'paused' if action=='pause' else 'running')
+                    self.assertEqual(command.status,'running')
+                    await db.commit()
+                send.assert_awaited_once()  # Resume never calls route planning/submission again.
                 await finish_command(db,row,command,'success','correlated ROS completion')
                 self.assertEqual(task.status,'success');self.assertIsNotNone(task.finished_at)
                 row.telemetry={'capabilities':['execute-task']}

@@ -46,6 +46,15 @@ private:
     bool goal_braking_ = false;
     orange_nav::SpinModeGate spin_mode_gate_;
     bool stoppedFeedback();
+    void NavigationControlCallback(const std_msgs::msg::String::SharedPtr msg);
+    void publishControlResult(const std::string& status, const std::string& reason = "");
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subNavigationControl;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pubControlResult;
+    bool route_paused_ = false, pause_confirmed_ = false, pause_invalidated_ = false;
+    uint64_t control_sequence_ = 0;
+    std::string control_action_;
+    rclcpp::Time pause_requested_at_{0, 0, RCL_ROS_TIME};
+    double pause_x_ = 0, pause_y_ = 0, pause_yaw_ = 0;
     static constexpr std::size_t MAX_PATH_POINTS = 1000;
     static constexpr std::size_t PATH_POINT_FIELDS = 9;
 

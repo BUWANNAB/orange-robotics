@@ -37,6 +37,80 @@ class ROSAlignmentTests(unittest.IsolatedAsyncioTestCase):
         self.bridge._on_tf_pose(pose())
         self.bridge._on_quality(NS(data=[1.,.1, .01]))
 
+    async def test_pause_resume_keeps_route_and_requires_correlated_measured_stop(self):
+        self.ready()
+        self.state.run_status=2
+        nav={'id':'route-one','status':'running','points':[{}, {}, {}],'target_index':2}
+        self.bridge.navigation=nav
+        sent=[]
+        async def feedback(action, sequence):
+            await asyncio.sleep(.01)
+            self.bridge._on_navigation_control(NS(data=f'wrong\n{sequence}\npaused\n'))
+            self.assertEqual(self.bridge.navigation_control['status'],'pending')
+            self.bridge._on_navigation_control(NS(data=f'route-one\n{sequence}\n'+('paused' if action=='pause' else 'running')+'\n'))
+            if action=='pause':
+                # Receipt alone must not claim the chassis stopped.
+                await asyncio.sleep(.08)
+                self.assertEqual(nav['status'],'pausing')
+                self.bridge.odom_received=self.bridge.status_received=time.monotonic()
+                self.state.run_status=4
+                self.state.linear_velocity=self.state.angular_velocity=0
+        tasks=[]
+        def publish(topic,data):
+            sent.append((topic,data))
+            route,sequence,action=data.split('\n')
+            tasks.append(asyncio.create_task(feedback(action,sequence)))
+        self.bridge.publish=publish
+        await self.bridge.control_navigation('pause','route-one')
+        self.assertEqual(nav['status'],'paused')
+        self.assertEqual(nav['target_index'],2)
+        self.bridge._on_nav_result(NS(data='route-one\nrunning'))
+        self.assertEqual(nav['status'],'paused','late legacy running receipt cannot unpause')
+        await self.bridge.control_navigation('resume','route-one')
+        await asyncio.gather(*tasks)
+        self.assertEqual(nav['status'],'running')
+        self.assertEqual(nav['target_index'],2)
+        self.assertTrue(all(topic=='/navigation/control' for topic,_ in sent))
+        self.assertEqual(len(sent),2,'resuming never resubmits the original route')
+
+    async def test_resume_rejects_changed_route_map_or_stop_lock(self):
+        self.ready()
+        self.bridge.navigation={'id':'route-one','status':'paused','map_id':1}
+        with self.assertRaisesRegex(RuntimeError,'标识'):
+            await self.bridge.control_navigation('resume','old-route')
+        with self.assertRaisesRegex(RuntimeError,'地图已变化'):
+            await self.bridge.control_navigation('resume','route-one')
+        self.bridge.inhibited=True
+        with self.assertRaisesRegex(RuntimeError,'锁定'):
+            await self.bridge.control_navigation('resume','route-one')
+
+    async def test_cancel_preempts_a_pending_pause_without_false_success(self):
+        self.ready()
+        self.bridge.navigation={'id':'route-one','status':'running'}
+        self.bridge.publish=Mock()
+        self.bridge.stop_route=AsyncMock()
+        async def abort(): return True
+        with self.assertRaisesRegex(RuntimeError,'已结束或停止'):
+            await self.bridge.control_navigation('pause','route-one',abort)
+        self.bridge.stop_route.assert_awaited_once()
+        self.assertTrue(self.bridge.inhibited)
+        self.bridge.navigation['status']='cancelled'
+        self.bridge._on_navigation_control(NS(data='route-one\n1\npaused\n'))
+        self.assertEqual(self.bridge.navigation['status'],'cancelled')
+
+    async def test_arrival_wins_a_racing_pause_without_replacing_success_with_cancel(self):
+        self.ready()
+        self.bridge.navigation={'id':'route-one','status':'running'}
+        self.bridge.publish=Mock()
+        self.bridge.stop_route=AsyncMock()
+        async def arrived():
+            self.bridge._on_nav_result(NS(data='route-one\nsuccess'))
+            return False
+        result=await self.bridge.control_navigation('pause','route-one',arrived)
+        self.assertEqual(result['status'],'success')
+        self.bridge.stop_route.assert_not_awaited()
+        self.assertFalse(self.bridge.inhibited)
+
     async def test_missing_active_command_requests_stop_and_locks_robot(self):
         from app.services.local_robot import lock_missing_active
         robot = NS(id=7, locked=False, lock_reason='')

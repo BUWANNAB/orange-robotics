@@ -3,7 +3,7 @@
   const api = window.OpsAPI, $ = id => document.getElementById(id);
   const newId = () => globalThis.crypto?.randomUUID?.() || `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const labels = {idle:'空闲',busy:'任务中',charging:'充电中',offline:'离线',disabled:'停用',maintenance:'维护',emergency:'急停',locked:'锁定',open:'未确认',acknowledged:'已确认',closed:'已关闭',queued:'排队',dispatched:'已下发',running:'执行中',stop_requested:'请求停止',success:'成功',failed:'失败',cancelled:'已取消',timeout:'超时',pending:'待执行',paused:'已暂停',completed:'已完成',partial_failed:'部分失败',uploading:'上传中',review:'待审核',released:'已发布',waiting:'等待',skipped:'跳过',retry:'等待重试',dead:'重试耗尽',sending:'发送中',rolled_back:'已回滚',rolling_back:'回滚中',downloading:'下载中',verifying:'校验中',flashing:'刷写中',rebooting:'重启中',critical:'严重',warning:'警告',info:'提示'};
+  const labels = {idle:'空闲',busy:'任务中',charging:'充电中',offline:'离线',disabled:'停用',maintenance:'维护',emergency:'急停',locked:'锁定',open:'未确认',acknowledged:'已确认',closed:'已关闭',queued:'排队',dispatched:'已下发',running:'执行中',stop_requested:'请求停止',success:'成功',failed:'失败',cancelled:'已取消',timeout:'超时',pending:'待执行',paused:'已暂停',pausing:'正在停车',resuming:'正在继续',unknown:'状态待核实',completed:'已完成',partial_failed:'部分失败',uploading:'上传中',review:'待审核',released:'已发布',waiting:'等待',skipped:'跳过',retry:'等待重试',dead:'重试耗尽',sending:'发送中',rolled_back:'已回滚',rolling_back:'回滚中',downloading:'下载中',verifying:'校验中',flashing:'刷写中',rebooting:'重启中',critical:'严重',warning:'警告',info:'提示'};
   const modules = [
     ['dashboard','运营看板','dashboard:view','dashboard'],['robots','机器人管理','robot:view','robot'],['battery','电量监控','battery:view','battery'],
     ['alarms','报警中心','alarm:view','alert'],['tasks','任务历史','task:view','tasks'],['logs','日志中心','log:view','logs'],
@@ -27,6 +27,15 @@
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
   const button = (label, action, id, permission, cls='') => !permission||can(permission)?`<button class="${cls}" data-action="${action}" data-id="${escape(id)}">${label}</button>`:'';
+  function taskMotionStatus(task){return ['dispatched','running'].includes(task.status)&&task.motion_state&&task.motion_state!=='running'?task.motion_state:task.status;}
+  function taskMotionBadge(task){return badge(taskMotionStatus(task));}
+  function taskMotionControls(task){
+    if(!can('robot:control')||!can('task:edit')||!['dispatched','running'].includes(task.status))return '';
+    const motion=task.motion_state||'running';
+    if(['pausing','resuming'].includes(motion))return `<button type="button" disabled>${motion==='pausing'?'正在停车，等待确认':'正在继续，等待确认'}</button>`;
+    if(motion==='unknown')return '<span class="mission-error">停车状态待核实，请停止并锁定</span>';
+    return motion==='paused'?button('继续路线','task-motion-resume',task.id,'robot:control','task-resume'):button('暂停路线','task-motion-pause',task.id,'robot:control','task-pause');
+  }
   function notify(message,error=false){
     const hint=document.getElementById('map-tool-hint');
     if(document.documentElement.classList.contains('embedded')&&state.map&&hint){hint.textContent=message;hint.classList.toggle('error',error);return;}
@@ -74,7 +83,7 @@
         html=table(['时间','等级','机器人','报警','状态','处理'],data.list.map(r=>[stamp(r.created_at),badge(r.level),escape(r.robot_id??'系统'),`${escape(r.title)}<span class="sub">${escape(r.code)}</span>`,badge(r.status),button('详情','detail',r.id)+ (r.status==='open'?button('确认','ack',r.id,'alarm:handle'):r.status==='acknowledged'?button('关闭','close-alarm',r.id,'alarm:handle'):'')]));
       }else if(tab==='tasks'){
         data=await api.get('/api/task-history',params);
-        html=table(['任务','来源 / 外部单号','机器人','起点 → 终点','状态','创建时间','操作'],data.list.map(r=>[escape(r.name),`${escape(r.source)}<span class="sub">${escape(r.external_id||'')}</span>`,escape(r.robot_id||'等待分配'),`${escape(r.from_point)} → ${escape(r.to_point)}`,badge(r.status),stamp(r.created_at),button('时间轴','task-detail',r.id)+(r.status==='queued'?button('取消','cancel-task',r.id,'task:edit'):['dispatched','running'].includes(r.status)&&can('robot:control')?button('停止并锁定','stop-task',r.id,'task:edit','danger'):'')]));
+        html=table(['任务','来源 / 外部单号','机器人','起点 → 终点','状态','创建时间','操作'],data.list.map(r=>[escape(r.name),`${escape(r.source)}<span class="sub">${escape(r.external_id||'')}</span>`,escape(r.robot_id||'等待分配'),`${escape(r.from_point)} → ${escape(r.to_point)}`,taskMotionBadge(r),stamp(r.created_at),button('时间轴','task-detail',r.id)+(r.status==='queued'?button('取消','cancel-task',r.id,'task:edit'):['dispatched','running'].includes(r.status)&&can('robot:control')?taskMotionControls(r)+button('停止并锁定','stop-task',r.id,'task:edit','danger'):'')]));
       }else if(tab==='logs'){
         data=await api.get('/api/logs',{...params,level:params.state,before:state.logBefore});
         html=table(['时间','等级','模块','操作人','消息','详情'],data.list.map(r=>[stamp(r.created_at),badge(r.level),escape(r.module),escape(r.operator),escape(r.message.slice(0,140)),button('详情','detail',r.id)]));
@@ -141,10 +150,10 @@
     const list=$('map-task-list'),count=$('map-task-count');if(!list||!count)return;
     if(!can('task:view')){list.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';count.textContent='—';return;}
     count.textContent=String(state.mapTaskTotal);
-    list.innerHTML=state.mapTasks.map(task=>`<div class="map-task-entry"><button type="button" class="map-task-row" data-action="map-task-detail" data-id="${task.id}"><span><strong>${escape(task.name)}</strong><small>${escape(task.from_point)} → ${escape(task.to_point)}</small></span>${badge(task.status)}</button>${task.status==='queued'&&can('task:edit')?button('×','map-task-cancel',task.id,'task:edit','map-task-cancel-button'):''}</div>`).join('')||'<p class="map-list-empty">暂无任务记录</p>';
+    list.innerHTML=state.mapTasks.map(task=>`<div class="map-task-entry"><button type="button" class="map-task-row" data-action="map-task-detail" data-id="${task.id}"><span><strong>${escape(task.name)}</strong><small>${escape(task.from_point)} → ${escape(task.to_point)}</small></span>${taskMotionBadge(task)}</button>${task.status==='queued'&&can('task:edit')?button('×','map-task-cancel',task.id,'task:edit','map-task-cancel-button'):''}</div>`).join('')||'<p class="map-list-empty">暂无任务记录</p>';
     const active=state.mapTasks.find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
     $('map-task-active').classList.toggle('has-active-task',!!active);
-    $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${badge(active.status)}</span>${can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
+    $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${taskMotionBadge(active)}</span>${taskMotionControls(active)}${can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
     renderMapMissionExecution();
   }
   async function refreshMapTasks(){
@@ -179,9 +188,11 @@
     }catch(error){state.taskModeMessage='切换未确认，请重试';state.taskModeError=true;throw error;}finally{state.taskModePending=false;state.taskModeEpoch++;renderTaskMode();}
   }
   function missionStateLabel(run){
+    if(run.active_task?.motion_state==='unknown')return '停车状态待核实，请停止并锁定';
     if(run.status==='waiting_manual')return '等待人工下一步';
     if(run.status==='queued'&&run.task_mode==='schedule')return '等待调度';
-    if(run.status==='pausing')return '本段到站后暂停';
+    if(run.status==='pausing')return '正在停车，等待设备确认';
+    if(run.status==='resuming')return '正在沿原路线继续';
     if(run.status==='finishing')return '末站等待中';
     return labels[run.status]||run.status;
   }
@@ -192,8 +203,9 @@
     const activeTask=run.active_task&&!['success','failed','cancelled','timeout'].includes(run.active_task.status)?run.active_task:null;
     let actions='';
     if(run.status==='waiting_manual'&&missionWaitSeconds(run)===0)actions+=button('下发下一步','mission-advance',run.id,'robot:control','mission-advance');
-    if(run.status==='paused')actions+=button('继续任务链','mission-resume',run.id,'robot:control','primary');
-    if(['queued','running'].includes(run.status))actions+=button(activeTask?'本段到站后暂停':'暂停任务链','mission-pause',run.id,'robot:control');
+    if(run.status==='paused'&&activeTask?.motion_state!=='unknown')actions+=button(run.active_task?'继续原路线':'继续任务链','mission-resume',run.id,'robot:control','task-resume');
+    if(['queued','running','waiting_manual'].includes(run.status))actions+=button(activeTask?'暂停路线':'暂停任务链','mission-pause',run.id,'robot:control','task-pause');
+    if(['pausing','resuming'].includes(run.status))actions+='<button type="button" disabled>等待设备确认</button>';
     if(activeTask?.status==='stop_requested')actions+='<button type="button" disabled>等待停车确认</button>';
     else if(activeTask&&can('task:edit'))actions+=button(activeTask.status==='queued'?'撤销当前步骤':'停止并锁定','mission-stop-step',run.id,'robot:control','danger');
     if(!activeTask&&['queued','waiting_manual','running','paused','finishing'].includes(run.status))actions+=button('取消','mission-cancel',run.id,'robot:control','danger');
@@ -201,8 +213,11 @@
   }
   function renderMapMissionExecution(){
     const panel=$('map-mission-execution'),single=$('map-task-active');if(!panel||!single)return;
-    const activeStates=['queued','running','waiting_manual','paused','pausing','finishing'];
+    const activeStates=['queued','running','waiting_manual','paused','pausing','resuming','finishing'];
     const run=state.mapMissionRuns.find(item=>String(item.id)===String(state.selectedMissionId))||state.mapMissionRuns.find(item=>activeStates.includes(item.status))||state.mapMissionRuns[0];
+    if(single.classList.contains('has-active-task')&&run&&!activeStates.includes(run.status)){
+      panel.hidden=true;single.hidden=false;return;
+    }
     panel.hidden=!run;single.hidden=!!run;
     const repeatReadout=$('map-repeat-readout');if(repeatReadout)repeatReadout.textContent=run?(run.repeat_count===-1?'无限':String(run.repeat_count)):'未执行';
     if(!run)return;
@@ -228,7 +243,7 @@
       const next=run.steps?.[run.step_index]?.point||run.start_point;
       const waitSeconds=missionWaitSeconds(run);
       const statusMarkup=`<span class="badge ${['failed','timeout'].includes(run.status)?'bad':['success','cancelled'].includes(run.status)?'good':'warn'}">${escape(missionStateLabel(run))}</span>`;
-      return `<article class="mission-run-row"><div class="mission-run-head">${button(run.name,'mission-select',run.id,'task:view','mission-select')}${statusMarkup}</div><small>${escape(progress)} · ${run.task_mode==='schedule'?'定时':run.task_mode==='manual'?'手动逐步':'自动连续'}</small>${run.active_task?`<small>设备步骤：${escape(run.active_task.from_point)} → ${escape(run.active_task.to_point)} · ${escape(labels[run.active_task.status]||run.active_task.status)}</small>`:''}${run.status==='waiting_manual'?`<small>下一站：${escape(next)}${waitSeconds?` · 等待 ${waitSeconds} 秒` : ''}</small>`:''}${run.status==='finishing'?`<small>末站等待：剩余 ${waitSeconds} 秒</small>`:''}${run.scheduled_at&&run.status==='queued'?`<small>计划时间：${stamp(run.scheduled_at)}</small>`:''}${run.failure?`<small class="mission-error">${escape(run.failure)}</small>`:''}<div class="mission-run-actions">${missionControls(run)}</div></article>`;
+      return `<article class="mission-run-row"><div class="mission-run-head">${button(run.name,'mission-select',run.id,'task:view','mission-select')}${statusMarkup}</div><small>${escape(progress)} · ${run.task_mode==='schedule'?'定时':run.task_mode==='manual'?'手动逐步':'自动连续'}</small>${run.active_task?`<small>设备步骤：${escape(run.active_task.from_point)} → ${escape(run.active_task.to_point)} · ${escape(labels[taskMotionStatus(run.active_task)]||taskMotionStatus(run.active_task))}</small>`:''}${run.status==='waiting_manual'?`<small>下一站：${escape(next)}${waitSeconds?` · 等待 ${waitSeconds} 秒` : ''}</small>`:''}${run.status==='finishing'?`<small>末站等待：剩余 ${waitSeconds} 秒</small>`:''}${run.scheduled_at&&run.status==='queued'?`<small>计划时间：${stamp(run.scheduled_at)}</small>`:''}${run.failure?`<small class="mission-error">${escape(run.failure)}</small>`:''}<div class="mission-run-actions">${missionControls(run)}</div></article>`;
     }).join('');
     renderMapMissionExecution();
   }
@@ -398,7 +413,7 @@
       const rosStatus=$('map-ros-status');if(rosStatus)rosStatus.className='map-status-brand '+(connected?'good':'offline');
       setChip('map-loc-chip',valid?'定位正常':loc.source==='simulation'?'仿真定位':connected?(live.matched?'定位待确认':'地图待定位'):'定位无数据',valid?'good':'warn');
       $('map-pose-readout').textContent=live.pose?`X ${Number(live.pose.LocalX).toFixed(3)} m · Y ${Number(live.pose.LocalY).toFixed(3)} m · 航向 ${Number(live.pose.Heading).toFixed(1)}°`:'位姿：—';
-      const task=live.navigation?.status;const taskNames={idle:'无任务',sending:'等待接收',accepted:'已接收',running:'执行中',success:'已完成',cancelled:'已取消',failed:'执行失败'};
+      const task=live.navigation?.status;const taskNames={idle:'无任务',sending:'等待接收',accepted:'已接收',running:'执行中',pausing:'正在停车',paused:'已暂停',resuming:'正在继续',success:'已完成',cancelled:'已取消',failed:'执行失败'};
       $('map-nav-readout').textContent=`任务：${taskNames[task]||'未知'}`;
       const taskState=$('map-task-state');if(taskState&&$('map-mission-execution').hidden)taskState.textContent=taskNames[task]||'等待机器人反馈';
       const plc=live.vehicleStatus?.plcConnected;$('map-plc-readout').textContent=`PLC：${plc===true?'在线':plc===false?'离线':'未知'}`;
@@ -612,6 +627,14 @@
   async function action(name,id){
     document.querySelectorAll('.rcs-tool-menu[open]').forEach(menu=>{menu.open=false;});
     const row=state.rows.find(r=>r.id===Number(id));
+    if(name==='task-motion-pause'||name==='task-motion-resume'){
+      const task=state.mapTasks.find(item=>String(item.id)===String(id))||row;
+      if(!task)throw new Error('任务状态已更新，请刷新');
+      const resume=name==='task-motion-resume';
+      const submit=async value=>{await api.post(`/api/task-history/${id}/${resume?'resume':'pause'}`,resume?{confirmation:value}:{});notify(resume?'已请求沿原路线继续，等待设备确认。':'已请求停车，等待底盘确认。');if(state.map)await refreshMapTasks();else await load();};
+      if(!resume)return submit();
+      return confirmation('继续原路线',task.name,'确认现场可以继续行驶。车辆将沿暂停前的路线从保留进度继续。',submit);
+    }
     if(name==='export-robots'){saveBlob(await api.download('/api/fleet/export'),'机器人档案.xlsx');return;}
     if(name==='import-robots')return dialog('导入机器人档案',`${button('下载模板','robot-template','')}<p class="help">上传模板格式的 xlsx 文件，最多 1000 行。先校验预览，再确认导入。</p>${field('file','档案文件','','file','accept=".xlsx" required')}`,async form=>{
       const result=await api.upload('/api/fleet/import-preview',form.get('file'));
@@ -682,7 +705,9 @@
     if(name==='mission-pause'||name==='mission-resume'){
       const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');
       const resume=name==='mission-resume',endpoint=resume?'resume':'pause';
-      return confirmation(resume?'继续任务链':'暂停后续步骤',run.name,resume?'将按任务链原有执行方式继续，已完成步骤不会重放；手动模式仍需确认下一步。':'已下发的本段导航继续至到站，之后暂停后续步骤。若需要当前停车，请使用“停止并锁定”。',async confirmation=>{const result=await api.post(`/api/mission-runs/${id}/${endpoint}`,{confirmation});notify(result.status==='pausing'?'已安排本段到站后暂停。':resume?'任务链已恢复。':'任务链已暂停。');await refreshMapMissions();});
+      const submit=async confirmation=>{const result=await api.post(`/api/mission-runs/${id}/${endpoint}`,{confirmation});notify(result.status==='pausing'?'已请求停车，等待底盘确认。':result.status==='resuming'?'已请求继续原路线，等待设备确认。':resume?'任务链已恢复。':'任务链已暂停。');await refreshMapMissions();};
+      if(!resume)return submit(run.name);
+      return confirmation('继续原路线',run.name,'确认现场可以继续行驶。将从保留的路线进度继续，已完成步骤不会重放；定位或停止锁不满足时会拒绝继续。',submit);
     }
     if(name==='mission-run-detail'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');return dialog('任务链执行记录',`<p><strong>${escape(run.name)}</strong> · ${escape(missionStateLabel(run))}</p><p>${escape(run.start_point)} · ${run.cycles_completed}/${run.repeat_count===-1?'∞':run.repeat_count} 轮 · 第 ${Math.min(run.step_index+1,run.steps.length)}/${run.steps.length} 步</p>${run.active_task?`<p>当前设备任务：${escape(run.active_task.name)} · ${badge(run.active_task.status)}</p>`:''}${(run.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${escape(item.status)} · ${escape(item.note)}</p>`).join('')||'<p class="help">暂无执行记录</p>'}${run.failure?`<p class="mission-error">${escape(run.failure)}</p>`:''}`,null);}
     if(name==='mission-stop-step'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));const task=run?.active_task;if(!task)throw new Error('没有正在执行的设备步骤');if(task.status==='queued')return confirmation('撤销待下发步骤',task.name,'当前步骤尚未被设备领取；撤销后任务链会停止，不会继续下发后续步骤。',async confirmation=>{if(confirmation!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${task.id}/cancel`);notify('待下发步骤已撤销，任务链将停止。');await refreshMapTasks();await refreshMapMissions();});return confirmation('停止当前导航并锁定',task.name,'停止当前任务链步骤并请求设备确认停车。确认回执前任务不会标记完成；软件停止不能代替物理急停。',async confirmation=>{const result=await api.post(`/api/task-history/${task.id}/stop`,{confirmation});notify(result.stop_status==='pending'?'停止请求已发出，等待设备确认。':'设备领取前任务已撤销。');await refreshMapTasks();await refreshMapMissions();});}

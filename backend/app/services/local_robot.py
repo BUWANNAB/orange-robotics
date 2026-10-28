@@ -6,7 +6,7 @@ import math
 import logging
 import os
 import time
-from sqlalchemy import select
+from sqlalchemy import select, case
 from app.database import AsyncSessionLocal
 from app.models.operations import Robot, Command, BatterySample, TaskRun
 from app.services.operations_common import now
@@ -105,6 +105,25 @@ async def execute(db, robot, command):
         if not state.localization()["valid"]: raise RuntimeError("定位无效")
         bridge.inhibited = False
         return "success", "软件锁已解除，未启动行驶"
+    if name in {"pause-task", "resume-task"}:
+        execution = await db.get(Command, command.params.get("execute_command_id"))
+        if (not execution or execution.robot_id != robot.id or execution.command != "execute-task"
+                or execution.status not in {"accepted", "running"}
+                or execution.params.get("task_id") != command.params.get("task_id")
+                or execution.params.get("navigation_id") != command.params.get("navigation_id")):
+            raise RuntimeError("原导航任务已失效，禁止暂停/继续")
+        await db.refresh(robot)
+        if name == "resume-task" and (robot.locked or robot.emergency or robot.maintenance or not robot.enabled):
+            raise RuntimeError("机器人当前状态禁止继续")
+        async def abort_requested():
+            await db.refresh(robot)
+            return robot.locked or robot.emergency or robot.maintenance or not robot.enabled
+        navigation = await bridge.control_navigation("pause" if name == "pause-task" else "resume",
+                                                     command.params.get("navigation_id"), abort_requested)
+        if navigation["status"] == "success":
+            await finish_command(db, robot, execution, "success", "暂停请求与到站同时发生，原任务已完成")
+            return "success", "原路线已到站，无需暂停/继续"
+        return "success", "底盘反馈确认停稳，原路线进度已保留" if name == "pause-task" else "ROS 确认沿原路线继续"
     if name in {"execute-task", "goto-point", "goto-charge"}:
         if robot.locked or robot.emergency or robot.maintenance or not robot.enabled or robot.deleted:
             raise RuntimeError("机器人当前状态禁止行驶")
@@ -121,7 +140,8 @@ async def execute(db, robot, command):
             target = min(chargers, key=lambda p: math.hypot(p["x"]-state.x,p["y"]-state.y))["code"]
         else:
             target = command.params.get("to_point") if name == "execute-task" else command.params.get("point")
-        await bridge.route(plan(document, target, command.params.get("from_point")), start=True)
+        navigation = await bridge.route(plan(document, target, command.params.get("from_point")), start=True)
+        command.params = {**command.params, "navigation_id": navigation["id"], "motion_state": "running"}
         return "running", "ROS 已确认接收，等待到站回执"
     # Device firmware/service management cannot be inferred from navigation topics.
     raise RuntimeError("该 ROS 设备未声明指令能力: " + name)
@@ -147,6 +167,9 @@ async def run_local_robot():
                 if robot is None: raise RuntimeError("RCS_LOCAL_ROBOT_ID 对应机器人不存在")
                 pending = (await db.scalars(select(Command).where(Command.robot_id == robot_id, Command.status.in_(["accepted", "running"])))).all()
                 for command in pending:
+                    if command.command in {"pause-task", "resume-task"}:
+                        command.status, command.result = "failed", "桥接进程重启，原暂停/继续已失效，禁止自动恢复"
+                        continue
                     if command.expires_at < now():
                         command.status = "timeout"
                         if command.command == "execute-task":
@@ -162,6 +185,10 @@ async def run_local_robot():
                     await finish_command(db, robot, command, "failed", "桥接进程重启，执行结果未知，请核实设备")
                 if pending:
                     robot.locked, robot.lock_reason, bridge.inhibited = True, "重启后需核实设备状态", True
+                    try:
+                        await bridge.stop_route()
+                    except (RuntimeError, TimeoutError):
+                        pass
                 await db.commit()
             break
         except asyncio.CancelledError:
@@ -185,23 +212,36 @@ async def run_local_robot():
                         "x": state.x, "y": state.y, "theta": math.radians(state.heading),
                         "speed": abs(state.linear_velocity), "charging": state.charging, "voltage": state.voltage,
                         "localization": snap["localization"], "map_version": bridge.switch.get("version"),
-                        "capabilities": ["execute-task", "goto-point", "goto-charge", "lock", "unlock", "emergency-stop", "release-stop"]}
+                        "capabilities": ["execute-task", "goto-point", "goto-charge", "lock", "unlock", "emergency-stop", "release-stop"] +
+                            (["pause-task", "resume-task"] if bridge.publishers.get("/navigation/control") and
+                             bridge.publishers["/navigation/control"].get_subscription_count() else [])}
                 if state.battery_soc is not None and time.monotonic()-sampled_at > 10:
                     db.add(BatterySample(robot_id=robot_id, percent=state.battery_soc, voltage=state.voltage, charging=bool(state.charging)))
                     sampled_at = time.monotonic()
                     if state.battery_soc < robot.policy["low"]:
                         await raise_alarm(db, robot_id, "BATTERY_LOW", "真实电量低于阈值")
                 urgent = (await db.scalars(select(Command).where(Command.robot_id == robot_id,
-                    Command.command.in_(["emergency-stop", "lock"]), Command.status == "queued")
-                    .order_by(Command.id))).all()
+                    Command.command.in_(["emergency-stop", "lock", "pause-task", "resume-task"]), Command.status == "queued")
+                    .order_by(case((Command.command.in_(["emergency-stop", "lock"]), 0), else_=1), Command.id))).all()
                 for command in urgent:
                     if command.expires_at < now(): continue
+                    if command.command in {"pause-task", "resume-task"}:
+                        execution = await db.get(Command, command.params.get("execute_command_id"))
+                        if not execution or execution.status not in {"accepted", "running"}:
+                            command.status, command.result = "cancelled", "原设备路线已结束或停止"
+                            continue
                     command.status = "accepted"
                     await db.commit()
                     try:
                         status, result = await execute(db, robot, command)
                     except (ValueError, RuntimeError, TimeoutError) as exc:
                         status, result = "failed", str(exc)
+                    if command.command in {"pause-task", "resume-task"}:
+                        execution = await db.get(Command, command.params.get("execute_command_id"))
+                        if execution and execution.status in {"success", "cancelled", "failed", "timeout"}:
+                            command.status, command.result = "cancelled", "原设备路线已结束或停止"
+                            await db.commit()
+                            continue
                     await finish_command(db, robot, command, status, result)
                     await db.commit()
                 if active:
@@ -230,6 +270,7 @@ async def run_local_robot():
                         await finish_command(db, robot, command, "running", "等待到站")
                 queued = (await db.scalars(select(Command).where(Command.robot_id == robot_id, Command.status == "queued").order_by(Command.id))).all()
                 for command in queued:
+                    if command.command in {"pause-task", "resume-task"}: continue
                     if active and command.command not in {"emergency-stop", "lock"}: continue
                     if command.expires_at < now(): continue
                     command.status = "accepted"

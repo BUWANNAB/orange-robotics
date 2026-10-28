@@ -123,6 +123,29 @@ async def cancel(task_id: int, actor=Depends(require("task:edit")), db=Depends(g
     return ok(public(row))
 
 
+@router.post("/api/task-history/{task_id}/pause")
+async def pause_task(task_id: int, actor=Depends(require("task:edit")),
+                     _control=Depends(require("robot:control")), db=Depends(get_db)):
+    from app.services.task_motion import request_task_motion
+    row = await db.scalar(select(TaskRun).where(TaskRun.id == task_id).with_for_update())
+    if row is None: raise HTTPException(404, "任务不存在")
+    command = await request_task_motion(db, row, "pause", actor)
+    await db.commit()
+    return ok({"task": public(row), "command": public(command) if command else None})
+
+
+@router.post("/api/task-history/{task_id}/resume")
+async def resume_task(task_id: int, body: StopTaskInput, actor=Depends(require("task:edit")),
+                      _control=Depends(require("robot:control")), db=Depends(get_db)):
+    from app.services.task_motion import request_task_motion
+    row = await db.scalar(select(TaskRun).where(TaskRun.id == task_id).with_for_update())
+    if row is None: raise HTTPException(404, "任务不存在")
+    if body.confirmation != row.name: raise HTTPException(400, "任务名称不一致")
+    command = await request_task_motion(db, row, "resume", actor)
+    await db.commit()
+    return ok({"task": public(row), "command": public(command) if command else None})
+
+
 @router.post("/api/task-history/{task_id}/stop")
 async def stop_task(task_id: int, body: StopTaskInput, actor=Depends(require("task:edit")),
                     _control=Depends(require("robot:control")), db=Depends(get_db)):

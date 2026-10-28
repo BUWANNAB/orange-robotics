@@ -6,7 +6,7 @@ const vm = require('node:vm');
 // Run the actual console functions without starting its network/DOM boot loop.
 const source = fs.readFileSync('frontend/src/modules/operations/operations.js', 'utf8');
 const functions = source.slice(0, source.indexOf("  $('nav').onclick=")) +
-  'window.consoleTest={state,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions,changeTaskMode,taskModeMarkup};})();';
+  'window.consoleTest={state,action,taskMotionControls,taskMotionBadge,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions,changeTaskMode,taskModeMarkup};})();';
 const mapDocument = {points:[{code:'A'},{code:'C'}],paths:[{start:'A',end:'C',bidirectional:true}]};
 const plan = {id:1,name:'巡回任务',map_id:10,start_point:'A',steps:[
   {node_id:'one',action:'navigate',point:'C',delay_seconds:0},
@@ -118,7 +118,7 @@ test('paused missions expose resume and cancel, and in-flight pause retains stop
   assert.match(h.element('map-mission-runs').innerHTML,/data-action="mission-cancel"/);
   Object.assign(run,{status:'pausing',active_task_id:11,active_task:{status:'running',from_point:'A',to_point:'C'}});
   h.controller.renderMapMissions();
-  assert.match(h.element('map-mission-runs').innerHTML,/本段到站后暂停/);
+  assert.match(h.element('map-mission-runs').innerHTML,/正在停车，等待设备确认/);
   assert.match(h.element('map-mission-runs').innerHTML,/data-action="mission-stop-step"/);
   assert.doesNotMatch(h.element('map-mission-runs').innerHTML,/data-action="mission-resume"/);
 });
@@ -160,4 +160,48 @@ test('a mode read started before a quick switch cannot restore the previous sele
   h.api.get=async(url,params)=>url==='/api/task-mode'?new Promise(resolve=>{finish=resolve;}):get(url,params);
   const refresh=h.controller.refreshMapMissions();await h.controller.changeTaskMode('auto');finish({mode:'manual'});await refresh;
   assert.equal(h.controller.state.taskMode,'auto');
+});
+
+
+test('pause sends immediately, resume waits for confirmation, and task controls reflect receipts',async()=>{
+  const h=harness();
+  const task={id:11,name:'当前导航',status:'running',motion_state:'running'};
+  h.controller.state.mapTasks=[task];
+  assert.match(h.controller.taskMotionControls(task),/task-motion-pause/);
+  await h.controller.action('task-motion-pause',11);
+  assert.equal(h.element('dialog').open,undefined,'pause must not be held behind a confirmation dialog');
+  assert.equal(h.calls.filter(call=>call.method==='post'&&call.url==='/api/task-history/11/pause').length,1);
+  Object.assign(task,{motion_state:'pausing'});
+  assert.match(h.controller.taskMotionControls(task),/disabled/);
+  assert.doesNotMatch(h.controller.taskMotionControls(task),/data-action=/);
+  task.motion_state='paused';
+  h.controller.state.mapTasks=[task];
+  assert.match(h.controller.taskMotionControls(task),/task-motion-resume/);
+  await h.controller.action('task-motion-resume',11);
+  assert.equal(h.element('dialog').open,true);
+  assert.equal(h.calls.some(call=>call.url.endsWith('/resume')),false);
+  task.motion_state='unknown';
+  assert.doesNotMatch(h.controller.taskMotionControls(task),/data-action=/);
+  assert.match(h.controller.taskMotionBadge(task),/状态待核实/);
+});
+
+test('a paused current mission retains its active step, exposes resume and never cancel',()=>{
+  const h=harness();
+  const run={id:1,name:plan.name,status:'paused',steps:plan.steps,start_point:'A',cycles_completed:0,repeat_count:2,step_index:1,task_mode:'auto',active_task:{id:11,status:'running',motion_state:'paused',from_point:'A',to_point:'C'}};
+  h.controller.state.mapMissionRuns=[run];h.controller.renderMapMissions();
+  assert.match(h.element('map-mission-execution').innerHTML,/继续原路线/);
+  assert.doesNotMatch(h.element('map-mission-execution').innerHTML,/data-action="mission-cancel"/);
+  run.active_task.motion_state='unknown';h.controller.renderMapMissions();
+  assert.doesNotMatch(h.element('map-mission-execution').innerHTML,/data-action="mission-resume"/);
+  assert.match(h.element('map-task-state').textContent,/待核实/);
+});
+
+
+test('historical missions never hide the controls for an active single navigation',()=>{
+  const h=harness();
+  h.element('map-task-active').classList.contains=name=>name==='has-active-task';
+  h.controller.state.mapMissionRuns=[{id:1,name:plan.name,status:'success',steps:plan.steps,repeat_count:2}];
+  h.controller.renderMapMissions();
+  assert.equal(h.element('map-mission-execution').hidden,true);
+  assert.equal(h.element('map-task-active').hidden,false);
 });

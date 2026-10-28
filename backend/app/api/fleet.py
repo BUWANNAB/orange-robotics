@@ -64,6 +64,14 @@ class Telemetry(BaseModel):
     charging: bool = False
     busy: bool = False
     map_version: int | None = Field(default=None, ge=0)
+    capabilities: list[str] | None = Field(default=None, max_length=32)
+
+    @field_validator("capabilities")
+    @classmethod
+    def bounded_capabilities(cls, value):
+        if value is not None and any(not item or len(item) > 40 for item in value):
+            raise ValueError("设备能力名称长度必须为 1—40")
+        return value
     x: float = 0
     y: float = 0
     theta: float = 0

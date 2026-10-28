@@ -91,7 +91,7 @@ async def create_current_step(db, run):
 
 
 async def consume_current_step(db, run):
-    pause_requested = run.status == "pausing"
+    pause_requested = run.status in {"pausing", "paused"}
     task = await db.get(TaskRun, run.active_task_id) if run.active_task_id else None
     if task is None:
         run.status, run.finished_at = "failed", now()
@@ -101,6 +101,12 @@ async def consume_current_step(db, run):
     if task.robot_id and run.robot_id is None:
         run.robot_id = task.robot_id
     if task.status not in TERMINAL:
+        from app.services.operations_common import task_motion_state
+        motion = task_motion_state(task)
+        if motion in {"pausing", "paused", "resuming"}:
+            run.status = motion
+        elif run.status == "resuming" and motion == "running":
+            run.status = "running"
         return
     run.active_task_id = None
     if task.status != "success":
@@ -130,7 +136,7 @@ async def consume_current_step(db, run):
 
 async def mission_tick(db):
     """Advance automatic and scheduled chains; never replays an in-flight step."""
-    runs = (await db.scalars(select(MissionRun).where(MissionRun.status.in_(["queued", "running", "pausing", "finishing"]))
+    runs = (await db.scalars(select(MissionRun).where(MissionRun.status.in_(["queued", "running", "pausing", "paused", "resuming", "finishing"]))
         .order_by(MissionRun.id).limit(200).with_for_update(skip_locked=True))).all()
     for run in runs:
         if run.status == "finishing":

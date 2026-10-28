@@ -68,7 +68,7 @@ async def reserved_mission(db, robot_id):
 
 
 async def queue_command(db, robot, command, params, actor, key=None):
-    if command not in COMMANDS | {"execute-task", "upgrade", "rollback", "load-map"}:
+    if command not in COMMANDS | {"execute-task", "upgrade", "rollback", "load-map", "pause-task", "resume-task"}:
         raise HTTPException(400, "不支持的指令")
     capabilities = robot.telemetry.get("capabilities")
     if capabilities is not None and command not in capabilities:
@@ -81,7 +81,7 @@ async def queue_command(db, robot, command, params, actor, key=None):
         raise HTTPException(409, "机器人离线或已停用")
     if (robot.maintenance or robot.upgrade_reservation) and command not in {"upgrade", "rollback", "emergency-stop"}:
         raise HTTPException(409, "机器人维护中")
-    if (robot.emergency or robot.locked) and command in {"goto-charge", "goto-point", "execute-task", "reboot", "set-mode"}:
+    if (robot.emergency or robot.locked) and command in {"goto-charge", "goto-point", "execute-task", "reboot", "set-mode", "resume-task"}:
         raise HTTPException(409, "机器人急停或锁定中，请先显式解除")
     if command in {"goto-charge", "goto-point", "reboot", "set-mode", "upgrade", "rollback", "load-map"} and await reserved_mission(db, robot.id):
         raise HTTPException(409, "机器人被任务链占用，请先结束或取消任务链")
@@ -137,6 +137,26 @@ async def finish_command(db, robot, command, status, result):
     if command.status == "running" and status == "accepted":
         raise HTTPException(409, "不能回退指令状态")
     previous_command_status = command.status
+    if command.command in {"pause-task", "resume-task"} and status in TERMINAL:
+        from app.services.task_motion import motion_event, sync_mission_motion
+        run = await db.get(TaskRun, command.params.get("task_id"))
+        execution = await db.get(Command, command.params.get("execute_command_id"))
+        event = next((e for e in reversed(run.timeline or []) if "motion_state" in e), {}) if run else {}
+        if (not run or not execution or execution.robot_id != robot.id or run.robot_id != robot.id
+                or execution.command != "execute-task" or execution.params.get("task_id") != run.id
+                or execution.status not in {"accepted", "running"} or run.status in TERMINAL
+                or event.get("command_id") != command.id):
+            raise HTTPException(409, "原路线已结束或被停止，本次暂停/继续回执已失效")
+        if status == "success" and command.command == "resume-task" and (robot.locked or robot.emergency):
+            raise HTTPException(409, "停止锁已生效，不能确认继续路线")
+        motion = ("paused" if command.command == "pause-task" else "running") if status == "success" else "unknown"
+        motion_event(run, motion, result, command.id)
+        execution.params = {**execution.params, "motion_state": motion}
+        execution.expires_at = now() + timedelta(minutes=2)
+        if motion == "unknown":
+            robot.locked, robot.lock_reason = True, "暂停/继续结果未确认，请停止并核实设备"
+            await raise_alarm(db, robot.id, "TASK_CONTROL_FAILED", robot.lock_reason)
+        await sync_mission_motion(db, run)
     command.status, command.result = status, result
     if command.command in {"execute-task", "goto-point", "goto-charge"} and status in {"accepted", "running"}:
         command.expires_at = now() + timedelta(minutes=2)

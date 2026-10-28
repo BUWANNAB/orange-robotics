@@ -28,6 +28,7 @@ class ROS2BridgeService:
         self.control_lock = asyncio.Lock()
         self.switch = {"status": "idle"}
         self.navigation = {"status": "idle"}
+        self.navigation_control = {}
         self.relocalization = {"status": "idle"}
         self.status_received = self.odom_received = self.battery_received = 0.0
         self.plc_link_received = 0.0
@@ -74,6 +75,7 @@ class ROS2BridgeService:
                 (BatteryState, os.getenv("ROS_BATTERY_STATE_TOPIC", "/battery_state"), self._on_battery),
                 (Float32MultiArray, "/slam_status", self._on_quality),
                 (String, "/navigation/result", lambda m: self._schedule(self._on_nav_result, m)),
+                (String, "/navigation/control_result", lambda m: self._schedule(self._on_navigation_control, m)),
                 (String, "/localization/auto_result", lambda m: self._schedule(self._on_auto_result, m)),
                 (String, "/localization/map_result", lambda m: self._schedule(self._on_map_result, m))]
             for kind, topic, callback in subscriptions:
@@ -83,6 +85,7 @@ class ROS2BridgeService:
             for topic in ("/path_received_finish", "/close_route_finish", "/goal_finish"):
                 self.node.create_subscription(UInt8, topic, lambda m, t=topic: self._schedule(self._event, t, m.data), 10)
             for topic, kind in [("/path_point", Float64MultiArray), ("/vehicle_run_star", UInt8),
+                                ("/navigation/control", String),
                                 ("/close_route", UInt8), ("/initialpose", PoseWithCovarianceStamped),
                                 ("/plc_start", UInt8),
                                 ("/localization/map_request", String), ("/localization/auto_request", String),
@@ -221,8 +224,22 @@ class ROS2BridgeService:
             if fields[1] in {"accepted", "running", "success", "cancelled", "failed"}:
                 if fields[1] == "accepted" and self.navigation.get("status") != "sending":
                     return
+                if fields[1] == "running" and self.navigation.get("status") in {"pausing", "paused", "resuming"}:
+                    return
                 if self.navigation.get("status") not in {"success", "failed", "cancelled"}:
                     self.navigation["status"] = fields[1]
+
+    def _on_navigation_control(self, msg):
+        fields = msg.data.split("\n", 3)
+        pending = self.navigation_control
+        if (len(fields) != 4 or fields[0] != self.navigation.get("id")
+                or fields[0] != pending.get("route_id") or fields[1] != str(pending.get("sequence"))
+                or self.navigation.get("status") in {"success", "failed", "cancelled"}
+                or pending.get("status") != "pending"):
+            return
+        expected = "paused" if pending["action"] == "pause" else "running"
+        if fields[2] in {expected, "rejected"}:
+            pending.update(status=fields[2], reason=fields[3])
 
     def _on_auto_result(self, msg):
         try:
@@ -368,6 +385,67 @@ class ROS2BridgeService:
         self.navigation = {**self.navigation, "status": "cancelled"}
         return self.snapshot()
 
+    async def control_navigation(self, action, route_id, abort_requested=None):
+        """Pause/resume the retained ROS route; never resubmit path points or unlock a stop."""
+        self.require_ros()
+        if self.control_lock.locked():
+            raise RuntimeError("另一条控制指令正在处理")
+        async with self.control_lock:
+            expected = "running" if action == "pause" else "paused"
+            if action not in {"pause", "resume"} or not route_id or route_id != self.navigation.get("id"):
+                raise RuntimeError("暂停路线标识不匹配，禁止恢复其他路线")
+            if self.inhibited or self.navigation.get("status") != expected:
+                raise RuntimeError("路线已结束、正在处理或停止锁定，不能暂停/继续")
+            if action == "resume":
+                self.require_stationary()
+                if not state.localization()["valid"]:
+                    raise RuntimeError("定位无效，保持暂停")
+                for key in ("map_id", "version", "key"):
+                    if self.navigation.get(key) != self.switch.get(key):
+                        raise RuntimeError("定位地图已变化，禁止恢复原路线")
+            sequence = self.navigation.get("control_sequence", 0) + 1
+            self.navigation["control_sequence"] = sequence
+            self.navigation_control = {"route_id": route_id, "sequence": sequence,
+                                       "action": action, "status": "pending"}
+            requested = time.monotonic()
+            # Publish first: an old ROS installation rejects without falsely claiming a pause.
+            self.publish("/navigation/control", f"{route_id}\n{sequence}\n{action}")
+            self.navigation["status"] = "pausing" if action == "pause" else "resuming"
+            try:
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    if abort_requested and await abort_requested():
+                        self.inhibited = True
+                    if self.inhibited or self.navigation.get("status") in {"success", "failed", "cancelled"}:
+                        raise RuntimeError("路线已结束或停止，暂停/继续已失效")
+                    result = self.navigation_control["status"]
+                    if result == "rejected":
+                        raise RuntimeError("ROS 拒绝恢复/暂停: " + self.navigation_control.get("reason", ""))
+                    if result == ("paused" if action == "pause" else "running"):
+                        if action == "resume":
+                            self.navigation["status"] = "running"
+                            return dict(self.navigation)
+                        if self.odom_received > requested and self.status_received > requested:
+                            try:
+                                self.require_stationary()
+                            except RuntimeError:
+                                pass
+                            else:
+                                self.navigation["status"] = "paused"
+                                return dict(self.navigation)
+                    await asyncio.sleep(.05)
+                raise TimeoutError("暂停/继续未收到有效设备确认，已请求停止并锁定")
+            except (RuntimeError, TimeoutError):
+                if self.navigation.get("status") == "success":
+                    return dict(self.navigation)
+                # An ambiguous resume must never leave a moving route behind a paused UI.
+                self.inhibited = True
+                try:
+                    await self.stop_route()
+                except (RuntimeError, TimeoutError):
+                    pass
+                raise
+
     async def route(self, payload, start=False):
         if self.relocalization.get('status') in {'pending','collecting','searching','candidate','verifying'}:
             raise RuntimeError('自动重定位未完成，禁止下发路线')
@@ -375,7 +453,7 @@ class ROS2BridgeService:
             raise RuntimeError("另一条控制指令正在处理")
         async with self.control_lock:
             self.require_stationary()
-            if self.navigation.get("status") in {"sending", "running"}:
+            if self.navigation.get("status") in {"sending", "running", "pausing", "paused", "resuming"}:
                 raise RuntimeError("已有路线正在下发或执行")
             if self.inhibited:
                 raise RuntimeError("软件停止锁定中，请先解除")

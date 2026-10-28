@@ -20,8 +20,18 @@ def now():
 
 
 def public(row, exclude=()):
-    return {c.name: getattr(row, c.name) for c in row.__table__.columns
+    data = {c.name: getattr(row, c.name) for c in row.__table__.columns
             if c.name not in set(exclude) | {"device_key_hash", "secret", "payload_hash"}}
+    if row.__tablename__ == "rds_task_run":
+        data["motion_state"] = task_motion_state(row)
+    return data
+
+
+def task_motion_state(task):
+    if task.status not in {"dispatched", "running"}:
+        return "idle"
+    return next((entry["motion_state"] for entry in reversed(task.timeline or [])
+                 if "motion_state" in entry), "running")
 
 
 def redact(message):

@@ -39,7 +39,7 @@ class MissionWorkflowTests(unittest.TestCase):
         self.call('POST',f'/api/maps/{self.map_id}/publish',{'revision':0,'confirmation':name})
         self.robot = self.call('POST','/api/robots',{'code':name,'name':name,'model':'AMR','map_id':self.map_id})
         self.client.post(f"/api/devices/{self.robot['id']}/telemetry",headers={'X-Device-Key':self.robot['device_key']},
-                         json={'seq':1,'battery':80,'map_version':1,'capabilities':['execute-task','emergency-stop','goto-point','load-map']}).raise_for_status()
+                         json={'seq':1,'battery':80,'map_version':1,'capabilities':['execute-task','emergency-stop','goto-point','load-map','pause-task','resume-task']}).raise_for_status()
         self.plan = self.call('POST','/api/task-plans',{'name':name,'map_id':self.map_id,'start_point':'A',
             'steps':steps or [{'point':'C'},{'point':'A'}], 'repeat_count':repeat_count,
             'robot_id':None if automatic_robot else self.robot['id']})
@@ -110,16 +110,80 @@ class MissionWorkflowTests(unittest.TestCase):
         self.expire_wait('scheduled_at'); self.tick()
         self.assertEqual(self.current()['active_task']['status'],'dispatched')
 
-    def test_pause_finishes_current_segment_then_resumes_next_once(self):
-        self.setup_plan(); self.start(); self.tick()
+    def device_call(self, method, url, data, expected=200, **kwargs):
+        response=self.client.request(method,url,json=data,**kwargs)
+        self.assertEqual(response.status_code,expected,response.text)
+        return response.json()['data'] if expected==200 else response
+
+    def motion_receipt(self, action, status='success'):
+        commands=self.client.get(f"/api/devices/{self.robot['id']}/commands",headers={'X-Device-Key':self.robot['device_key']}).json()['data']
+        command=next(row for row in commands if row['command']==action+'-task')
+        return self.device_call('POST',f"/api/devices/{self.robot['id']}/commands/{command['id']}/receipt",
+                         {'status':status,'result':'fixture '+action},headers={'X-Device-Key':self.robot['device_key']})
+
+    def test_immediate_pause_retains_current_task_and_resume_does_not_replay(self):
+        self.setup_plan(); self.start(); self.tick(); self.receipt('running')
+        task_id=self.current()['active_task_id']
         self.assertEqual(self.control('pause')['status'],'pausing')
-        self.receipt(); self.tick()
+        self.assertEqual(self.control('pause')['status'],'pausing')
+        self.control('resume',409)
+        self.motion_receipt('pause'); self.tick()
         self.assertEqual(self.current()['status'],'paused')
-        self.assertIsNone(self.current()['active_task_id'])
-        self.tick(); self.assertIsNone(self.current()['active_task_id'])
-        self.control('resume'); self.tick()
+        self.assertEqual(self.current()['active_task_id'],task_id)
+        self.assertEqual(self.current()['active_task']['motion_state'],'paused')
+        self.receipt('running'); self.tick()
+        self.assertEqual(self.current()['active_task']['motion_state'],'paused','heartbeats must preserve the pause')
+        self.tick(); self.assertEqual(self.current()['active_task_id'],task_id)
+        self.assertEqual(self.control('resume')['status'],'resuming')
+        self.motion_receipt('resume'); self.tick()
+        self.assertEqual(self.current()['status'],'running')
+        self.assertEqual(self.current()['active_task_id'],task_id)
+        self.receipt(); self.tick()
         self.assertEqual(self.current()['active_task']['to_point'],'A')
         self.receipt(); self.tick(); self.assertEqual(self.current()['status'],'success')
+
+    def test_pause_requires_device_capability_and_current_execution(self):
+        self.setup_plan(); self.start(); self.tick()
+        self.control('pause',409)  # Not yet accepted by a device.
+        self.receipt('running')
+        self.client.post(f"/api/devices/{self.robot['id']}/telemetry",headers={'X-Device-Key':self.robot['device_key']},
+                         json={'seq':2,'battery':80,'map_version':1,'capabilities':['execute-task']}).raise_for_status()
+        result=self.control('pause',409)
+        self.assertIn('即时暂停',result.text)
+        self.assertEqual(self.current()['status'],'running')
+
+    def test_stop_supersedes_pause_and_late_resume_receipt_cannot_restart(self):
+        self.setup_plan(); self.start(); self.tick(); self.receipt('running')
+        self.control('pause'); self.motion_receipt('pause')
+        self.control('resume')
+        task=self.current()['active_task']
+        stop=self.call('POST',f"/api/task-history/{task['id']}/stop",{'confirmation':task['name']})
+        self.device_call('POST',f"/api/devices/{self.robot['id']}/commands/{stop['command']['id']}/receipt",
+                  {'status':'success','result':'stopped'},headers={'X-Device-Key':self.robot['device_key']})
+        commands=self.client.get(f"/api/devices/{self.robot['id']}/commands",headers={'X-Device-Key':self.robot['device_key']}).json()['data']
+        resume=next(c for c in commands if c['command']=='resume-task')
+        self.device_call('POST',f"/api/devices/{self.robot['id']}/commands/{resume['id']}/receipt",{'status':'success','result':'late'},409,
+                  headers={'X-Device-Key':self.robot['device_key']})
+        self.tick();self.assertEqual(self.current()['status'],'cancelled')
+
+    def test_direct_task_pause_and_control_timeout_lock_without_advancing(self):
+        self.setup_plan(); self.start(); self.tick(); self.receipt('running')
+        task=self.current()['active_task']
+        pause=self.call('POST',f"/api/task-history/{task['id']}/pause",{})
+        self.assertEqual(pause['task']['motion_state'],'pausing')
+        async def expire():
+            from app.models.operations import Command
+            async with AsyncSessionLocal() as db:
+                command=await db.get(Command,pause['command']['id'])
+                command.expires_at=now()-timedelta(seconds=1)
+                await db.commit()
+        asyncio.run(expire()); self.tick()
+        current=self.current()
+        self.assertEqual(current['active_task_id'],task['id'])
+        self.assertEqual(current['active_task']['motion_state'],'unknown')
+        self.assertTrue(self.call('GET',f"/api/robots/{self.robot['id']}")['locked'])
+        self.call('POST',f"/api/task-history/{task['id']}/resume",{'confirmation':'wrong'},400)
+        self.call('POST',f"/api/task-history/{task['id']}/resume",{'confirmation':task['name']},409)
 
     def test_manual_resume_waits_for_operator_and_blocks_publish_while_paused(self):
         self.setup_plan(); self.start('manual')

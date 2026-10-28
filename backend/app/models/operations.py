@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, JSON, Text, UniqueConstraint, Index
 from app.database import Base
 
-ACTIVE_MISSION_STATES = ("queued", "running", "waiting_manual", "pausing", "paused", "finishing")
+ACTIVE_MISSION_STATES = ("queued", "running", "waiting_manual", "pausing", "paused", "resuming", "finishing")
 
 
 class Record:

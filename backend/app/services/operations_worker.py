@@ -206,6 +206,16 @@ async def tick():
         commands = (await db.scalars(select(Command).where(Command.status.in_(["queued", "accepted", "running"]), Command.expires_at < now(), Command.command.notin_(["upgrade", "rollback"])))).all()
         for command in commands:
             command.status, command.result = "timeout", "设备未按时回执"
+            if command.command in {"pause-task", "resume-task"}:
+                from app.services.task_motion import motion_event, sync_mission_motion
+                task = await db.get(TaskRun, command.params.get("task_id"))
+                if task and task.status not in TERMINAL:
+                    motion_event(task, "unknown", "暂停/继续回执超时，请核实停车状态", command.id)
+                    await sync_mission_motion(db, task)
+                    robot = await db.get(Robot, command.robot_id)
+                    if robot:
+                        robot.locked, robot.lock_reason = True, "暂停/继续回执超时"
+                    await raise_alarm(db, command.robot_id, "TASK_CONTROL_TIMEOUT", "暂停/继续回执超时，已锁定")
             if command.command == "execute-task":
                 params = command.params if isinstance(command.params, dict) else {}
                 task_id = params.get("task_id")

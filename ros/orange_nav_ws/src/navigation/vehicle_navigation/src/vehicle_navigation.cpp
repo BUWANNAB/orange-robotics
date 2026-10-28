@@ -4,6 +4,7 @@
 #include "vehicle_navigation/jerk_limiter.hpp"
 #include <cmath>
 #include <stdexcept>
+#include <sstream>
 
 
 namespace {
@@ -78,6 +79,7 @@ void TrackedVehicleNavigation::publishNavResult(const std::string &status) {
 }
 
 void TrackedVehicleNavigation::initialize_publishers() {
+    pubControlResult = create_publisher<std_msgs::msg::String>("/navigation/control_result", 10);
     pubNavResult = this->create_publisher<std_msgs::msg::String>("/navigation/result", 10);
     pubPathTrackingStatus = this->create_publisher<std_msgs::msg::UInt32>("/path_point_id", 10);
     pubGoalFinish         = this->create_publisher<std_msgs::msg::UInt8>("/goal_finish", 10);
@@ -90,6 +92,8 @@ void TrackedVehicleNavigation::initialize_publishers() {
 }
 
 void TrackedVehicleNavigation::initialize_subscribers() {
+    subNavigationControl = create_subscription<std_msgs::msg::String>("/navigation/control", 10,
+        std::bind(&TrackedVehicleNavigation::NavigationControlCallback, this, _1));
     subOdom = create_subscription<nav_msgs::msg::Odometry>("/odom_topic", rclcpp::SensorDataQoS(),
         [this](nav_msgs::msg::Odometry::SharedPtr msg){ odometry_ = msg; });
     subPoseStamped = this->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -413,6 +417,25 @@ void TrackedVehicleNavigation::vehicle_ctrl_callback() {
     }
     is_first_ctrl_cycle_ = false;
     last_control_time_ = now;
+    // Hold the exact path, segment index, spin gate and terminal-spin state.
+    // A fresh measured stop, rather than a zero command, completes the pause.
+    if (route_paused_) {
+        cmdVelOutput(0, 0);
+        _vehicle_run_status.data = RunStatus::Paused;
+        if (!pause_confirmed_ && odometry_ && stoppedFeedback() &&
+            rclcpp::Time(odometry_->header.stamp) > pause_requested_at_ &&
+            (now - pause_requested_at_).seconds() >= 0.15) {
+            pause_confirmed_ = true;
+            if (vehicle_pose_) {
+                pause_x_ = vehicle_pose_->pose.position.x;
+                pause_y_ = vehicle_pose_->pose.position.y;
+                const auto& q = vehicle_pose_->pose.orientation;
+                pause_yaw_ = std::atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z));
+            } else pause_invalidated_ = true;
+            publishControlResult("paused");
+        }
+        return;
+    }
     if (_run_vehicle == 1 && (!odometry_ ||
         (now-rclcpp::Time(odometry_->header.stamp)).seconds() > 1.0 ||
         (now-rclcpp::Time(odometry_->header.stamp)).seconds() < -0.1 ||
@@ -573,6 +596,14 @@ void TrackedVehicleNavigation::PoseStampedCallback(const geometry_msgs::msg::Pos
 }
 
 void TrackedVehicleNavigation::PathPointCallback(const std_msgs::msg::Float64MultiArray::SharedPtr paraMsg) {
+    if (route_paused_) {
+        if (!paraMsg->layout.dim.empty() && paraMsg->layout.dim.front().label != nav_request_id_) {
+            std_msgs::msg::String result;
+            result.data = paraMsg->layout.dim.front().label + "\nfailed";
+            pubNavResult->publish(result);
+        }
+        return;
+    }
     if (!validRouteSpeeds(paraMsg->data) || paraMsg->data.size() % PATH_POINT_FIELDS != 0 ||
         paraMsg->data.size() / PATH_POINT_FIELDS > MAX_PATH_POINTS ||
         !std::all_of(paraMsg->data.begin(), paraMsg->data.end(), [](double v) { return std::isfinite(v); })) {
@@ -584,6 +615,9 @@ void TrackedVehicleNavigation::PathPointCallback(const std_msgs::msg::Float64Mul
         return;
     }
     nav_request_id_ = paraMsg->layout.dim.empty() ? "" : paraMsg->layout.dim.front().label;
+    control_sequence_ = 0;
+    control_action_.clear();
+    pause_confirmed_ = pause_invalidated_ = false;
     _path_point_number = paraMsg->data.size() / PATH_POINT_FIELDS;
     _Received_path     = true;
     _path_point_count  = 0;
@@ -620,6 +654,7 @@ void TrackedVehicleNavigation::PathPointCallback(const std_msgs::msg::Float64Mul
 }
 
 void TrackedVehicleNavigation::PathPointLeftCallback(const std_msgs::msg::Float64MultiArray::SharedPtr paraMsg) {
+    if (route_paused_) { if (_obstacle_avoidance == 1) pause_invalidated_ = true; return; }
     if (!validRouteSpeeds(paraMsg->data) || paraMsg->data.size() % PATH_POINT_FIELDS != 0 ||
         paraMsg->data.size() / PATH_POINT_FIELDS > MAX_PATH_POINTS ||
         !std::all_of(paraMsg->data.begin(), paraMsg->data.end(), [](double v) { return std::isfinite(v); })) {
@@ -656,6 +691,7 @@ void TrackedVehicleNavigation::PathPointLeftCallback(const std_msgs::msg::Float6
 }
 
 void TrackedVehicleNavigation::PathPointRightCallback(const std_msgs::msg::Float64MultiArray::SharedPtr paraMsg) {
+    if (route_paused_) { if (_obstacle_avoidance == 2) pause_invalidated_ = true; return; }
     if (!validRouteSpeeds(paraMsg->data) || paraMsg->data.size() % PATH_POINT_FIELDS != 0 ||
         paraMsg->data.size() / PATH_POINT_FIELDS > MAX_PATH_POINTS ||
         !std::all_of(paraMsg->data.begin(), paraMsg->data.end(), [](double v) { return std::isfinite(v); })) {
@@ -693,6 +729,7 @@ void TrackedVehicleNavigation::PathPointRightCallback(const std_msgs::msg::Float
 
 
 void TrackedVehicleNavigation::VchicleRunStarCallback(const std_msgs::msg::UInt8::SharedPtr paraMsg) {
+    if (route_paused_) { cmdVelOutput(0, 0); return; }
     _run_vehicle = paraMsg->data;
     if (_run_vehicle == 0) {
         prev_linear_velocity_ = prev_angular_velocity_ = linear_acceleration_ = angular_acceleration_ = 0;
@@ -703,6 +740,10 @@ void TrackedVehicleNavigation::VchicleRunStarCallback(const std_msgs::msg::UInt8
 }
 
 void TrackedVehicleNavigation::ObstacleAvoidanceCallback(const std_msgs::msg::UInt8::SharedPtr paraMsg) {
+    if (route_paused_) {
+        if (_obstacle_avoidance != paraMsg->data) pause_invalidated_ = true;
+        return;
+    }
     if (_obstacle_avoidance != paraMsg->data) {
         _path_point_count = 0;
         spin_mode_gate_.reset();
@@ -712,6 +753,8 @@ void TrackedVehicleNavigation::ObstacleAvoidanceCallback(const std_msgs::msg::UI
 }
 
 void TrackedVehicleNavigation::CloseRouteCallback(const std_msgs::msg::UInt8::SharedPtr paraMsg) {
+    route_paused_ = pause_confirmed_ = false;
+    pause_invalidated_ = true;
     _close_route = paraMsg->data;
     _path_point_count = 0;
     _run_mode_switch = false;
@@ -737,10 +780,70 @@ void TrackedVehicleNavigation::CloseRouteCallback(const std_msgs::msg::UInt8::Sh
 }
 
 void TrackedVehicleNavigation::VchicleSpinCallback(const std_msgs::msg::Float32::SharedPtr paraMsg) {
+    if (route_paused_) return;
     _goal_spin_yaw = paraMsg->data;
     _spin_vehicle_flag = true;
     _run_vehicle = 1;
     RCLCPP_INFO(this->get_logger(), "触发独立自转动作，目标航向: %.2f rad", _goal_spin_yaw);
+}
+
+void TrackedVehicleNavigation::publishControlResult(const std::string& status, const std::string& reason) {
+    std_msgs::msg::String result;
+    result.data = nav_request_id_ + "\n" + std::to_string(control_sequence_) + "\n" + status + "\n" + reason;
+    pubControlResult->publish(result);
+}
+
+void TrackedVehicleNavigation::NavigationControlCallback(const std_msgs::msg::String::SharedPtr msg) {
+    std::istringstream input(msg->data);
+    std::string route, sequence, action, extra;
+    if (!std::getline(input, route) || !std::getline(input, sequence) || !std::getline(input, action) ||
+        std::getline(input, extra) || route.empty() || route != nav_request_id_ ||
+        sequence.empty() || sequence.size() > 18 || sequence.find_first_not_of("0123456789") != std::string::npos ||
+        (action != "pause" && action != "resume")) return;
+    const uint64_t seq = std::stoull(sequence);
+    // Monotonic per-route requests: delayed or duplicated resumes cannot undo a newer pause.
+    if (seq < control_sequence_ || seq == 0) return;
+    if (seq == control_sequence_) {
+        if (action != control_action_) return;
+        if (action == "pause" && route_paused_ && pause_confirmed_) publishControlResult("paused");
+        else if (action == "resume" && !route_paused_ && _run_vehicle == 1 && (_Received_path || _spin_vehicle_flag))
+            publishControlResult("running");
+        return;
+    }
+    control_sequence_ = seq;
+    control_action_ = action;
+    if (action == "pause") {
+        if ((!_Received_path && !_spin_vehicle_flag) || (_run_vehicle != 1 && !route_paused_)) {
+            publishControlResult("rejected", "Route is no longer running"); return;
+        }
+        if (route_paused_ && pause_confirmed_) { publishControlResult("paused"); return; }
+        route_paused_ = true;
+        pause_requested_at_ = get_clock()->now();
+        _run_vehicle = 0;
+        prev_linear_velocity_ = prev_angular_velocity_ = linear_acceleration_ = angular_acceleration_ = 0;
+        cmdVelOutput(0, 0);
+        return;
+    }
+    const auto current = get_clock()->now();
+    bool pose_valid = vehicle_pose_ &&
+        (current - rclcpp::Time(vehicle_pose_->header.stamp)).seconds() >= -0.1 &&
+        (current - rclcpp::Time(vehicle_pose_->header.stamp)).seconds() < 1.0;
+    if (pose_valid) {
+        const auto& p = vehicle_pose_->pose.position;
+        const auto& q = vehicle_pose_->pose.orientation;
+        const double yaw = std::atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z));
+        pose_valid = std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(yaw) &&
+            std::hypot(p.x-pause_x_, p.y-pause_y_) <= 0.25 &&
+            std::abs(std::remainder(yaw-pause_yaw_, 2*M_PI)) <= 0.26;
+    }
+    if (!route_paused_ || !pause_confirmed_ || pause_invalidated_ || !stoppedFeedback() || !pose_valid ||
+        (!_Received_path && !_spin_vehicle_flag) || _obstacle_avoidance == obstacle_avoidance_mode::parking) {
+        publishControlResult("rejected", "Retained route, pose or stop feedback is invalid"); return;
+    }
+    route_paused_ = pause_confirmed_ = false;
+    _run_vehicle = 1;
+    is_first_ctrl_cycle_ = true;
+    publishControlResult("running");
 }
 
 bool TrackedVehicleNavigation::ObstacleAvoidancePathSelect() {

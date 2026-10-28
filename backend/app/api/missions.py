@@ -299,10 +299,15 @@ async def pause_mission_run(run_id: int, body: MissionConfirm,
                             actor=Depends(require("robot:control")), db=Depends(get_db)):
     run = await locked_run(db, run_id)
     confirm(body.confirmation, run.name)
-    if run.status not in {"queued", "running", "waiting_manual"}:
+    if run.status not in {"queued", "running", "waiting_manual", "pausing", "paused"}:
         raise HTTPException(409, "当前任务链不能暂停，请刷新执行状态")
-    run.status = "pausing" if run.active_task_id else "paused"
-    note = "当前导航段到站后暂停后续步骤" if run.active_task_id else "后续步骤已暂停"
+    task = await db.get(TaskRun, run.active_task_id) if run.active_task_id else None
+    if task and task.status in {"dispatched", "running"}:
+        from app.services.task_motion import request_task_motion
+        await request_task_motion(db, task, "pause", actor)
+    else:
+        run.status = "paused"
+    note = "已请求当前路线即时停车，等待设备确认" if run.status == "pausing" else "任务链已暂停"
     run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": run.status, "note": note}]
     audit(db, actor, "mission", f"任务链 #{run.id}：{note}")
     await db.commit()
@@ -314,9 +319,14 @@ async def resume_mission_run(run_id: int, body: MissionConfirm,
                              actor=Depends(require("robot:control")), db=Depends(get_db)):
     run = await locked_run(db, run_id)
     confirm(body.confirmation, run.name)
-    if run.status != "paused" or run.active_task_id:
-        raise HTTPException(409, "只有已暂停且当前步骤已结束的任务链可以继续")
-    run.status = "waiting_manual" if run.task_mode == "manual" else "queued" if not run.started_at else "running"
+    if run.status not in {"paused", "resuming"}:
+        raise HTTPException(409, "只有设备确认已暂停的任务链可以继续")
+    task = await db.get(TaskRun, run.active_task_id) if run.active_task_id else None
+    if task and task.status in {"dispatched", "running"}:
+        from app.services.task_motion import request_task_motion
+        await request_task_motion(db, task, "resume", actor)
+    else:
+        run.status = "running" if task else "waiting_manual" if run.task_mode == "manual" else "queued" if not run.started_at else "running"
     run.timeline = (run.timeline or [])[-499:] + [{"at": now().isoformat() + "Z", "status": run.status, "note": "操作员确认继续任务链"}]
     audit(db, actor, "mission", f"继续任务链 #{run.id}")
     await db.commit()
