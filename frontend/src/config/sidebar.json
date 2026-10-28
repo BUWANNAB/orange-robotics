@@ -33,14 +33,6 @@
       "order": 1
     },
 
-        {
-      "id": "carPosition",
-      "title": "室内导航",
-      "icon": "bx bx-buildings",
-      "url": "/src/components/indoor-map/drag_move.html",
-      "visible": true,
-      "order": 3
-    },
     {
       "id": "drawMap",
       "title": "地图创建",

@@ -572,7 +572,7 @@
 				},
 				async loadSidebarConfig() {
 			try {
-				const response = await fetch('./src/config/sidebar.json');
+				const response = await fetch('./src/config/sidebar.json?v=map-data-navigation-20261028-1');
 				const config = await response.json();
 
 				// 根据用户角色过滤侧边栏项目
@@ -597,7 +597,7 @@
 				console.error('加载侧边栏配置文件失败:', error);
 				// 如果配置文件加载失败，使用默认配置
 				let defaultItems = [
-					{ id: 'main', title: '操作界面', icon: 'bx bx-globe', url: '/src/components/indoor-map/drag_move.html', visible: true, order: 1 },
+					{ id: 'mapWorkbench', title: '地图与路线', icon: 'bx bx-map', url: '/ui/map-workbench.html?console=1#route', visible: true, order: 0 },
 					// { id: 'leftmap', title: '手动规划', icon: 'bx bx-git-compare', url: 'pages/leftmap.html', visible: true, order: 2 },
 					// { id: 'globalPath', title: '自动规划', icon: 'bx bx-shape-square', url: 'pages/globalPath.html', visible: true, order: 3 },
 					// { id: 'machine_control', title: '遥控操作', icon: 'bx bxs-joystick', url: 'pages/machine_control.html', visible: true, order: 4 },
