@@ -1,5 +1,6 @@
 (function () {
   const link=document.createElement('a');link.href='/ui/localization.html';
+  link.className='legacy-localization-status';
   link.style.cssText='position:fixed;bottom:12px;left:16px;z-index:2000;padding:8px 12px;border-radius:7px;background:#fff3ce;color:#614512;font:13px sans-serif;box-shadow:0 2px 8px #0002';
   link.setAttribute('role','status');document.body.appendChild(link);
   function refresh(){

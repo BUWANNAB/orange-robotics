@@ -53,7 +53,7 @@
   }
   async function dashboard(){
     const data=await api.get('/api/dashboard/kpi');
-    return `<div class="cards">${data.metrics.map(m=>`<article class="card" title="${escape(m.formula)}"><p>${escape(m.name)}</p><strong>${m.value??'—'}</strong><em>${escape(m.unit)}</em><small>${escape(m.formula)}</small></article>`).join('')}</div><div class="panels"><article class="panel"><h2>近七天任务趋势</h2>${Object.keys(data.trend).length?chart(data.trend):'<p class="empty">尚无任务执行记录</p>'}</article><article class="panel"><h2>机器人状态分布</h2>${Object.entries(data.status).map(([status,count])=>`<div class="bar-row"><span>${escape(labels[status]||status)}</span><div class="bar"><i style="width:${count/Math.max(1,state.robots.length)*100}%"></i></div><b>${count}</b></div>`).join('')||'<p class="empty">尚未添加机器人</p>'}</article><article class="panel"><h2>七天任务热力 · 周一至周日 / 0—23 时</h2><div class="heat">${Array.from({length:168},(_,i)=>{const count=data.heat[`${Math.floor(i/24)}-${i%24}`]||0;return `<i title="周${Math.floor(i/24)+1} ${i%24}时：${count} 单" style="${count?`background:rgba(235,117,40,${Math.min(1,.25+count/20)})`:''}"></i>`;}).join('')}</div><p class="help">业务日期统一按 Asia/Shanghai 统计；空分母显示 —。${data.trend_truncated?'趋势超过 10 万条，已截断。':''}</p></article><article class="panel"><h2>运行提示</h2><p class="help">设备状态来自已认证心跳。操作指令需要设备回执后才会显示成功。断线时自动使用 3 秒快照轮询。</p><p class="help">上次统计：${stamp(data.updated_at)}</p></article></div>`;
+    return `<div class="cards">${data.metrics.map(m=>`<article class="card" title="${escape(window.OperationsLayout.metricHint(m.key))}"><p>${escape(m.name)}</p><strong>${m.value??'—'}</strong><em>${escape(m.unit)}</em><small>${escape(window.OperationsLayout.metricHint(m.key))}</small></article>`).join('')}</div><div class="panels"><article class="panel"><h2>近七天任务趋势</h2>${Object.keys(data.trend).length?chart(data.trend):'<p class="empty">尚无任务执行记录</p>'}</article><article class="panel"><h2>机器人状态分布</h2>${Object.entries(data.status).map(([status,count])=>`<div class="bar-row"><span>${escape(labels[status]||status)}</span><div class="bar"><i style="width:${count/Math.max(1,state.robots.length)*100}%"></i></div><b>${count}</b></div>`).join('')||'<p class="empty">尚未添加机器人</p>'}</article></div><details class="operations-insights"><summary>更多统计与运行说明</summary><div class="panels"><article class="panel"><h2>七天任务热力 · 周一至周日 / 0—23 时</h2><div class="heat">${Array.from({length:168},(_,i)=>{const count=data.heat[`${Math.floor(i/24)}-${i%24}`]||0;return `<i title="周${Math.floor(i/24)+1} ${i%24}时：${count} 单" style="${count?`background:rgba(235,117,40,${Math.min(1,.25+count/20)})`:''}"></i>`;}).join('')}</div><p class="help">按北京时间统计；暂无可计算数据时显示 —。${data.trend_truncated?'趋势超过 10 万条，已截断。':''}</p></article><article class="panel"><h2>运行提示</h2><p class="help">设备状态来自已认证心跳。操作指令需要设备回执后才会显示成功。连接中断时会自动尝试刷新状态。</p><p class="help">上次统计：${stamp(data.updated_at)}</p></article></div></details>`;
   }
   function controls(){
     const actions={robots:button('导出档案','export-robots','','robot:view')+button('导入档案','import-robots','','robot:import')+button('新增机器人','add-robot','', 'robot:edit')+button('批量回充','batch-charge','','robot:control'),battery:button('低电量回充','batch-charge','','robot:control'),tasks:button('统计分析','task-stats','','task:view')+button('创建任务','add-task','','task:edit'),logs:button('下载 CSV','export-logs','','log:export'),maps:button('选择已有 PGM','open-pgm-map','','map:edit')+button(state.preferredAssetKey?'基于当前 PGM 新建地图':'新建地图','add-map','','map:edit','primary'),integration:button('新增应用','add-app','','integration:manage')+button('回调记录','callbacks','','integration:manage')+button('接口文档','api-doc','','integration:manage'),firmware:button('上传固件','upload-firmware','','firmware:upload'),upgrades:button('创建升级任务','add-upgrade','','firmware:upgrade')};
@@ -742,14 +742,16 @@
     $('state').innerHTML='<option value="">全部状态</option>'+(states[tab]||[]).map(v=>`<option value="${v}">${tab==='firmware'&&v==='offline'?'已下架':labels[v]||v}</option>`).join('');
     for(const key of ['start','end'])$(key).parentElement.hidden=!['alarms','tasks','logs'].includes(tab);
     $('state').hidden=!(states[tab]?.length);
-    $('filters').hidden=tab==='dashboard';document.querySelectorAll('#nav button').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+    $('filters').hidden=tab==='dashboard';document.querySelectorAll('#nav button').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('active',active);if(active){b.setAttribute('aria-current','page');const group=b.closest?.('.operations-system-group');if(group)group.open=true;}else b.removeAttribute('aria-current');});
     location.hash=tab;if(!deferLoad)load();
   }
   async function init(){
     try{
       const me=await api.get('/api/operations/me');state.permissions=me.permissions;
       $('eyebrow').textContent=me.worker_enabled?'OPERATIONS CENTER':'OPERATIONS CENTER / 自动调度已暂停';
-      $('nav').innerHTML=modules.filter(m=>can(m[2])).map(m=>`<button class="rail-item" type="button" data-tab="${m[0]}"><span class="rail-icon">${navIcon(m[3])}</span><span class="rail-item-label">${escape(m[1])}</span><span class="rail-item-mark" aria-hidden="true"></span></button>`).join('');
+      const navigation=window.OperationsLayout.navigationGroups(modules,can);
+      const navButtons=items=>items.map(m=>`<button class="rail-item" type="button" data-tab="${m[0]}"><span class="rail-icon">${navIcon(m[3])}</span><span class="rail-item-label">${escape(m[1])}</span><span class="rail-item-mark" aria-hidden="true"></span></button>`).join('');
+      $('nav').innerHTML=`<div class="operations-main-group">${navButtons(navigation.core)}</div>${navigation.system.length?`<details class="operations-system-group"><summary>系统配置</summary><div>${navButtons(navigation.system)}</div></details>`:''}`;
       state.monitor=new window.OperationsMonitor(api,data=>{
         state.robots=data.robots||[];
         renderMapRobot();
@@ -782,7 +784,12 @@
       $('login-form').onsubmit=async event=>{event.preventDefault();try{const result=await api.post('user/login',Object.fromEntries(new FormData(event.target)));localStorage.setItem('token',result);localStorage.setItem('tokenCreateTime',String(Date.now()));localStorage.removeItem('robot.tempSkipLogin');await init();}catch(e){$('login-error').textContent=e.message;}};
     }
   }
-  $('nav').onclick=event=>{const button=event.target.closest('[data-tab]');if(button)selectTab(button.dataset.tab);};
+  function closeOperationsNav(){document.body.classList.remove('operations-nav-open');$('operations-nav-toggle').setAttribute('aria-expanded','false');}
+  $('nav').onclick=event=>{const button=event.target.closest('[data-tab]');if(button){selectTab(button.dataset.tab);closeOperationsNav();}};
+  $('operations-nav-toggle').onclick=()=>{const open=document.body.classList.toggle('operations-nav-open');$('operations-nav-toggle').setAttribute('aria-expanded',String(open));};
+  $('operations-nav-close').onclick=closeOperationsNav;
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')closeOperationsNav();});
+  const previousMap=localStorage.getItem('orange.currentRouteMap');if(/^\d+$/.test(previousMap||''))$('operations-home').href='index.html?mapId='+previousMap;
   document.addEventListener('fullscreenchange',()=>{const button=document.querySelector('#map-editor [data-action="map-fullscreen"]');if(button)button.textContent=document.fullscreenElement===document.getElementById('map-editor')?'退出大图':'大图显示';if(state.map)state.map.fit();});
   document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target||target.disabled)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=target.dataset.action==='map-remove'&&state.map?.selected==null&&!state.map?.shape;}});
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();

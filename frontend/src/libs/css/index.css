@@ -704,6 +704,10 @@ input:checked + .slider:before {
 .page.map-home .nav-top { display: none !important; }
 .page.map-home .content-page { top: 0; bottom: 0; margin-top: 0; }
 .page.map-home .content-page iframe { height: 100%; }
+.page.modern-view .nav-top { display: none !important; }
+.page.modern-view .content-page { top: 0; bottom: 0; margin-top: 0; transition: none; }
+.page.modern-view .content-page iframe { height: 100%; }
+html.modern-workspace .legacy-localization-status { display: none !important; }
 .mobile-nav-backdrop {
 	display: block;
 	position: fixed;
