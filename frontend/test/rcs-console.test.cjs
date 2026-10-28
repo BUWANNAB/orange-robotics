@@ -85,6 +85,27 @@ test('opening operations saves the current draft before navigation and stays put
   assert.equal(failed.window.top.location.href,'map-workbench.html');
 });
 
+test('standalone map navigation saves and opens the full shell with its current map',async()=>{
+  const h=navigationHarness();
+  h.window.top=h.window;h.window.location={href:'operations.html'};
+  await h.controller.action('map-open-navigation');
+  assert.equal(h.writes[0].path,'/api/maps/3/draft/save');
+  assert.equal(h.window.location.href,'index.html?navigation=open&mapId=3');
+  const failed=navigationHarness(true);
+  failed.window.top=failed.window;failed.window.location={href:'operations.html'};
+  await assert.rejects(()=>failed.controller.action('map-open-navigation'),/保存失败/);
+  assert.equal(failed.window.location.href,'operations.html');
+});
+
+test('embedded map navigation toggles the shell without leaving the editor',async()=>{
+  const h=navigationHarness(),messages=[];
+  h.window.top.postMessage=(message,origin)=>messages.push({message,origin});
+  await h.controller.action('map-open-navigation');
+  assert.equal(messages[0].message.type,'orange-toggle-navigation');
+  assert.equal(h.writes.length,0);
+  assert.equal(h.window.top.location.href,'map-workbench.html');
+});
+
 test('an active single task marks the execution panel as active instead of showing idle controls',()=>{
   const h=navigationHarness();
   h.controller.state.mapTasks=[{id:8,map_id:3,name:'单次任务',status:'running',from_point:'LM1',to_point:'LM2'}];

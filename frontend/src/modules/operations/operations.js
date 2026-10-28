@@ -633,7 +633,13 @@
     if(name==='task-detail')return dialog('任务时间轴',`<p>${escape(row.name)} · ${badge(row.status)}</p>${row.timeline.map(t=>`<p>${stamp(t.at)} · ${badge(t.status)} ${escape(t.note)}</p>`).join('')}<p>${escape(row.failure)}</p>`,null);
     if(name==='cancel-task')return confirmation('取消排队任务',row.name,'仅取消尚未开始的任务。',async v=>{if(v!==row.name)throw new Error('任务名不一致');await api.post(`/api/task-history/${id}/cancel`);});
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
-    if(name==='map-open-navigation'){window.top.postMessage({type:'orange-toggle-navigation'},location.origin);return;}
+    if(name==='map-open-navigation'){
+      if(window.top===window){
+        if(state.map)await saveMap();
+        window.location.href='index.html?navigation=open'+(state.mapRow?.id?'&mapId='+encodeURIComponent(state.mapRow.id):'');
+      }else window.top.postMessage({type:'orange-toggle-navigation'},location.origin);
+      return;
+    }
     if(name==='map-zoom-in'){state.map?.zoomBy(1.2);return;}
     if(name==='map-zoom-out'){state.map?.zoomBy(1/1.2);return;}
     if(name==='map-home-view'){state.map?.fit();return;}

@@ -273,7 +273,7 @@
 			</div>
 			<div class="content-page" ref="cPage">
 				<iframe name="iframe" title="地图与路线工作台" width="100%" height="100%" frameborder="0"
-					src="/ui/map-workbench.html?console=1&ui=handbook-layout-20261028-1#route"></iframe>
+					src="/ui/map-workbench.html?console=1&ui=handbook-navigation-20261028-1#route"></iframe>
 			</div>
 		</div>
 	</div>
@@ -440,7 +440,7 @@
 		const vue = new Vue({
 			el: '#app',
 			data: {
-				navLeftFlag: false, // 地图工作台作为主界面；功能导航默认收起
+				navLeftFlag: new URLSearchParams(location.search).get('navigation') === 'open',
 				sidebarItems: [],
 				activeItem: 'mapWorkbench',
 				headerItems: {
@@ -1770,6 +1770,12 @@
 	(function () {
 		const app = document.getElementById('app');
 		const frame = document.querySelector('.content-page iframe');
+		const requestedMapId = new URLSearchParams(location.search).get('mapId');
+		if (/^\d+$/.test(requestedMapId || '') && frame) {
+			const workspaceUrl = new URL(frame.getAttribute('src'), location.href);
+			workspaceUrl.searchParams.set('mapId', requestedMapId);
+			frame.src = workspaceUrl.href;
+		}
 		const syncMapChrome = () => {
 			try {
 				const url = new URL(frame.contentWindow.location.href);
