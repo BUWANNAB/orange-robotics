@@ -52,3 +52,5 @@ body:has(.rcs-console) #dialog .primary{border-color:#015ee7;background:#015ee7;
 @media(min-width:781px) and (max-width:1000px){.rcs-console .map-console-brand strong{display:none}}
 
 @media(min-width:1181px){.rcs-console .map-toolbar-row{justify-content:space-between}.rcs-console .map-tool-spacer{display:none}}
+
+.rcs-console .rcs-inspector-actions{display:grid;gap:8px}

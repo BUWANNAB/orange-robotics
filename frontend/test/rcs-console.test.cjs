@@ -106,6 +106,17 @@ test('embedded map navigation toggles the shell without leaving the editor',asyn
   assert.equal(h.window.top.location.href,'map-workbench.html');
 });
 
+test('opening resource details saves the draft and carries the selected map and point',async()=>{
+  const h=navigationHarness();
+  h.controller.state.map.selected=0;h.controller.state.map.document.points=[{code:'A',uid:'point-a'}];
+  await h.controller.action('map-open-resources');
+  assert.equal(h.writes[0].path,'/api/maps/3/draft/save');
+  assert.equal(h.window.top.location.href,'map-resources.html?mapId=3&tab=points&uid=point-a&point=A');
+  const failed=navigationHarness(true);
+  await assert.rejects(()=>failed.controller.action('map-open-resources'),/保存失败/);
+  assert.equal(failed.window.top.location.href,'map-workbench.html');
+});
+
 test('an active single task marks the execution panel as active instead of showing idle controls',()=>{
   const h=navigationHarness();
   h.controller.state.mapTasks=[{id:8,map_id:3,name:'单次任务',status:'running',from_point:'LM1',to_point:'LM2'}];

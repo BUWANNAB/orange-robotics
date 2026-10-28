@@ -13,8 +13,11 @@ from app.config import settings
 from app.models.operations import MapDocument, MapVersion, Robot, TaskRun, TaskPlan, MissionRun
 from app.common.response import ok
 from app.services.operations_common import require, get_or_404, page, public, confirm, audit, device
-from app.services.map_editor import MapData, validate_map, acquire_lock, save_draft, publish, published_map
+from app.services.map_editor import MapData, validate_map, require_valid_references, acquire_lock, save_draft, publish, published_map
 from app.services import map_assets
+from app.services.resource_identity import identify
+from sqlalchemy.exc import IntegrityError
+import uuid
 
 router = APIRouter(prefix="/api")
 
@@ -148,18 +151,33 @@ async def maps(keyword: str = "", pageNo: int = Query(1, ge=1), pageSize: int = 
 
 @router.post("/maps")
 async def create(body: NewMap, actor=Depends(require("map:edit")), db=Depends(get_db)):
-    if await db.scalar(select(MapDocument.id).where(MapDocument.name == body.name)):
+    require_valid_references(body.document.model_dump())
+    if await db.scalar(select(MapDocument.id).where(MapDocument.name == body.name, MapDocument.deleted == False)):
         raise HTTPException(409, "地图名称已存在")
-    row = MapDocument(name=body.name, draft=body.document.model_dump(), operator=actor)
+    archived = (await db.scalars(select(MapDocument).where(MapDocument.name == body.name, MapDocument.deleted == True).with_for_update())).all()
+    for old in archived:
+        old.name = f"deleted-{old.id}-{uuid.uuid4().hex}"
+        audit(db, actor, "map", f"释放已删除地图名称 {body.name}；原记录 #{old.id}")
+    await db.flush()
+    try:
+        document = identify(body.document.model_dump())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    row = MapDocument(name=body.name, draft=document, operator=actor)
     db.add(row)
     audit(db, actor, "map", "创建地图 " + body.name)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "地图名称已被其他操作占用，请刷新后重试") from None
     return ok(public(row))
 
 
 @router.get("/maps/{map_id}")
 async def detail(map_id: int, actor=Depends(require("map:view")), db=Depends(get_db)):
-    return ok(public(await get_or_404(db, MapDocument, map_id)))
+    row = await get_or_404(db, MapDocument, map_id)
+    return ok({**public(row), "draft": identify(row.draft, seed=row.id)})
 
 
 @router.post("/maps/{map_id}/lock")
@@ -239,6 +257,7 @@ async def remove(map_id: int, confirmation: str, actor=Depends(require("map:edit
     if robot or task or plan or mission: raise HTTPException(409, "地图已关联机器人、任务或任务链记录，不能删除")
     row.deleted = True
     audit(db, actor, "map", "删除地图 " + row.name)
+    row.name = f"deleted-{row.id}-{uuid.uuid4().hex}"
     await db.commit()
     return ok(True)
 

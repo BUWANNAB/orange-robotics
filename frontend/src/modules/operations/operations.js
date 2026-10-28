@@ -234,7 +234,9 @@
       ]);
       if(!state.map||state.mapRow?.id!==mapId)return;
       state.mapMissionPlans=plans||[];state.mapMissionRuns=runs||[];state.taskMode=mode.mode||'manual';
-      renderMapMissions();const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();
+      renderMapMissions();
+      if(state.resourcePlanId){const selected=document.querySelector(`[data-plan-id="${Number(state.resourcePlanId)}"]`);if(selected){selected.open=true;state.resourcePlanId=null;}}
+      const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();
     }catch(error){const panel=$('map-mission-plans');if(panel&&state.mapRow?.id===mapId)panel.innerHTML=`<p class="map-list-empty">任务链状态暂不可用：${escape(error.message)}</p>`;}
   }
   async function missionDesigner(existing=null){
@@ -366,6 +368,7 @@
   }
 
   async function openMap(row){
+    localStorage.setItem('orange.currentRouteMap',String(row.id));
     state.mapMissionPlans=[];state.mapMissionRuns=[];state.selectedMissionId=null;state.mapTasks=[];state.mapTaskTotal=0;
     clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
@@ -424,6 +427,10 @@
       });
     });
     state.map.onViewChange=percent=>{const level=$('map-zoom-level');if(level)level.textContent=percent+'%';};
+    const resourceQuery=new URLSearchParams(location.search),resourcePoint=resourceQuery.get('point'),resourceKind=resourceQuery.get('object');
+    if(resourcePoint)state.map.selectPoint(resourcePoint);
+    if(['paths','areas'].includes(resourceKind)){const index=state.map.document[resourceKind].findIndex(item=>item.uid===resourceQuery.get('uid'));if(index>=0)state.map.selectObject(resourceKind,index);}
+    state.resourcePlanId=resourceQuery.get('planId');
     renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();refreshRobotModel();
     state.mapTaskTimer=setInterval(()=>{refreshMapTasks();refreshMapMissions();},5000);
     $('map-point-search').oninput=renderMapLists;
@@ -639,6 +646,14 @@
         window.location.href='index.html?navigation=open'+(state.mapRow?.id?'&mapId='+encodeURIComponent(state.mapRow.id):'');
       }else window.top.postMessage({type:'orange-toggle-navigation'},location.origin);
       return;
+    }
+    if(name==='map-open-resources'){
+      if(state.map)await saveMap();
+      const query=new URLSearchParams();if(state.mapRow?.id)query.set('mapId',state.mapRow.id);
+      const kind=state.map?.shape?.kind||(state.map?.selected!=null?'points':null);
+      const selected=kind?(kind==='points'?state.map.document.points[state.map.selected]:state.map.document[kind][state.map.shape.index]):null;
+      if(selected){query.set('tab',kind);if(selected.uid)query.set('uid',selected.uid);if(kind==='points')query.set('point',selected.code);}
+      window.top.location.href='map-resources.html'+(query.size?'?'+query:'');return;
     }
     if(name==='map-zoom-in'){state.map?.zoomBy(1.2);return;}
     if(name==='map-zoom-out'){state.map?.zoomBy(1/1.2);return;}

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.models.operations import MapDocument, MissionRun, TaskRun
 from app.services.map_editor import published_map
 from app.services.operations_common import now
+from app.services.resource_identity import identity_error
 
 
 TERMINAL = {"success", "failed", "cancelled", "timeout"}
@@ -57,6 +58,9 @@ async def create_current_step(db, run):
         return None
     document = await published_map(db, run.map_id)
     validate_chain(document, run.start_point, run.steps, run.repeat_count)
+    problem = identity_error(document, run.start_point, run.steps)
+    if problem:
+        raise HTTPException(409, problem)
     target = run.steps[run.step_index]["point"]
     start = run.start_point if run.step_index == 0 else run.steps[run.step_index - 1]["point"]
     if run.robot_id:

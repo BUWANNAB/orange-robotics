@@ -1,5 +1,6 @@
 (function () {
   const clampScale = value => Math.max(0.1, Math.min(100, value));
+  const objectUid = () => window.crypto?.randomUUID?.() || `obj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   const defaultTheme = { background: '#fbfcfe', grid: '#edf0f5', route: '#58748b', station: '#3976ad', selected: '#e87832', selectedLabel: '#e9a16f', measure: '#ed6b16', relocalize: '#ec6d1c', relocalizeText: '#c44e0c' };
   const handbookTheme = { ...defaultTheme, background: '#fff', grid: '#f8f9fc', route: '#1476FB', station: '#1476FB', selected: '#015EE7', selectedLabel: '#a8c7ff', measure: '#0a8f9b', relocalize: '#1476FB', relocalizeText: '#015EE7' };
   function pathSampleCount(start, end) {
@@ -118,14 +119,14 @@
       } else if (this.tool === 'point') {
         this.checkpoint(); let n = this.document.points.length + 1;
         while (this.document.points.some(p => p.code === `P${n}`)) n++;
-        this.document.points.push({ code: `P${n}`, name: '', type: 'station', ...point, theta: 0 });
+        this.document.points.push({ uid: objectUid(), code: `P${n}`, name: '', type: 'station', ...point, theta: 0 });
         this.selected = this.document.points.length - 1; this.changed(); this.onSelect(this.document.points[this.selected]);
       } else if ((this.tool === 'path' || this.tool === 'curve') && index >= 0) {
         const code = this.document.points[index].code;
         if (this.edgeStart && this.edgeStart !== code) {
           const start = this.document.points.find(p => p.code === this.edgeStart), end = this.document.points[index];
           const length = Math.hypot(end.x - start.x, end.y - start.y);
-          const path = { start: this.edgeStart, end: code, bidirectional: true, speed: 0.5, width: 1,
+          const path = { uid: objectUid(), start: this.edgeStart, end: code, bidirectional: true, speed: 0.5, width: 1,
             curve_mode: this.tool === 'curve' ? 'smooth' : 'straight', curve_offset: this.tool === 'curve' ? Math.min(5, length * 0.18) : 0 };
           this.checkpoint(); this.selected = null; this.document.paths.push(path); this.shape = { kind: 'paths', index: this.document.paths.length - 1 };
           this.edgeStart = null; this.changed(); this.onSelect({ ...path, kind: 'paths' });
@@ -170,7 +171,7 @@
       const labels = { forbidden: '禁行区', slow: '减速区', work: '作业区', charge: '充电区' };
       const type = this.areaType, count = this.document.areas.filter(area => area.type === type).length + 1;
       const area = { name: `${labels[type] || '区域'} ${count}`, type, polygon: this.area, speed: 0.3 };
-      this.checkpoint(); this.document.areas.push(area); this.shape = { kind: 'areas', index: this.document.areas.length - 1 };
+      this.checkpoint(); this.document.areas.push({ ...area, uid: objectUid() }); this.shape = { kind: 'areas', index: this.document.areas.length - 1 };
       this.area = []; this.changed(); this.onSelect({ ...area, kind: 'areas' });
     }
     remove() {

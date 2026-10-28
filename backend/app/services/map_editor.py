@@ -7,10 +7,12 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select, update, or_
 from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MapVersion, Robot, TaskRun, MissionRun
 from app.services.operations_common import now, audit, get_or_404
+from app.services.resource_identity import identify
 
 
 class Point(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+    uid: str = Field(default="", pattern=r"^[a-zA-Z0-9_-]{0,80}$")
     code: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")
     name: str = Field(default="", max_length=128)
     type: Literal["station", "charger", "shelf", "waiting", "elevator"] = "station"
@@ -21,6 +23,7 @@ class Point(BaseModel):
 
 class Path(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+    uid: str = Field(default="", pattern=r"^[a-zA-Z0-9_-]{0,80}$")
     start: str
     end: str
     bidirectional: bool = True
@@ -32,6 +35,7 @@ class Path(BaseModel):
 
 class Area(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+    uid: str = Field(default="", pattern=r"^[a-zA-Z0-9_-]{0,80}$")
     name: str = Field(min_length=1, max_length=128)
     type: Literal["forbidden", "slow", "work", "charge"] = "forbidden"
     polygon: list[tuple[float, float]] = Field(min_length=3, max_length=200)
@@ -185,13 +189,39 @@ async def acquire_lock(db, row, actor):
         raise HTTPException(423, "地图正在由其他用户编辑")
 
 
+def require_valid_references(document):
+    codes = [point["code"] for point in document.get("points", [])]
+    if len(set(codes)) != len(codes):
+        raise HTTPException(409, "当前地图中站点编号重复")
+    point_codes = set(codes)
+    if any(path["start"] not in point_codes or path["end"] not in point_codes for path in document.get("paths", [])):
+        raise HTTPException(409, "路线端点不属于当前地图")
+
+
 async def save_draft(db, row, actor, revision, document):
     await acquire_lock(db, row, actor)
+    previous = identify(row.draft, seed=row.id)
+    try:
+        document = identify(document, previous)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    require_valid_references(document)
+    from app.models.operations import TaskPlan
+    retained = {point["uid"]: point["code"] for point in document.get("points", [])}
+    changed = {point["code"] for point in previous.get("points", [])
+               if retained.get(point["uid"]) != point["code"]}
+    if changed:
+        plans = (await db.scalars(select(TaskPlan).where(TaskPlan.map_id == row.id))).all()
+        affected = [plan.name for plan in plans if changed.intersection(
+            {plan.start_point, *(step.get("point") for step in plan.steps)})]
+        if affected:
+            raise HTTPException(409, "站点被任务链引用，请先调整任务链：" + "、".join(affected[:8]))
     result = await db.execute(update(MapDocument).where(MapDocument.id == row.id, MapDocument.revision == revision)
         .values(draft=document, revision=revision+1, operator=actor))
     if result.rowcount != 1:
         raise HTTPException(409, "地图已更新，请刷新后重试")
     audit(db, actor, "map", f"保存地图 #{row.id} 草稿 r{revision+1}")
+    return document
 
 
 async def publish(db, row, actor, revision, document=None):
@@ -211,7 +241,7 @@ async def publish(db, row, actor, revision, document=None):
     from app.services.operations_common import online
     if active or active_mission or busy or any(r.telemetry.get("busy") or (r.enabled and not online(r)) for r in robots):
         raise HTTPException(409, "地图有任务或维护中的机器人占用")
-    await save_draft(db, row, actor, revision, draft_document)
+    draft_document = await save_draft(db, row, actor, revision, draft_document)
     version = row.published_version + 1
     row.published_version = version
     published_document = {

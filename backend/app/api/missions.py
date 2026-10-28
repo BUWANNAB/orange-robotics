@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MissionRun, MissionSettings, Robot, TaskPlan, TaskRun
 from app.services.mission_service import create_current_step, validate_chain
 from app.services.map_editor import published_map
+from app.services.resource_identity import bind_steps, identity_error
 from app.services.operations_common import audit, confirm, get_or_404, now, public, require
 
 router = APIRouter(prefix="/api")
@@ -23,6 +24,8 @@ class MissionStep(BaseModel):
     action: Literal["navigate"] = "navigate"
     point: str = Field(min_length=1, max_length=80)
     delay_seconds: float = Field(default=0, ge=0, le=3600)
+    point_uid: str = Field(default="", max_length=80)
+    start_point_uid: str = Field(default="", max_length=80)
 
 
 class TaskPlanInput(BaseModel):
@@ -85,7 +88,7 @@ async def validate_plan_data(db, body):
         robot = await get_or_404(db, Robot, body.robot_id)
         if robot.map_id != body.map_id:
             raise HTTPException(409, "指定机器人未绑定任务链地图")
-    return steps, map_row
+    return bind_steps(document, body.start_point, steps), map_row
 
 
 async def read_mode(db):
@@ -189,6 +192,9 @@ async def start_task_plan(plan_id: int, body: MissionStartInput,
         raise HTTPException(409, "任务链地图未发布或已删除")
     document = await published_map(db, plan.map_id)
     validate_chain(document, plan.start_point, plan.steps, repeat_count)
+    problem = identity_error(document, plan.start_point, plan.steps)
+    if problem:
+        raise HTTPException(409, problem)
     robot_id = body.robot_id if body.robot_id is not None else plan.robot_id
     if robot_id:
         robot = await get_or_404(db, Robot, robot_id)

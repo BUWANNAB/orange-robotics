@@ -52,9 +52,9 @@
 
     {
       "id": "dataAdmin",
-      "title": "数据管理",
+      "title": "地图资源",
       "icon": "bx bx-table",
-      "url": "/src/modules/data-admin/data_admin.html",
+      "url": "/ui/map-resources.html",
       "visible": true,
       "order": 6
     },

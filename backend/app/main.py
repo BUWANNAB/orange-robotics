@@ -246,7 +246,8 @@ from app.api.ota import router as ota_router
 from app.api.fleet_import import router as fleet_import_router
 from app.api.missions import router as missions_router
 from app.api.robot_model import router as robot_model_router
-for router in (operations_router, fleet_router, editor_router, integration_router, ota_router, fleet_import_router, missions_router, robot_model_router):
+from app.api.map_resources import router as map_resources_router
+for router in (operations_router, fleet_router, editor_router, integration_router, ota_router, fleet_import_router, missions_router, robot_model_router, map_resources_router):
     app.include_router(router)
 
 # 注册 WebSocket 实时遥测模块 (支持 /ws/pose, /ws/{client_id}, /websocket/{sid})

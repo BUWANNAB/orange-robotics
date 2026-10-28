@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>地图资源 · Orange RCS</title><link rel="stylesheet" href="src/modules/maps/resources.css?v=map-resources-20261028-2"></head>
+<body>
+<main class="resources-page">
+  <header class="resource-header"><div class="resource-title"><span class="brand-mark">O</span><div><h1>地图资源</h1><p>在地图上配置，在这里查找和整理</p></div></div><div class="header-actions"><button id="back-map" type="button">返回地图</button><button id="refresh" type="button">刷新</button></div></header>
+  <section class="map-context" aria-label="当前地图"><label for="map-select">当前地图</label><select id="map-select"><option value="">正在读取地图…</option></select><span id="map-state">—</span><span id="source-state">真实地图资源</span></section>
+  <p class="notice" id="notice" role="status" hidden></p>
+  <section class="resource-layout"><aside class="resource-navigation" aria-label="资源分类" id="resource-tabs"></aside><section class="resource-content"><header class="content-header"><div><h2 id="section-title">站点</h2><p id="section-help">选择一张地图，查看它的资源</p></div><button class="primary" id="create" type="button" disabled>添加站点</button></header><div class="filter-bar"><input id="search" type="search" placeholder="搜索编号或名称" aria-label="搜索资源"><select id="type-filter" aria-label="筛选资源类型"><option value="">全部类型</option></select><span id="result-count">0 项</span></div><div class="table-wrap" id="resource-table" aria-live="polite"></div><footer class="table-footer"><span>变更先保存到草稿，发布后用于后续任务</span><div><button id="previous" type="button">上一页</button><output id="page-info">0 / 0</output><button id="next" type="button">下一页</button></div></footer></section><aside class="resource-inspector" id="inspector"><h2>资源详情</h2><p>选择一项资源，查看属性和关联关系。</p></aside></section>
+</main>
+<dialog id="resource-dialog"><form id="resource-form"><header><h2 id="dialog-title"></h2><button type="button" id="dialog-close" aria-label="关闭">×</button></header><div id="dialog-fields"></div><p id="dialog-error" role="alert"></p><footer><button type="button" id="dialog-cancel">取消</button><button class="primary" id="dialog-submit" type="submit">保存草稿</button></footer></form></dialog>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script src="src/modules/maps/resource-store.js?v=map-resources-20261028-2"></script><script src="src/modules/maps/resources.js?v=map-resources-20261028-2"></script>
+</body></html>

@@ -273,7 +273,7 @@
 			</div>
 			<div class="content-page" ref="cPage">
 				<iframe name="iframe" title="地图与路线工作台" width="100%" height="100%" frameborder="0"
-					src="/ui/map-workbench.html?console=1&ui=handbook-navigation-20261028-1#route"></iframe>
+					src="/ui/map-workbench.html?console=1&ui=map-resources-20261028-2#route"></iframe>
 			</div>
 		</div>
 	</div>
@@ -572,7 +572,7 @@
 				},
 				async loadSidebarConfig() {
 			try {
-				const response = await fetch('./src/config/sidebar.json?v=map-data-navigation-20261028-1');
+				const response = await fetch('./src/config/sidebar.json?v=map-resources-20261028-2');
 				const config = await response.json();
 
 				// 根据用户角色过滤侧边栏项目
@@ -1196,17 +1196,6 @@
 			}
 		}
 
-		async function plcstart() {
-			const result = await axiosClient.post('ros2/plcstart');
-			if (result.data.code == 0) {
-				cocoMessage.success("PLC已启动");
-			} else {
-				cocoMessage.error("PLC启动失败");
-			}
-		}
-		//给plc启动信号
-		plcstart()
-
 		// 显示保存录制数据模态框
 		function showSaveRecordingModal() {
 			// 检查Bootstrap是否可用
@@ -1774,6 +1763,10 @@
 		if (/^\d+$/.test(requestedMapId || '') && frame) {
 			const workspaceUrl = new URL(frame.getAttribute('src'), location.href);
 			workspaceUrl.searchParams.set('mapId', requestedMapId);
+			for (const key of ['point', 'object', 'uid', 'planId']) {
+				const value = new URLSearchParams(location.search).get(key);
+				if (/^[a-zA-Z0-9_-]{1,100}$/.test(value || '')) workspaceUrl.searchParams.set(key, value);
+			}
 			frame.src = workspaceUrl.href;
 		}
 		const syncMapChrome = () => {
