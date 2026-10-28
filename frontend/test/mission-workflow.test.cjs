@@ -6,7 +6,7 @@ const vm = require('node:vm');
 // Run the actual console functions without starting its network/DOM boot loop.
 const source = fs.readFileSync('frontend/src/modules/operations/operations.js', 'utf8');
 const functions = source.slice(0, source.indexOf("  $('nav').onclick=")) +
-  'window.consoleTest={state,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions};})();';
+  'window.consoleTest={state,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions,changeTaskMode,taskModeMarkup};})();';
 const mapDocument = {points:[{code:'A'},{code:'C'}],paths:[{start:'A',end:'C',bidirectional:true}]};
 const plan = {id:1,name:'巡回任务',map_id:10,start_point:'A',steps:[
   {node_id:'one',action:'navigate',point:'C',delay_seconds:0},
@@ -46,7 +46,7 @@ function harness(publishedDocument=mapDocument) {
   class FormData {constructor(form){this.values=form.values;}get(key){return this.values.get(key)??null;}}
   vm.runInNewContext(functions,{window,document,location:{search:'',origin:'http://localhost'},URLSearchParams,FormData,Set,Map,Date,Math});
   const controller=window.consoleTest;
-  Object.assign(controller.state,{map:{},mapRow:{id:10,published_version:1},robots:[],permissions:['*']});
+  Object.assign(controller.state,{map:{},mapRow:{id:10,published_version:1},taskModeReady:true,robots:[],permissions:['*']});
   return {controller,element,calls,api,form,flow};
 }
 
@@ -121,4 +121,43 @@ test('paused missions expose resume and cancel, and in-flight pause retains stop
   assert.match(h.element('map-mission-runs').innerHTML,/本段到站后暂停/);
   assert.match(h.element('map-mission-runs').innerHTML,/data-action="mission-stop-step"/);
   assert.doesNotMatch(h.element('map-mission-runs').innerHTML,/data-action="mission-resume"/);
+});
+
+test('task mode changes in one request without opening a dialog or starting a run',async()=>{
+  const h=harness();await h.controller.changeTaskMode('auto');
+  assert.equal(h.controller.state.taskMode,'auto');assert.equal(h.element('dialog').open,undefined);
+  assert.equal(h.calls.length,1);assert.equal(h.calls[0].url,'/api/task-mode');
+  assert.equal(h.calls[0].payload.confirmation,'切换到自动');
+  await h.controller.changeTaskMode('auto');assert.equal(h.calls.length,1);
+});
+
+test('pending mode writes keep the old selection and suppress duplicate or competing clicks',async()=>{
+  const h=harness();let finish,count=0;
+  h.api.post=async()=>{count++;return new Promise(resolve=>{finish=resolve;});};
+  const pending=h.controller.changeTaskMode('auto');
+  assert.equal(h.controller.state.taskMode,'manual');assert.equal(h.controller.state.taskModePending,true);
+  assert.equal((h.controller.taskModeMarkup().match(/disabled/g)||[]).length,3);
+  await h.controller.changeTaskMode('schedule');assert.equal(count,1);
+  finish({mode:'auto'});await pending;assert.equal(h.controller.state.taskMode,'auto');assert.equal(h.controller.state.taskModePending,false);
+});
+
+test('failed mode writes retain the last confirmed mode and restore the controls',async()=>{
+  const h=harness();h.api.post=async()=>{throw new Error('保存失败');};
+  await assert.rejects(h.controller.changeTaskMode('auto'),/保存失败/);
+  assert.equal(h.controller.state.taskMode,'manual');assert.equal(h.controller.state.taskModePending,false);
+  h.controller.state.permissions=[];await assert.rejects(h.controller.changeTaskMode('auto'),/权限/);
+});
+
+test('an unread task mode never appears selected or accepts a quick switch',async()=>{
+  const h=harness();h.controller.state.taskModeReady=false;
+  assert.doesNotMatch(h.controller.taskModeMarkup(),/aria-pressed="true"/);
+  await assert.rejects(h.controller.changeTaskMode('auto'),/尚未读取/);
+  assert.equal(h.calls.length,0);
+});
+
+test('a mode read started before a quick switch cannot restore the previous selection',async()=>{
+  const h=harness(),get=h.api.get;let finish;
+  h.api.get=async(url,params)=>url==='/api/task-mode'?new Promise(resolve=>{finish=resolve;}):get(url,params);
+  const refresh=h.controller.refreshMapMissions();await h.controller.changeTaskMode('auto');finish({mode:'manual'});await refresh;
+  assert.equal(h.controller.state.taskMode,'auto');
 });

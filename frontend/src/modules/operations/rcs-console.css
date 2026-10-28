@@ -54,3 +54,13 @@ body:has(.rcs-console) #dialog .primary{border-color:#015ee7;background:#015ee7;
 @media(min-width:1181px){.rcs-console .map-toolbar-row{justify-content:space-between}.rcs-console .map-tool-spacer{display:none}}
 
 .rcs-console .rcs-inspector-actions{display:grid;gap:8px}
+.rcs-console .task-mode-switch>span{display:block;padding:0 6px 0 8px;font-size:10px;white-space:nowrap;color:#5f7085}
+.rcs-console .task-mode-switch[aria-busy=true]{opacity:.75}
+.rcs-console .task-mode-feedback{position:absolute;top:calc(100% + 3px);left:0;right:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:#257454;line-height:16px}
+.rcs-console .task-mode-feedback.error{color:#b54150}
+.rcs-console .map-center-panel{position:relative}
+.mapping-main-preview{position:absolute;inset:0;z-index:20;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#f7f9fc;border:1px solid #d7e0eb;overflow:hidden}
+.mapping-main-preview>header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:10px;background:#fff;border-bottom:1px solid #d7e0eb;font-size:12px}
+.mapping-main-preview>header span{flex:1;color:#5f7085;min-width:80px;font-size:11px}
+.mapping-main-preview>canvas{width:100%;height:100%;min-height:0;border:0;touch-action:auto}
+.mapping-main-preview>p{margin:0;padding:9px 12px;background:#fff;color:#5f7085;font-size:11px;line-height:1.6;border-top:1px solid #d7e0eb}

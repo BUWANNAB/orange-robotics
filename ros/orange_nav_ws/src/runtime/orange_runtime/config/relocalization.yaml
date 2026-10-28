@@ -1,6 +1,9 @@
 global_relocalization:
   ros__parameters:
     voxel: 0.3
+    fine_voxel: 0.1
+    consistency_distance: 0.1
+    consistency_angle: 0.05
     minimum_overlap: 0.65
     maximum_rmse: 0.15
     ambiguity_margin: 0.08

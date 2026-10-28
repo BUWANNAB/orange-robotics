@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import io
+import math
 import re
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -285,15 +286,35 @@ async def live_grid_status(actor=Depends(require('map:view'))):
             'available':False,'sequence':0,'status':'当前 ROS 桥接尚未提供实时二维地图数据',
             'age_seconds':None,'frame_id':'','width':0,'height':0,'resolution':None,'origin':None,
         })
-    return ok(snapshot())
+    result=snapshot()
+    result['mapping_active']=mapping.snapshot()['active']
+    result['pose']=None
+    if result['mapping_active'] and result.get('available') and result.get('age_seconds') is not None and 0<=result['age_seconds']<3:
+        try:
+            transform=mapping.bridge.transform_snapshot(result['frame_id'],'base_link')
+            age=transform.get('age_seconds')
+            if age is not None and 0<=age<1.5:
+                x,y,z,w=transform['quaternion']
+                norm=math.sqrt(x*x+y*y+z*z+w*w)
+                if not math.isfinite(norm) or norm<1e-9:raise ValueError('建图 TF 姿态无效')
+                x,y,z,w=(value/norm for value in (x,y,z,w))
+                px,py=transform['translation'][:2]
+                yaw=math.atan2(2*(w*z+x*y),1-2*(y*y+z*z))
+                if not all(math.isfinite(value) for value in (px,py,yaw)):raise ValueError('建图 TF 位置无效')
+                result['pose']={'x':px,'y':py,'yaw':yaw,'frame_id':result['frame_id'],'age_seconds':age}
+        except (RuntimeError,ValueError,KeyError,TypeError):
+            pass  # A grid can still be shown when its live base_link transform is unavailable.
+    return ok(result)
 
 
 @router.get('/live-grid.png')
-async def live_grid_image(actor=Depends(require('map:view'))):
+async def live_grid_image(sequence: int | None = None, actor=Depends(require('map:view'))):
     get_message=getattr(mapping.bridge,'live_grid_message',None)
     if not callable(get_message):
         raise HTTPException(503,'当前 ROS 桥接尚未提供实时二维地图数据')
-    grid, sequence = get_message()
+    grid, actual_sequence = get_message()
+    if sequence is not None and sequence != actual_sequence:
+        raise HTTPException(409,'实时地图已更新，请重新读取元数据')
     if grid is None:
         raise HTTPException(404, '尚无新鲜的实时二维地图；请确认正在建图并收到雷达点云')
 
@@ -319,7 +340,7 @@ async def live_grid_image(actor=Depends(require('map:view'))):
         media_type='image/png',
         headers={
             'Cache-Control': 'no-store, max-age=0',
-            'X-Map-Sequence': str(sequence),
+            'X-Map-Sequence': str(actual_sequence),
         },
     )
 

@@ -110,3 +110,11 @@ html.console-mode body.route-mode #panel-route iframe{height:100%;min-height:0}
 .operation-lock .check{align-items:flex-start;padding:12px;border:1px solid #f0c89f;border-radius:8px;background:#fff9f2;line-height:1.6}
 .operation-lock .check input{margin-top:4px}
 .operation-lock footer{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}
+/* Mapping controls occupy a side panel while the live map stays on the main canvas. */
+body.mapping-workflow #panel-route{padding-right:360px}
+body.mapping-workflow .workflow-drawer{pointer-events:none}
+body.mapping-workflow .workflow-scrim{display:none}
+body.mapping-workflow .workflow-sheet{width:360px;pointer-events:auto}
+body.mapping-controls-only .build-layout{display:block;padding:20px}
+body.mapping-controls-only .build-layout>div{display:none}
+@media(max-width:760px){body.mapping-workflow #panel-route{padding-right:0;padding-bottom:45dvh}body.mapping-workflow .workflow-sheet{inset:auto 0 0;width:100%;height:45dvh}.mapping-workflow .workflow-sheet-head{min-height:50px}}

@@ -2,10 +2,14 @@ const $=id=>document.getElementById(id), api=window.OpsAPI, base='/api/map-workb
 const tabs=['build','point','grid','route','locate'];
 const query=new URLSearchParams(location.search),drawerMode=query.get('drawer')==='1';
 const requestedTab=location.hash.slice(1),requestedPanel=query.get('panel');
-const initialTab=drawerMode&&tabs.includes(requestedPanel)?requestedPanel:tabs.includes(requestedTab)?requestedTab:'route';
+const requestedWorkflow=!drawerMode&&['build','point','grid','locate'].includes(requestedTab)?requestedTab:null;
+const initialTab=drawerMode&&tabs.includes(requestedPanel)?requestedPanel:requestedWorkflow?'route':tabs.includes(requestedTab)?requestedTab:'route';
 let pointAsset=null, selectedAsset='', assets=[], tab='', viewer, viewerModule, generation=0, busy=false, mapping, workflowReturnFocus=null,brushDiameter=.4;
+let mainMappingPreview=false;
 let drawerVisible=true,liveGridMeta=null,liveGridImage=null,liveGridSequence=-1,liveGridRequest=0;
 if(drawerMode)document.body.classList.add('drawer-mode');
+if(drawerMode&&requestedPanel==='build')document.body.classList.add('mapping-controls-only');
+if(!$('mapping-name').value){const date=new Date(),stamp=[date.getFullYear(),date.getMonth()+1,date.getDate(),date.getHours(),date.getMinutes(),date.getSeconds()].map((value,index)=>index?String(value).padStart(2,'0'):String(value)).join('');$('mapping-name').value='map_'+stamp;}
 
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);}
 function confirmCriticalAction(title,message){
@@ -19,11 +23,14 @@ function current(){return assets.find(row=>row.id===$('asset').value);}
 function openWorkflowDrawer(next,requestedAsset=''){
   if(!['binding','locate','build','point','grid'].includes(next))return;
   const drawer=$('workflow-drawer'),frame=$('workflow-frame'),asset=requestedAsset||$('asset').value;
+  document.body.classList.toggle('mapping-workflow',next==='build');
+  const sheet=drawer.querySelector('.workflow-sheet');sheet.setAttribute('role',next==='build'?'region':'dialog');if(next==='build')sheet.removeAttribute('aria-modal');else sheet.setAttribute('aria-modal','true');
+  if(next==='build'){mainMappingPreview=true;$('route-frame').contentWindow?.postMessage({type:'workbench-mapping-preview',visible:true},location.origin);}
   workflowReturnFocus=document.activeElement;
   const titles={binding:'地图绑定',locate:'重新定位',build:'实时建图',point:'裁切与坐标原点',grid:'二维地图编辑'};
   $('workflow-title').textContent=titles[next];
   const src=['build','point','grid'].includes(next)
-    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=comfortable-theme-20261028-1`
+    ?`map-workbench.html?drawer=1&panel=${next}${asset?'&map='+encodeURIComponent(asset):''}&v=integrated-mapping-20261028-1`
     :`${next==='binding'?'map-bindings.html':'localization.html'}?embedded=1${asset?'&asset='+encodeURIComponent(asset):''}`;
   frame.onload=()=>frame.contentWindow?.postMessage({type:'workbench-drawer-visibility',visible:!drawer.hidden},location.origin);
   if(frame.getAttribute('src')!==src)frame.src=src;
@@ -33,7 +40,7 @@ function openWorkflowDrawer(next,requestedAsset=''){
 }
 function closeWorkflowDrawer(){
   $('workflow-frame').contentWindow?.postMessage({type:'workbench-drawer-visibility',visible:false},location.origin);
-  $('workflow-drawer').hidden=true;document.body.classList.remove('drawer-open');
+  $('workflow-drawer').hidden=true;document.body.classList.remove('drawer-open','mapping-workflow');
   workflowReturnFocus?.focus();workflowReturnFocus=null;
 }
 function setBusy(value){busy=value;for(const id of ['process-button','mapping-start','mapping-save','mapping-stop'])$(id).disabled=value;updateMapping();}
@@ -80,7 +87,7 @@ function updateMapping(){
   $('mapping-state').textContent=`ROS 桥接：${real?'已连接':'未连接'} · 雷达点云：${lidar?'实时':'无新数据'} · 建图控制器：${controller?'就绪':'未就绪'} · 定位：${localization} · 运动控制：${navigation} · 建图：${state}`;
 }
 async function refresh(preferred,options={}){
-  const previous=options.initial?(preferred||''):(preferred||$('asset').value||localStorage.getItem('map-workbench-last-asset')||localStorage.getItem('lastMapName')||'');assets=await api.get(base+'/assets');
+  const previous=preferred||(!options.initial&&$('asset').value)||localStorage.getItem('map-workbench-last-asset')||'';assets=await api.get(base+'/assets');
   $('asset').replaceChildren(new Option(assets.length?'请选择地图':'暂无地图',''),...assets.map(a=>new Option(`${a.id}${a.pcd?' · PCD':''}${a.grid?' · PGM':''}`,a.id)));
   const latest=assets.find(asset=>asset.grid)||assets[0];
   const initial=assets.find(asset=>asset.id===previous)||latest;
@@ -120,7 +127,7 @@ async function show(next,reload=false){
     if(!row?.grid)notice('请选择含 PGM / YAML 的地图，或先从点云处理生成栅格。');
   }else if(next==='route'){
     const routeFrame=$('route-frame'),asset=key,readyForRoutes=!!row?.grid;
-    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?ui=comfortable-theme-20261028-1&embedded=1'+(query.get('mapId')?'&mapId='+encodeURIComponent(query.get('mapId')):'')+['point','object','uid','planId'].filter(key=>query.get(key)).map(key=>'&'+key+'='+encodeURIComponent(query.get(key))).join('')+(asset&&!query.get('mapId')?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
+    if(!routeFrame.dataset.loaded){routeFrame.src='operations.html?ui=integrated-mapping-20261028-1&embedded=1'+(query.get('mapId')?'&mapId='+encodeURIComponent(query.get('mapId')):'')+['point','object','uid','planId'].filter(key=>query.get(key)).map(key=>'&'+key+'='+encodeURIComponent(query.get(key))).join('')+(asset&&!query.get('mapId')?'&asset='+encodeURIComponent(asset)+(readyForRoutes?'&openAsset=1':''):'')+'#maps';routeFrame.dataset.loaded='1';}
     else if(asset&&readyForRoutes)routeFrame.contentWindow?.postMessage({type:'workbench-open-map-asset',asset},location.origin);
     else if(asset)routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset},location.origin);
     else routeFrame.contentWindow?.postMessage({type:'workbench-selected-map-asset',asset:''},location.origin);
@@ -158,7 +165,7 @@ function drawLiveGrid(){
 }
 async function refreshLiveGrid(){
   try{
-    const meta=await api.get(base+'/live-grid');liveGridMeta=meta;
+    const meta=await api.get(base+'/live-grid');if(!meta.available){liveGridImage=null;liveGridMeta=meta;liveGridSequence=-1;}
     const stateText=meta.status||'等待建图点云';$('live-grid-state').textContent=stateText;
     $('live-grid-info').textContent=meta.width&&meta.height
       ?`${(meta.width*meta.resolution).toFixed(1)} × ${(meta.height*meta.resolution).toFixed(1)} m · ${meta.resolution.toFixed(2)} m/格 · ${meta.frame_id||'坐标系未知'}`
@@ -169,9 +176,9 @@ async function refreshLiveGrid(){
       const url=URL.createObjectURL(blob),image=new Image();
       try{await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('实时二维地图图片无法解码'));image.src=url;});}
       finally{URL.revokeObjectURL(url);}
-      if(request===liveGridRequest){liveGridImage=image;liveGridSequence=sequence;}
+      if(request===liveGridRequest){liveGridImage=image;liveGridSequence=sequence;liveGridMeta=meta;}
     }
-    drawLiveGrid();
+    if(liveGridSequence===meta.sequence)liveGridMeta=meta;drawLiveGrid();
   }catch(error){
     $('live-grid-state').textContent='实时预览暂不可用';
     if(!liveGridImage)$('live-grid-empty').textContent=error.message||'请检查建图点云与实时地图服务';
@@ -197,7 +204,7 @@ async function follow(job){
           notice(`新地图已生成并打开到路线主画布。${eraseSummary}原始点云保持不变。`);
         }
       }
-      else if(job.kind==='mapping-save'){await show('point');notice('原始点云已保存，可设置坐标原点并生成路线栅格。');}
+      else if(job.kind==='mapping-save'){if(drawerMode)window.parent.postMessage({type:'workbench-raw-map-ready',asset:key},location.origin);else await show('point');notice('原始点云已保存，可设置坐标原点并生成路线栅格。');}
       else notice(job.result?.message||'操作完成');break;
     }
     await new Promise(resolve=>setTimeout(resolve,1000));job=await api.get(base+'/jobs/'+job.id);
@@ -242,6 +249,7 @@ $('fit').onclick=()=>viewer?.fit();$('live-grid-fit').onclick=drawLiveGrid;$('cl
 document.querySelectorAll('[data-draw]').forEach(b=>b.onclick=()=>{if(!current()?.pcd||pointAsset!==current().id)return notice('请先选择并加载一张 PCD 点云。',true);document.querySelectorAll('[data-draw]').forEach(button=>button.classList.toggle('active',button===b));$('draw-origin').classList.remove('active');$('erase-brush').classList.remove('active');viewer?.drawBox(b.dataset.draw);notice('已进入框选模式：在点云上按住左键拖动，松开完成选区。');});
 window.addEventListener('message',e=>{
   if(e.origin!==location.origin)return;
+  if(e.source===$('route-frame').contentWindow&&e.data?.type==='workbench-mapping-preview-closed'){mainMappingPreview=false;return;}
   if(drawerMode&&e.source===window.parent&&e.data?.type==='workbench-drawer-visibility'){
     drawerVisible=e.data.visible===true;if(drawerVisible&&tab==='build')refreshLiveGrid();return;
   }
@@ -250,7 +258,9 @@ window.addEventListener('message',e=>{
   }
   if(e.source===$('grid-frame').contentWindow&&e.data?.type==='map-saved')refresh(e.data.id).then(()=>{$('locate-frame').removeAttribute('data-asset');$('binding-frame').removeAttribute('data-asset');notice('二维地图已保存。路线编辑和地图绑定会显示更新后的栅格版本。');}).catch(err=>notice(err.message,true));
   if([$('route-frame').contentWindow,$('binding-frame').contentWindow,$('locate-frame').contentWindow,$('workflow-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-open-drawer')openWorkflowDrawer(e.data.tab,e.data.asset||'');
+  if(e.source===$('workflow-frame').contentWindow&&e.data?.type==='workbench-raw-map-ready'){refresh(e.data.asset,{render:false}).then(()=>openWorkflowDrawer('point',e.data.asset)).catch(error=>notice(error.message,true));return;}
   if(e.source===$('workflow-frame').contentWindow&&e.data?.type==='workbench-asset-ready'){
+    mainMappingPreview=false;$('route-frame').contentWindow?.postMessage({type:'workbench-mapping-preview',visible:false},location.origin);
     refresh(e.data.asset,{render:false}).then(()=>{
       closeWorkflowDrawer();
       $('route-frame').contentWindow?.postMessage({type:'workbench-open-map-asset',asset:e.data.asset},location.origin);
@@ -261,10 +271,12 @@ window.addEventListener('message',e=>{
   }
   if([$('locate-frame').contentWindow,$('route-frame').contentWindow].includes(e.source)&&e.data?.type==='workbench-navigate'&&tabs.includes(e.data.tab))show(e.data.tab).catch(err=>notice(err.message,true));
 });
-window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(tabs.includes(next))show(next).catch(e=>notice(e.message,true));});
+window.addEventListener('hashchange',()=>{const next=location.hash.slice(1);if(!drawerMode&&['build','point','grid','locate'].includes(next)){show('route').then(()=>openWorkflowDrawer(next)).catch(e=>notice(e.message,true));return;}if(tabs.includes(next)){if(next==='route'&&!drawerMode)closeWorkflowDrawer();show(next).catch(e=>notice(e.message,true));}});
 
-await refresh(new URLSearchParams(location.search).get('map'),{initial:true}).catch(e=>notice(e.message,true));await show(initialTab);
+await refresh(new URLSearchParams(location.search).get('map'),{initial:true}).catch(e=>notice(e.message,true));await show(initialTab);if(requestedWorkflow)openWorkflowDrawer(requestedWorkflow);
 const pending=localStorage.getItem('map-workbench-job');if(pending)api.get(base+'/jobs/'+pending).then(follow).catch(e=>{notice(e.message,true);localStorage.removeItem('map-workbench-job');});
+$('route-frame').addEventListener('load',()=>{if(mainMappingPreview)$('route-frame').contentWindow?.postMessage({type:'workbench-mapping-preview',visible:true},location.origin);});
+if(!drawerMode)api.get(base+'/live-grid').then(meta=>{if(meta.mapping_active){mainMappingPreview=true;$('route-frame').contentWindow?.postMessage({type:'workbench-mapping-preview',visible:true},location.origin);}}).catch(()=>{});
 new ResizeObserver(drawLiveGrid).observe($('live-grid-canvas'));
 setInterval(()=>{if(tab==='build'&&!document.hidden&&drawerVisible)mappingStatus();},4000);
 setInterval(()=>{if(tab==='build'&&!document.hidden&&drawerVisible)refreshLiveGrid();},1500);

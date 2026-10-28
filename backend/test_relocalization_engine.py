@@ -37,15 +37,22 @@ class RelocalizationTests(unittest.TestCase):
         world=np.vstack(clouds);yaw=.65;x,y=4.,-2.
         rotation=np.array([[math.cos(yaw),-math.sin(yaw),0],[math.sin(yaw),math.cos(yaw),0],[0,0,1]])
         source=(world-[x,y,0])@rotation
-        config={'voxel':.18,'max_points':200000,'attempts':3,'iterations':30000,
+        config={'voxel':.3,'max_points':200000,'attempts':3,'iterations':30000,
                 'max_tilt':.15,'max_height':.3,'minimum_overlap':.65,'maximum_rmse':.15,'ambiguity_margin':.08}
         cloud=o3d.geometry.PointCloud();cloud.points=o3d.utility.Vector3dVector(world)
         with tempfile.TemporaryDirectory() as temp:
             file=str(Path(temp)/'map.pcd');o3d.io.write_point_cloud(file,cloud)
             result=search(file,[source+rng.normal(0,.002,source.shape) for _ in range(3)],config)
-        self.assertLess(math.hypot(result['x']-x,result['y']-y),.12)
-        self.assertLess(abs(result['yaw']-yaw),.08)
+            with self.assertRaisesRegex(ValueError,'候选位置'):
+                search(file,[source,source+[1.,0.,0.],source],config)
+        self.assertLess(math.hypot(result['x']-x,result['y']-y),.05)
+        self.assertLess(abs(result['yaw']-yaw),.03)
         self.assertGreater(result['overlap'],.8)
+        self.assertAlmostEqual(result['fine_voxel'],.1)
+
+    def test_invalid_fine_resolution_cannot_silently_use_a_coarser_alignment(self):
+        with self.assertRaisesRegex(ValueError,'分辨率'):
+            search('unused.pcd',[],{'voxel':.3,'fine_voxel':.5})
 
 
 if __name__=='__main__':unittest.main()

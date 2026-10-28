@@ -24,12 +24,12 @@ def main(args=None):
         def __init__(self):
             super().__init__('global_relocalization')
             self.config={k:self.declare_parameter(k,v).value for k,v in {
-                'voxel':.3,'minimum_overlap':.65,'maximum_rmse':.15,'ambiguity_margin':.08,
+                'voxel':.3,'fine_voxel':.1,'consistency_distance':.1,'consistency_angle':.05,'minimum_overlap':.65,'maximum_rmse':.15,'ambiguity_margin':.08,
                 'max_tilt':.15,'max_height':.30,'max_points':200000,'attempts':4,'iterations':50000}.items()}
             self.timeout=float(self.declare_parameter('timeout_seconds',90.).value)
             if not all(isinstance(v,(float,int)) and math.isfinite(v) and v>0 for v in self.config.values()):
                 raise ValueError('自动重定位参数必须是有限正数')
-            if not .05<=self.config['voxel']<=1 or self.config['minimum_overlap']>1 or self.config['attempts']>8 or not 1<=self.timeout<=95:
+            if not .03<=self.config['fine_voxel']<=self.config['voxel'] or not .05<=self.config['voxel']<=1 or self.config['minimum_overlap']>1 or self.config['attempts']>8 or not 1<=self.timeout<=95:
                 raise ValueError('自动重定位参数超出支持范围')
             self.base=self.declare_parameter('base_frame','base_link').value
             self.tf=Buffer();self.listener=TransformListener(self.tf,self)

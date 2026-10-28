@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>地图工作台 · Orange AGV</title>
-  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=latest-map-home-20261024-1">
+  <link rel="stylesheet" href="src/modules/maps/workbench.css?v=integrated-mapping-20261028-1">
   <script>if(new URLSearchParams(location.search).get('console')==='1')document.documentElement.classList.add('console-mode');</script>
   <script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script>
-<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=comfortable-theme-20261028-1"><script src="src/modules/navigation/navigation.js?v=comfortable-theme-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
+<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=integrated-mapping-20261028-1"><script src="src/modules/navigation/navigation.js?v=integrated-mapping-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=integrated-mapping-20261028-1"></head>
 <body>
   <header class="masthead">
     <div><span class="eyebrow">ORANGE AGV / MAP OPERATIONS</span><h1>地图工作台</h1></div>
@@ -30,7 +30,7 @@
     <div id="notice" role="status" aria-live="polite">请选择地图，或开始采集新地图。</div>
 
     <section id="panel-build" class="panel" hidden>
-      <div class="build-layout"><div><span class="eyebrow">采集 / 实时二维预览</span><h2>从现场建立地图</h2><p>实时预览来自 LIO-SAM 已配准点云。预览只标记当前看到的占用点，不把未知区域误判成可通行区域；最终导航 PGM 仍在保存点云后生成。</p><ol class="instructions"><li>先在 ROS 维护页确认雷达与建图控制器运行，并停止“定位与导航”服务。</li><li>按底盘厂家规定切到手动/自由轮状态，确认牵引不会驱动车辆且车体可安全推行；清空路线并确认周围无人、无障碍。</li><li>勾选现场确认并开始采集。等待点云与实时预览更新后，缓慢人工推动车辆完成场地覆盖；网页不会发送行驶命令。</li><li>保存点云后继续裁切、设定坐标原点，再进入同一主画布布置站点和路线。</li></ol><section class="live-grid-card" aria-label="实时二维地图预览"><header><strong>实时二维地图</strong><span id="live-grid-state" role="status">等待建图点云</span></header><div class="live-grid-view"><canvas id="live-grid-canvas" aria-label="实时点云二维栅格预览"></canvas><div id="live-grid-empty">开始建图并收到配准点云后，二维预览会显示在这里</div></div><footer><span id="live-grid-info">分辨率 0.05 m/格 · 未知区域显示为空白</span><button id="live-grid-fit" type="button">适应窗口</button></footer></section><div class="status-line" id="mapping-state">读取连接状态…</div></div><form id="mapping-form" class="controls"><label>新地图名称<input id="mapping-name" required pattern="[a-zA-Z0-9_-]+" maxlength="64" placeholder="例如 workshop_20260928"></label><p class="muted">字母、数字、横线或下划线。保存时不会覆盖已有地图。</p><label class="check manual-confirm"><input id="manual-push-confirmed" type="checkbox">我已现场确认：定位与自动路线已停止，底盘处于厂家允许的安全手动/自由轮状态，车辆可由人安全推行。</label><p class="muted">网页无法读取物理牵引使能状态。若未确认可手推，请勿开始；PLC 通信在线不代表物理驱动已释放。</p><button type="button" id="mapping-start" class="primary">开始采集</button><button id="mapping-save">保存点云并结束采集</button><button type="button" id="mapping-stop">停止采集，保持导航停止</button></form></div>
+      <div class="build-layout"><div><span class="eyebrow">采集 / 实时二维预览</span><h2>从现场建立地图</h2><p>实时预览来自 LIO-SAM 已配准点云。预览只标记当前看到的占用点，不把未知区域误判成可通行区域；最终导航 PGM 仍在保存点云后生成。</p><ol class="instructions"><li>先在 ROS 维护页确认雷达与建图控制器运行，并停止“定位与导航”服务。</li><li>按底盘厂家规定切到手动/自由轮状态，确认牵引不会驱动车辆且车体可安全推行；清空路线并确认周围无人、无障碍。</li><li>勾选现场确认并开始采集。等待点云与实时预览更新后，缓慢人工推动车辆完成场地覆盖；网页不会发送行驶命令。</li><li>保存点云后继续裁切、设定坐标原点，再进入同一主画布布置站点和路线。</li></ol><section class="live-grid-card" aria-label="实时二维地图预览"><header><strong>实时二维地图</strong><span id="live-grid-state" role="status">等待建图点云</span></header><div class="live-grid-view"><canvas id="live-grid-canvas" aria-label="实时点云二维栅格预览"></canvas><div id="live-grid-empty">开始建图并收到配准点云后，二维预览会显示在这里</div></div><footer><span id="live-grid-info">分辨率 0.05 m/格 · 未知区域显示为空白</span><button id="live-grid-fit" type="button">适应窗口</button></footer></section><div class="status-line" id="mapping-state">读取连接状态…</div></div><form id="mapping-form" class="controls"><label>新地图名称<input id="mapping-name" required pattern="[a-zA-Z0-9_-]+" maxlength="64" placeholder="自动生成，可修改"></label><p class="muted">可直接使用自动名称，也可修改。仅支持字母、数字、横线或下划线；不会覆盖已有地图。</p><label class="check manual-confirm"><input id="manual-push-confirmed" type="checkbox">我已现场确认：定位与自动路线已停止，底盘处于厂家允许的安全手动/自由轮状态，车辆可由人安全推行。</label><p class="muted">网页无法读取物理牵引使能状态。若未确认可手推，请勿开始；PLC 通信在线不代表物理驱动已释放。</p><button type="button" id="mapping-start" class="primary">开始采集</button><button id="mapping-save">保存点云并结束采集</button><button type="button" id="mapping-stop">停止采集，保持导航停止</button></form></div>
     </section>
 
     <section id="panel-point" class="panel" hidden>
@@ -66,6 +66,6 @@
       <footer><button value="cancel">取消</button><button id="operation-lock-confirm" class="primary" value="confirm" disabled>确认继续</button></footer>
     </form>
   </dialog>
-  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js?v=map-home-login-20261024-1"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=comfortable-theme-20261028-1"></script>
+  <script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js?v=map-home-login-20261024-1"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/maps/workbench.js?v=integrated-mapping-20261028-1"></script>
 </body>
 </html>

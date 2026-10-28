@@ -7,7 +7,7 @@
 	<link rel="icon" href="/src/assets/logo/favicon.svg" type="image/svg+xml" />
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1, viewport-fit=cover" />
-	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=comfortable-theme-20261028-1" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=integrated-mapping-20261028-1" />
 	<link rel="stylesheet" type="text/css" href="/src/modules/operations/confirm-lock.css?v=20261024-critical-action-lock-1" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
@@ -108,7 +108,7 @@
 
 
 	</style>
-<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=comfortable-theme-20261028-1"><script src="src/modules/navigation/navigation.js?v=comfortable-theme-20261028-1"></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
+<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=integrated-mapping-20261028-1"><script src="src/modules/navigation/navigation.js?v=integrated-mapping-20261028-1"></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=integrated-mapping-20261028-1"></head>
 
 <body>
 	<div class="page modern-view" id="app">
@@ -276,7 +276,7 @@
 			</div>
 			<div class="content-page" ref="cPage">
 				<iframe name="iframe" title="地图与路线工作台" width="100%" height="100%" frameborder="0"
-					src="/ui/map-workbench.html?console=1&ui=comfortable-theme-20261028-1#route"></iframe>
+					src="/ui/map-workbench.html?console=1&ui=integrated-mapping-20261028-1#route"></iframe>
 			</div>
 		</div>
 	</div>
@@ -576,7 +576,7 @@
 				},
 				async loadSidebarConfig() {
 			try {
-				const response = await fetch('./src/config/sidebar.json?v=comfortable-theme-20261028-1');
+				const response = await fetch('./src/config/sidebar.json?v=integrated-mapping-20261028-1');
 				const config = await response.json();
 
 				// 根据用户角色过滤侧边栏项目
@@ -1758,13 +1758,13 @@
 	
 	
 	</script>
-<script src="src/modules/operations/operations-layout.js?v=comfortable-theme-20261028-1"></script>
-<script src="src/modules/operations/legacy-localization-status.js?v=comfortable-theme-20261028-1"></script>
+<script src="src/modules/operations/operations-layout.js?v=integrated-mapping-20261028-1"></script>
+<script src="src/modules/operations/legacy-localization-status.js?v=integrated-mapping-20261028-1"></script>
 <script>
 	(function () {
 		const app = document.getElementById('app');
 		const frame = document.querySelector('.content-page iframe');
-		const requestedMapId = new URLSearchParams(location.search).get('mapId');
+		const requestedMapId = new URLSearchParams(location.search).get('mapId') || localStorage.getItem('orange.currentRouteMap');
 		if (/^\d+$/.test(requestedMapId || '') && frame) {
 			const workspaceUrl = new URL(frame.getAttribute('src'), location.href);
 			workspaceUrl.searchParams.set('mapId', requestedMapId);

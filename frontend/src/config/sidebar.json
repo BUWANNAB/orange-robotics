@@ -35,15 +35,6 @@
       "order": 1
     },
     {
-      "id": "drawMap",
-      "title": "地图创建",
-      "icon": "bx bx-buildings",
-      "url": "/ui/map-workbench.html#build",
-      "visible": true,
-      "order": 1,
-      "group": "workspace"
-    },
-    {
       "id": "lidarSettings",
       "title": "雷达配置",
       "icon": "bx bx-radar",

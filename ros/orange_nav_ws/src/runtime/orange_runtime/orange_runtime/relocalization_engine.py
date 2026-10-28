@@ -29,17 +29,21 @@ def choose(candidates,minimum_overlap=.65,maximum_rmse=.15,ambiguity_margin=.08)
 def search(path,frames,config):
     import open3d as o3d
     reg=o3d.pipelines.registration
-    voxel=config['voxel']
-    def prepare(cloud):
-        cloud=cloud.voxel_down_sample(voxel)
+    voxel=config['voxel'];fine=config.get('fine_voxel',min(.1,voxel))
+    if not .03<=fine<=voxel:raise ValueError('精配准分辨率必须在 0.03 m 与粗配准分辨率之间')
+    def prepare(cloud,leaf):
+        cloud=cloud.voxel_down_sample(leaf)
         if not 100<=len(cloud.points)<=config['max_points']:raise ValueError('点云点数不足或地图过大，请调整分辨率/裁剪地图')
-        cloud.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=voxel*2,max_nn=30))
+        cloud.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=leaf*2,max_nn=30))
         return cloud
-    target=prepare(o3d.io.read_point_cloud(path,remove_nan_points=True,remove_infinite_points=True))
-    sources=[]
+    raw_target=o3d.io.read_point_cloud(path,remove_nan_points=True,remove_infinite_points=True)
+    raw_sources=[]
     for points in frames:
-        cloud=o3d.geometry.PointCloud();cloud.points=o3d.utility.Vector3dVector(points);sources.append(prepare(cloud))
-    source=sources[0]
+        cloud=o3d.geometry.PointCloud();cloud.points=o3d.utility.Vector3dVector(points);raw_sources.append(cloud)
+    scales=sorted({voxel,max(fine,voxel*.5),fine},reverse=True)
+    pyramid=[(leaf,prepare(raw_sources[0],leaf),prepare(raw_target,leaf)) for leaf in scales]
+    target=pyramid[0][2];source=pyramid[0][1]
+    fine_target=pyramid[-1][2];sources=[prepare(cloud,fine) for cloud in raw_sources]
     feature=lambda cloud:reg.compute_fpfh_feature(cloud,o3d.geometry.KDTreeSearchParamHybrid(radius=voxel*5,max_nn=100))
     sf,tf=feature(source),feature(target)
     candidates=[]
@@ -49,24 +53,27 @@ def search(path,frames,config):
             reg.TransformationEstimationPointToPoint(False),3,
             [reg.CorrespondenceCheckerBasedOnEdgeLength(.9),reg.CorrespondenceCheckerBasedOnDistance(voxel*1.5)],
             reg.RANSACConvergenceCriteria(config['iterations'],.999))
-        refined=reg.registration_icp(source,target,voxel,result.transformation,
-            reg.TransformationEstimationPointToPlane(),reg.ICPConvergenceCriteria(max_iteration=60))
+        transform=result.transformation
+        for leaf,scan,local_map in pyramid:
+            refined=reg.registration_icp(scan,local_map,leaf*1.5,transform,
+                reg.TransformationEstimationPointToPlane(),reg.ICPConvergenceCriteria(max_iteration=60))
+            transform=refined.transformation
         try:pose=planar_pose(refined.transformation,config['max_tilt'],config['max_height'])
         except ValueError:continue
         # Only the planar pose can be handed to the existing /initialpose workflow.
         x,y,yaw=pose;t=np.eye(4);t[:2,:2]=[[math.cos(yaw),-math.sin(yaw)],[math.sin(yaw),math.cos(yaw)]];t[:2,3]=[x,y]
         fits=[];errors=[];stable=True
         for scan in sources:
-            check=reg.registration_icp(scan,target,voxel,t,reg.TransformationEstimationPointToPlane(),reg.ICPConvergenceCriteria(max_iteration=30))
+            check=reg.registration_icp(scan,fine_target,fine*1.5,t,reg.TransformationEstimationPointToPlane(),reg.ICPConvergenceCriteria(max_iteration=30))
             try:checked=planar_pose(check.transformation,config['max_tilt'],config['max_height'])
             except ValueError:stable=False;break
-            if separate(pose,checked,.15,.08):stable=False;break
-            evaluation=reg.evaluate_registration(scan,target,voxel,t)
+            if separate(pose,checked,config.get('consistency_distance',.1),config.get('consistency_angle',.05)):stable=False;break
+            evaluation=reg.evaluate_registration(scan,fine_target,fine*1.5,t)
             fits.append(float(evaluation.fitness));errors.append(float(evaluation.inlier_rmse))
         if stable:candidates.append({'pose':pose,'fitness':min(fits),'rmse':max(errors)})
     best=choose(candidates,config['minimum_overlap'],config['maximum_rmse'],config['ambiguity_margin'])
     return {'x':best['pose'][0],'y':best['pose'][1],'yaw':best['pose'][2],
-            'overlap':best['fitness'],'rmse':best['rmse'],'candidates':len(candidates)}
+            'overlap':best['fitness'],'rmse':best['rmse'],'candidates':len(candidates),'fine_voxel':fine}
 
 
 def worker(connection,path,frames,config):

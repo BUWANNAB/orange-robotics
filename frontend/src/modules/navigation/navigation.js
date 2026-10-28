@@ -39,7 +39,7 @@
     drawer.addEventListener('close',()=>{trigger.setAttribute('aria-expanded','false');lastFocus?.focus();});
     drawer.addEventListener('click',event=>{const rect=drawer.getBoundingClientRect();if(event.clientX>rect.right||event.clientY>rect.bottom||event.clientX<rect.left||event.clientY<rect.top)close();});
     try{
-      const response=await fetch('/ui/src/config/sidebar.json?v=comfortable-theme-20261028-1');if(!response.ok)throw Error('读取失败');
+      const response=await fetch('/ui/src/config/sidebar.json?v=integrated-mapping-20261028-1');if(!response.ok)throw Error('读取失败');
       const config=await response.json();
       for(const group of navigationGroups(config.sidebar)){
         const section=document.createElement('section'),title=document.createElement('h2');title.textContent=group.title;section.append(title);

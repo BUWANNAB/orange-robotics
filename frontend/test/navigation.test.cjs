@@ -5,7 +5,8 @@ test('all published menu entries have a single group and no obsolete map creatio
   const groups=navigationGroups(config.sidebar),visible=config.sidebar.filter(item=>item.visible);
   assert.equal(groups.length,4);assert.equal(groups.flatMap(group=>group.items).length,visible.length);
   assert.equal(new Set(visible.map(item=>item.id)).size,visible.length);
-  assert.equal(visible.find(item=>item.id==='drawMap').url,'/ui/map-workbench.html#build');
+  assert.equal(visible.filter(item=>item.group==='workspace').length,1);
+  assert.ok(!visible.some(item=>item.id==='drawMap'));
   assert.ok(!visible.some(item=>/indoor-map|handle_map/.test(item.url)));
 });
 test('shared navigation ignores hidden entries, orders its groups and preserves map context',()=>{

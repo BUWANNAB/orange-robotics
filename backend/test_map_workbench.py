@@ -40,6 +40,25 @@ class MapWorkbenchTests(unittest.TestCase):
         return self.client.post('/api/map-workbench/grid',headers=self.headers,
                                 data={'asset_id':key,**data},files={'pgm':('map.pgm',pgm),'metadata':('map.yaml',YAML)})
 
+    def test_live_mapping_pose_uses_the_grid_frame_and_rejects_stale_tf(self):
+        meta={'available':True,'sequence':7,'age_seconds':.2,'frame_id':'odom','width':2,'height':2,'resolution':.1,'origin':{'x':0,'y':0,'yaw':0}}
+        transform={'translation':[2.,3.,0.],'quaternion':[0.,0.,0.,1.],'age_seconds':.1}
+        with patch.object(mapping.bridge,'live_grid_snapshot',side_effect=lambda:dict(meta)),patch.object(mapping,'snapshot',return_value={'active':True}),patch.object(mapping.bridge,'transform_snapshot',return_value=transform) as lookup:
+            result=self.client.get('/api/map-workbench/live-grid',headers=self.headers).json()['data']
+            self.assertEqual(result['pose']['x'],2.);lookup.assert_called_with('odom','base_link')
+            transform['age_seconds']=2
+            self.assertIsNone(self.client.get('/api/map-workbench/live-grid',headers=self.headers).json()['data']['pose'])
+            transform['age_seconds']=.1;meta['age_seconds']=4;lookup.reset_mock()
+            self.assertIsNone(self.client.get('/api/map-workbench/live-grid',headers=self.headers).json()['data']['pose']);lookup.assert_not_called()
+
+    def test_live_mapping_png_rejects_a_different_grid_sequence(self):
+        grid=SimpleNamespace(info=SimpleNamespace(width=2,height=2),data=[0,100,-1,50])
+        with patch.object(mapping.bridge,'live_grid_message',return_value=(grid,9)):
+            self.assertEqual(self.client.get('/api/map-workbench/live-grid.png?sequence=8',headers=self.headers).status_code,409)
+            response=self.client.get('/api/map-workbench/live-grid.png?sequence=9',headers=self.headers)
+            self.assertEqual(response.status_code,200);self.assertEqual(response.headers['x-map-sequence'],'9')
+            self.assertTrue(response.content.startswith(b'\x89PNG'))
+
     def test_existing_pgm_listing_opens_and_reuses_route_map_with_original_coordinates(self):
         uploaded=self.upload('已有PGM路线验证',create_only='true')
         self.assertEqual(uploaded.status_code,200,uploaded.text)

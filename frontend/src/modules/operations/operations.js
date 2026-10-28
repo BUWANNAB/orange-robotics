@@ -22,7 +22,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, mapMissionPlans:[], mapMissionRuns:[], taskMode:'manual', selectedMissionId:null, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, mapMissionPlans:[], mapMissionRuns:[], taskMode:'manual', taskModeReady:false, taskModePending:false, taskModeEpoch:0, taskModeMessage:'', taskModeError:false, selectedMissionId:null, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -100,7 +100,7 @@
       }
       if(loadId!==state.loadId||tab!==state.tab)return;
       if(data?.list)state.rows=data.list;
-      $('content').innerHTML=html;
+      $('content').innerHTML=html;window.OrangeMappingPreview?.refresh();
       if(tab==='maps'){
         if($('map-editor')&&!state.map)renderMapRobot();
         const picker=$('existing-map-picker'),open=$('open-selected-map');
@@ -160,14 +160,23 @@
   }
   function taskModeMarkup(){
     const options=[['auto','自动'],['manual','手动'],['schedule','调度']];
-    return `<div class="task-mode-switch" role="group" aria-label="任务链执行方式"><span>任务模式</span>${options.map(([mode,label])=>`<button type="button" data-action="task-mode-set" data-id="${mode}" aria-pressed="${state.taskMode===mode}" ${!can('robot:control')?'disabled':''}>${label}</button>`).join('')}</div>`;
+    const help='仅设置新任务链：手动逐步下发、自动连续执行、调度按时间执行；不切换底盘实体驾驶模式，正在执行的任务保持原有方式。';
+    return `<div class="task-mode-switch" role="group" aria-label="新任务链执行方式" aria-busy="${state.taskModePending||!state.taskModeReady}" title="${help}"><span>${state.taskModeReady?'新任务':'读取中'}</span>${options.map(([mode,label])=>`<button type="button" data-action="task-mode-set" data-id="${mode}" title="${label}：${mode==='manual'?'每一步人工下发':mode==='auto'?'按顺序连续执行':'按计划时间开始'}；仅用于新任务链" aria-pressed="${state.taskModeReady&&state.taskMode===mode}" ${!state.taskModeReady||state.taskModePending||!can('robot:control')?'disabled':''}>${label}</button>`).join('')}<output id="task-mode-feedback" class="task-mode-feedback ${state.taskModeError?'error':''}" role="status" ${state.taskModeMessage?'':'hidden'}>${escape(state.taskModeMessage)}</output></div>`;
   }
+  function renderTaskMode(){const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();}
   async function changeTaskMode(mode){
     const labels={auto:'自动',manual:'手动',schedule:'调度'};
     if(!labels[mode])throw new Error('不支持的任务模式');
-    return confirmation('切换任务模式','切换到'+labels[mode],'此设置仅决定新任务链是自动连续、手动逐步还是按时间调度；不会替机器人切换实体驾驶模式。正在执行的任务链继续使用创建时的方式。',async confirmation=>{
-      await api.post('/api/task-mode',{mode,confirmation});state.taskMode=mode;const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();notify(`新任务链将使用「${labels[mode]}」方式。`);
-    },'确认切换');
+    if(!can('robot:control'))throw new Error('没有切换任务模式的权限');
+    if(!state.taskModeReady)throw new Error('任务模式尚未读取，请稍后重试');
+    if(state.taskModePending||mode===state.taskMode)return;
+    state.taskModePending=true;state.taskModeMessage='';state.taskModeError=false;state.taskModeEpoch++;renderTaskMode();
+    try{
+      const result=await api.post('/api/task-mode',{mode,confirmation:'切换到'+labels[mode]});
+      if(!labels[result.mode])throw new Error('服务器未返回有效任务模式，请刷新核对');
+      state.taskMode=result.mode;state.taskModeMessage=`已设置「${labels[result.mode]}」，仅用于新任务`;
+      notify(`新任务已设为「${labels[result.mode]}」；执行中的任务保持原有方式。`);
+    }catch(error){state.taskModeMessage='切换未确认，请重试';state.taskModeError=true;throw error;}finally{state.taskModePending=false;state.taskModeEpoch++;renderTaskMode();}
   }
   function missionStateLabel(run){
     if(run.status==='waiting_manual')return '等待人工下一步';
@@ -225,7 +234,7 @@
   }
   async function refreshMapMissions(){
     if(!state.map||!can('task:view'))return;
-    const mapId=state.mapRow.id;
+    const mapId=state.mapRow.id,modeEpoch=state.taskModeEpoch;
     try{
       const [plans,runs,mode]=await Promise.all([
         api.get('/api/task-plans',{map_id:mapId}),
@@ -233,10 +242,10 @@
         api.get('/api/task-mode')
       ]);
       if(!state.map||state.mapRow?.id!==mapId)return;
-      state.mapMissionPlans=plans||[];state.mapMissionRuns=runs||[];state.taskMode=mode.mode||'manual';
+      state.mapMissionPlans=plans||[];state.mapMissionRuns=runs||[];if(modeEpoch===state.taskModeEpoch&&!state.taskModePending&&['manual','auto','schedule'].includes(mode.mode)){state.taskMode=mode.mode;state.taskModeReady=true;}
       renderMapMissions();
       if(state.resourcePlanId){const selected=document.querySelector(`[data-plan-id="${Number(state.resourcePlanId)}"]`);if(selected){selected.open=true;state.resourcePlanId=null;}}
-      const switcher=document.querySelector('.task-mode-switch');if(switcher)switcher.outerHTML=taskModeMarkup();
+      renderTaskMode();
     }catch(error){const panel=$('map-mission-plans');if(panel&&state.mapRow?.id===mapId)panel.innerHTML=`<p class="map-list-empty">任务链状态暂不可用：${escape(error.message)}</p>`;}
   }
   async function missionDesigner(existing=null){
@@ -431,7 +440,7 @@
     if(resourcePoint)state.map.selectPoint(resourcePoint);
     if(['paths','areas'].includes(resourceKind)){const index=state.map.document[resourceKind].findIndex(item=>item.uid===resourceQuery.get('uid'));if(index>=0)state.map.selectObject(resourceKind,index);}
     state.resourcePlanId=resourceQuery.get('planId');
-    renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();refreshRobotModel();
+    renderMapLists();renderMapRobot();renderMapTasks();renderMapMissions();refreshMapTasks();refreshMapMissions();refreshRobotModel();window.OrangeMappingPreview?.refresh();
     state.mapTaskTimer=setInterval(()=>{refreshMapTasks();refreshMapMissions();},5000);
     $('map-point-search').oninput=renderMapLists;
     $('map-point-list').onclick=event=>{const item=event.target.closest('[data-map-select-point]');if(item)state.map?.selectPoint(item.dataset.mapSelectPoint);};
@@ -459,9 +468,10 @@
   }
   function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;if(document.fullscreenElement===$('map-editor'))document.exitFullscreen().catch(()=>{});clearTimeout(state.saveTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
   async function loadMapImage(){
-    const blob=await api.download(`/api/maps/${state.mapRow.id}/image/${state.map.document.image}`);
+    const editor=state.map,mapId=state.mapRow.id,digest=editor.document.image;
+    const blob=await api.download(`/api/maps/${mapId}/image/${digest}`);
     const url=URL.createObjectURL(blob),image=new Image();
-    image.onload=()=>{if(state.map){state.map.image=image;state.map.draw();}URL.revokeObjectURL(url);};
+    image.onload=()=>{if(state.map===editor&&editor.document.image===digest){editor.image=image;editor.draw();}URL.revokeObjectURL(url);};image.onerror=()=>URL.revokeObjectURL(url);
     image.onerror=()=>URL.revokeObjectURL(url);image.src=url;
   }
   async function selectMapAsset(){
@@ -749,6 +759,8 @@
   async function init(){
     try{
       const me=await api.get('/api/operations/me');state.permissions=me.permissions;
+      state.taskModeReady=false;
+      if(can('task:view'))try{const mode=await api.get('/api/task-mode');if(['manual','auto','schedule'].includes(mode.mode)){state.taskMode=mode.mode;state.taskModeReady=true;}}catch(error){state.taskModeMessage='任务模式暂不可用，请刷新';state.taskModeError=true;}
       $('eyebrow').textContent=me.worker_enabled?'OPERATIONS CENTER':'OPERATIONS CENTER / 自动调度已暂停';
       const navigation=window.OperationsLayout.navigationGroups(modules,can);
       const navButtons=items=>items.map(m=>`<button class="rail-item" type="button" data-tab="${m[0]}"><span class="rail-icon">${navIcon(m[3])}</span><span class="rail-item-label">${escape(m[1])}</span><span class="rail-item-mark" aria-hidden="true"></span></button>`).join('');
@@ -774,7 +786,7 @@
         const params=new URLSearchParams(location.search),requestedId=params.get('mapId');
         if(params.get('openAsset')==='1'&&state.preferredAssetKey)await openAssetMap(state.preferredAssetKey);
         else{
-          const target=state.mapChoices.find(map=>String(map.id)===String(requestedId))||(state.mapChoices.length===1?state.mapChoices[0]:null);
+          const target=state.mapChoices.find(map=>String(map.id)===String(requestedId))||state.mapChoices.find(map=>String(map.id)===localStorage.getItem('orange.currentRouteMap'))||state.mapChoices[0];
           if(target)await openMap(await api.get(`/api/maps/${target.id}`));else await load();
         }
       }
@@ -806,6 +818,7 @@
     if(event.data?.type==='robot-model-close'&&event.source===$('robot-model-frame')?.contentWindow){$('dialog').close();return;}
     if(event.data?.type==='robot-model-updated'&&event.source===$('robot-model-frame')?.contentWindow){refreshRobotModel();return;}
     if(event.source!==parent)return;
+    if(event.data?.type==='workbench-mapping-preview'){if(event.data.visible)window.OrangeMappingPreview?.start();else window.OrangeMappingPreview?.stop();return;}
     if(event.data?.type==='workbench-open-map-asset'){
       openAssetMap(event.data.asset).catch(error=>notify(error.message,true));return;
     }
