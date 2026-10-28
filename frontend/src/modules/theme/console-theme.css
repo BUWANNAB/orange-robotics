@@ -1,0 +1,118 @@
+/* Orange console palette. Geometry, map pixels and operational state stay with their owners. */
+html.orange-theme{
+  --ui-bg:#f3f5f8;--ui-surface:#ffffff;--ui-soft:#f7f9fc;--ui-border:#d7e0eb;
+  --ui-text:#283b52;--ui-muted:#5f7085;--ui-primary:#3569b3;--ui-primary-hover:#28568f;--ui-selected:#eaf1fb;
+  --ui-success:#257454;--ui-success-bg:#edf6f0;--ui-danger:#b54150;--ui-danger-bg:#fcf0f2;
+  --ui-warning:#86601d;--ui-warning-bg:#faf4e7;--ui-brand:#c56a29;
+  --accent:var(--ui-primary);--blue:var(--ui-primary);--ink:var(--ui-text);--muted:var(--ui-muted);--line:var(--ui-border);--border:var(--ui-border);--paper:var(--ui-bg);
+  color:var(--ui-text);background:var(--ui-bg);color-scheme:light;
+}
+.orange-theme body{background:var(--ui-bg);color:var(--ui-text)}
+.orange-theme :is(h1,h2,h3){color:var(--ui-text)}
+.orange-theme :is(.muted,.help,.empty,.eyebrow,.unit,.resource-title p,.content-header p,.resource-inspector p,.resource-navigation small,.card small,.card p,.card em,.table-footer,.resource-workflow,#eyebrow,#asset-detail){color:var(--ui-muted)}
+.orange-theme :is(.panel,.card,.map-pane,.resource-content,.resource-inspector,.resource-navigation,.asset-bar,.check-card,.radar-section-card,.map-create-controls){background:var(--ui-surface);border-color:var(--ui-border);box-shadow:0 2px 8px #283b5205}
+.orange-theme :is(.masthead,.orange-app-bar,.resource-header){color:var(--ui-text);background:var(--ui-surface);border-color:var(--ui-border)}
+.orange-theme .masthead{border-bottom:1px solid var(--ui-border)}
+.orange-theme .masthead :is(h1,a){color:var(--ui-text)}
+.orange-theme .masthead :is(.eyebrow,.masthead-caption){color:var(--ui-muted)}
+.orange-theme .masthead a{border-color:var(--ui-border)}
+.orange-theme :is(.orange-app-brand,dialog.orange-navigation header strong){color:var(--ui-brand)}
+.orange-theme :is(.orange-app-brand b,.orange-page-label,dialog.orange-navigation header strong b){color:var(--ui-text)}
+.orange-theme :is(.brand-mark,.map-brand-mark){background:var(--ui-brand);color:#fff}
+
+/* Controls: neutral by default; intent selectors below supply the meaningful colors. */
+.orange-theme button,.orange-theme #map-editor.rcs-console button{
+  --button-bg:var(--ui-surface);--button-text:var(--ui-text);--button-border:var(--ui-border);
+  background:var(--button-bg);color:var(--button-text);border-color:var(--button-border);box-shadow:none;
+}
+.orange-theme button:hover:not(:disabled),.orange-theme #map-editor.rcs-console button:hover:not(:disabled){background:var(--ui-selected);color:var(--ui-primary);border-color:#a8bfdf}
+.orange-theme button:is(.primary,.login-button,.btn-radar-save),.orange-theme #save-model,.orange-theme #map-editor.rcs-console :is([data-action=map-save],[data-action=map-publish],.rcs-home-tab),.orange-theme #btnDownPNG{
+  background:var(--ui-primary);color:#fff;border-color:var(--ui-primary);
+}
+.orange-theme button:is(.primary,.login-button,.btn-radar-save):hover:not(:disabled),.orange-theme #save-model:hover:not(:disabled),.orange-theme #map-editor.rcs-console :is([data-action=map-save],[data-action=map-publish],.rcs-home-tab):hover:not(:disabled){background:var(--ui-primary-hover);color:#fff;border-color:var(--ui-primary-hover)}
+.orange-theme button:is(.danger,.danger-text,[data-delete],[data-action^=delete-],[data-action=cancel-task],[data-action=stop-task],[data-action=mission-cancel],[data-action=mission-delete-plan],[data-action=mission-stop-step]),.orange-theme #map-editor.rcs-console :is([data-action=map-remove],[data-action=mission-stop-step],[data-action=mission-delete-plan],[data-action=mission-cancel]),.orange-theme :is(#mapping-stop,#stop-button,#plc-stop,#btnDownPGM){background:var(--ui-danger-bg);color:var(--ui-danger);border-color:#e5b9c0}
+.orange-theme button:is([data-action=mission-start-plan],[data-action=mission-resume],[data-action=mission-advance]),.orange-theme #map-editor.rcs-console :is([data-action=mission-start-plan],[data-action=mission-resume],[data-action=mission-advance],[data-action=map-validate]),.orange-theme #mapping-start{background:var(--ui-success-bg);color:var(--ui-success);border-color:#b6d4c3}
+.orange-theme :is(#binding-remove,#release-button){background:var(--ui-warning-bg);color:var(--ui-warning);border-color:#decda6}
+.orange-theme button[data-ui-intent=success]{background:var(--ui-success-bg);color:var(--ui-success);border-color:#b6d4c3}
+.orange-theme button[data-ui-intent=danger]{background:var(--ui-danger-bg);color:var(--ui-danger);border-color:#e5b9c0}
+.orange-theme button[data-ui-intent=warning]{background:var(--ui-warning-bg);color:var(--ui-warning);border-color:#decda6}
+.orange-theme button[data-ui-intent=success]:hover:not(:disabled){background:#dfefe5;color:var(--ui-success);border-color:var(--ui-success)}
+.orange-theme button[data-ui-intent=danger]:hover:not(:disabled){background:#f7e3e7;color:var(--ui-danger);border-color:var(--ui-danger)}
+.orange-theme button[data-ui-intent=warning]:hover:not(:disabled){background:#f2e8cf;color:var(--ui-warning);border-color:var(--ui-warning)}
+.orange-theme button:is(.danger,.danger-text,[data-delete],[data-action^=delete-],[data-action=cancel-task],[data-action=stop-task],[data-action=mission-cancel],[data-action=mission-delete-plan],[data-action=mission-stop-step]):hover:not(:disabled),.orange-theme #map-editor.rcs-console :is([data-action=map-remove],[data-action=mission-stop-step],[data-action=mission-delete-plan],[data-action=mission-cancel]):hover:not(:disabled){background:#f7e3e7;color:var(--ui-danger);border-color:var(--ui-danger)}
+.orange-theme #map-editor.rcs-console :is([data-action=mission-start-plan],[data-action=mission-resume],[data-action=mission-advance],[data-action=map-validate]):hover:not(:disabled){background:#dfefe5;color:var(--ui-success);border-color:var(--ui-success)}
+.orange-theme button:disabled,.orange-theme #map-editor.rcs-console button:disabled,.orange-theme :is(#mapping-start,#mapping-stop,#save-model,#plc-stop,#release-button,#stop-button,#btnDownPNG,#btnDownPGM):disabled{background:#edf0f4;color:#778496;border-color:#dce2e9;opacity:1;box-shadow:none;cursor:not-allowed}
+.orange-theme :is(input,select,textarea){color:var(--ui-text);background:var(--ui-surface);border-color:var(--ui-border);accent-color:var(--ui-primary);box-shadow:none}
+.orange-theme :is(input,textarea)::placeholder{color:#718197;opacity:1}
+.orange-theme :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--ui-primary);outline-offset:3px;box-shadow:none}
+.orange-theme :is(input,select,textarea):focus{border-color:var(--ui-primary)}
+.orange-theme :is(.home-link,.operations-home){background:var(--ui-selected);color:var(--ui-primary);border-color:#bdcfe7}
+.orange-theme .orange-navigation-trigger{background:var(--ui-selected)!important;color:var(--ui-primary)!important;border-color:#bdcfe7!important}
+
+/* Page navigation and selection share the same treatment. */
+html.orange-theme.operations-page .rail{background:var(--ui-surface);color:var(--ui-text);border-right:1px solid var(--ui-border)}
+html.orange-theme.operations-page .brand :is(.brand-name,.brand-caption){color:var(--ui-text)}
+html.orange-theme.operations-page .rail-nav .rail-item{color:var(--ui-muted);border-color:transparent;background:transparent}
+html.orange-theme.operations-page .rail-nav .rail-icon{color:var(--ui-muted);border-color:var(--ui-border);background:var(--ui-soft)}
+html.orange-theme.operations-page .rail-nav .rail-item:is(.active,:hover){background:var(--ui-selected);color:var(--ui-primary);border-color:#cbdaf0;box-shadow:none}
+html.orange-theme.operations-page .rail-nav .rail-item.active .rail-icon{background:#dfeafb;color:var(--ui-primary);border-color:#bdcfe7}
+html.orange-theme.operations-page .rail-nav .rail-item.active::before,html.orange-theme.operations-page .rail-nav .rail-item.active .rail-item-mark{background:var(--ui-primary);box-shadow:none}
+.orange-theme :is(.operations-system-group,.rail-group){border-color:var(--ui-border)}
+.orange-theme :is(.operations-system-group>summary,.rail-section-title,.navigation-group-title){color:var(--ui-muted)}
+.orange-theme :is(.map-context,.steps){background:#eaf0f7;border-color:var(--ui-border)}
+.orange-theme :is(.resource-navigation button[aria-pressed=true],.steps button[aria-selected=true],dialog.orange-navigation a[aria-current=page]){color:var(--ui-primary);background:var(--ui-selected);border-color:#bdcfe7}
+.orange-theme :is(.resource-navigation button[aria-pressed=true] b,.resource-navigation b){background:#e3ebf6;color:var(--ui-primary)}
+.orange-theme :is(th,thead){background:var(--ui-soft);color:var(--ui-muted)}
+.orange-theme :is(th,td){border-color:#e6ebf2}
+.orange-theme tbody tr.selected,.orange-theme tbody tr:hover{background:var(--ui-selected)}
+.orange-theme td button{background:transparent;color:var(--ui-primary)}
+.orange-theme :is(.resource-workflow,.status-line,.height-preview,.origin-preview){background:var(--ui-selected);border-color:#bdcfe7;color:var(--ui-muted)}
+
+/* Real state remains explicit; offline/pending never inherits a success color. */
+.orange-theme :is(.badge,.map-state-chip,.protection-state-pill){background:#edf0f5;color:var(--ui-muted);border-color:var(--ui-border)}
+.orange-theme :is(.badge.good,.map-state-chip.good,.state.good,.check-card.good span,#model-status.confirmed){background:var(--ui-success-bg);color:var(--ui-success);border-color:#b6d4c3}
+.orange-theme :is(.badge.warn,.notice-box,.manual-confirm,#model-status,.operation-lock .check){background:var(--ui-warning-bg);color:var(--ui-warning);border-color:#decda6}
+.orange-theme :is(.badge.bad,.notice.error,#notice.error,.height-preview.error,.origin-preview.error){background:var(--ui-danger-bg);color:var(--ui-danger);border-color:#e5b9c0}
+.orange-theme :is(dialog,.operation-lock){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-border)}
+.orange-theme dialog::backdrop{background:#24364b66}
+html.orange-theme.operations-page :is(.card strong,.panel h2){color:var(--ui-text)}
+.orange-theme :is(.chart rect,.bar i){fill:var(--ui-primary);background:var(--ui-primary)}
+
+/* Map workspace: calm chrome; axes, occupancy data and path graphics stay unchanged. */
+.orange-theme #map-editor.rcs-console{--rcs-blue:var(--ui-primary);--rcs-teal:#39776c;--rcs-violet:#6f65a0;--rcs-green:var(--ui-success);--rcs-red:var(--ui-danger);--rcs-amber:var(--ui-warning);--rcs-slate:var(--ui-muted);--rcs-panel:var(--ui-soft);--console-line:var(--ui-border);--console-muted:var(--ui-muted);--console-ink:var(--ui-text);color:var(--ui-text);background:var(--ui-surface)}
+.orange-theme #map-editor.rcs-console :is(.map-console-header,.map-console-footer){background:#edf2f8;color:var(--ui-text)}
+.orange-theme #map-editor.rcs-console :is(.map-side-section>header strong,.map-side-section>summary,.map-task-execution>header strong,.map-list-empty,.rcs-task-empty,.rcs-execution-note,.map-console-brand strong,.rcs-nav-tab,.map-state-chip,.map-layer-row,.map-object-row,.map-object-row small,.map-layer-row span,.map-point-search input,.rcs-header-map){color:var(--ui-muted)}
+.orange-theme #map-editor.rcs-console :is(.map-object-row.active,.map-tool-active,.rcs-tool-menu>summary:hover){background:var(--ui-selected);color:var(--ui-primary);border-color:#bdcfe7}
+.orange-theme #map-editor.rcs-console .rcs-tool-menu>summary{background:var(--ui-surface);color:var(--ui-primary);border-color:var(--ui-border)}
+.orange-theme #map-editor.rcs-console :is(input,select){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-border)}
+.orange-theme #map-editor.rcs-console .rcs-menu-panel{background:var(--ui-surface);border-color:var(--ui-border)}
+.orange-theme #map-editor.rcs-console .task-mode-switch{border-color:var(--ui-primary)}
+.orange-theme #map-editor.rcs-console .task-mode-switch button:is(.active,[aria-pressed=true]){background:var(--ui-primary);color:#fff;border-color:var(--ui-primary)}
+.orange-theme #map-editor.rcs-console .map-state-chip.good{background:var(--ui-success-bg);color:var(--ui-success);border-color:#b6d4c3}
+.orange-theme #map-editor.rcs-console .map-state-chip.bad{background:var(--ui-danger-bg);color:var(--ui-danger);border-color:#e5b9c0}
+
+/* Hardware settings and the older raster editor use these same control colors. */
+.orange-theme .radar-settings-page :is(.radar-section-title,.protection-pipeline b,.radar-drawer-title,.model-title){color:var(--ui-text)}
+.orange-theme .radar-settings-page .radar-drawer-header{background:var(--ui-soft);border-color:var(--ui-border);border-bottom:1px solid var(--ui-border)}
+.orange-theme .radar-settings-page .radar-drawer-title h3{color:var(--ui-text)}
+.orange-theme .radar-settings-page .radar-drawer-title small{color:var(--ui-muted)!important}
+.orange-theme .radar-settings-page .radar-drawer-title i{color:var(--ui-primary)}
+.orange-theme .radar-settings-page :is(.model-radio-card,.protection-pipeline,.protection-region-card){background:var(--ui-soft);border-color:var(--ui-border);color:var(--ui-text)}
+.orange-theme .radar-settings-page .model-radio-card.active{background:var(--ui-selected);border-color:var(--ui-primary);box-shadow:inset 0 0 0 1px var(--ui-primary)}
+.orange-theme .radar-settings-page .radar-section-card::before{background:var(--ui-primary)}
+.orange-theme .radar-settings-page :is(.btn-radar-discover,.radar-discovery-choice select){background:var(--ui-selected);color:var(--ui-primary);border-color:#bdcfe7}
+.orange-theme .radar-settings-page :is(.radar-discovery-status,.radar-discovery-choice,.model-desc,.protection-help,.radar-input-group label){color:var(--ui-muted)}
+.orange-theme .radar-settings-page :is(input,select):focus{border-color:var(--ui-primary);box-shadow:0 0 0 2px #3569b31a}
+.orange-theme .raster-theme button{background:var(--ui-surface)!important;color:var(--ui-text)!important;border:1px solid var(--ui-border)!important;box-shadow:none!important}
+.orange-theme .raster-theme button:is(.active,.primary,#btnDownPNG){background:var(--ui-primary)!important;color:#fff!important;border-color:var(--ui-primary)!important}
+.orange-theme .raster-theme #btnDownPGM{background:var(--ui-danger-bg)!important;color:var(--ui-danger)!important;border-color:#e5b9c0!important}
+.orange-theme .raster-theme button:disabled{background:#edf0f4!important;color:#778496!important;border-color:#dce2e9!important;opacity:1}
+
+/* Login belongs to the same product, with no separate orange background. */
+.orange-theme .login-card{background:var(--ui-surface);border-color:var(--ui-border);box-shadow:0 12px 40px #283b5210}
+.orange-theme :is(.login-title,.form-title){color:var(--ui-text);text-shadow:none}
+.orange-theme :is(.login-subtitle,.footer,.footer p,.form-options){color:var(--ui-muted)}
+.orange-theme .login-logo{background:var(--ui-brand);box-shadow:none}
+.orange-theme :is(.forgot-password,.forgot-password:hover){color:var(--ui-primary)}
+.orange-theme #particles-js{opacity:.12}
+@media(prefers-reduced-motion:reduce){.orange-theme button{transition:none}}
