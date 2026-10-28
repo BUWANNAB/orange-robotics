@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select, update
+from sqlalchemy import select, update, case
 
 from app.common.response import ok
 from app.database import get_db
@@ -218,10 +218,12 @@ async def start_task_plan(plan_id: int, body: MissionStartInput,
 
 
 @router.get("/mission-runs")
-async def mission_runs(map_id: int = Query(gt=0), page_size: int = Query(20, ge=1, le=100),
+async def mission_runs(map_id: int = Query(gt=0), page_size: int = Query(20, ge=1, le=100), active_only: bool = False,
                        actor=Depends(require("task:view")), db=Depends(get_db)):
-    rows = (await db.scalars(select(MissionRun).where(MissionRun.map_id == map_id)
-        .order_by(MissionRun.id.desc()).limit(page_size))).all()
+    query = select(MissionRun).where(MissionRun.map_id == map_id)
+    if active_only:
+        query = query.where(MissionRun.status.in_(ACTIVE_MISSION_STATES)).order_by(case((MissionRun.status == "queued", 1), else_=0))
+    rows = (await db.scalars(query.order_by(MissionRun.id.desc()).limit(page_size))).all()
     result = []
     for row in rows:
         item = public(row)

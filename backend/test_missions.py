@@ -185,6 +185,22 @@ class MissionWorkflowTests(unittest.TestCase):
         self.call('POST',f"/api/task-history/{task['id']}/resume",{'confirmation':'wrong'},400)
         self.call('POST',f"/api/task-history/{task['id']}/resume",{'confirmation':task['name']},409)
 
+    def test_active_missions_are_available_beyond_eight_newer_history_rows(self):
+        self.setup_plan();self.start('manual');self.control('pause')
+        async def seed_history():
+            async with AsyncSessionLocal() as db:
+                for index in range(9):
+                    db.add(MissionRun(plan_id=self.plan['id'],name=f'recent history {index}',map_id=self.map_id,
+                        map_version=1,start_point='A',steps=[{'point':'C'}],repeat_count=1,priority=5,
+                        task_mode='manual',status='success',operator='admin'))
+                await db.commit()
+        asyncio.run(seed_history())
+        history=self.call('GET','/api/mission-runs',params={'map_id':self.map_id,'page_size':8})
+        self.assertNotIn(self.run['id'],[run['id'] for run in history])
+        active=self.call('GET','/api/mission-runs',params={'map_id':self.map_id,'page_size':100,'active_only':True})
+        self.assertEqual([run['id'] for run in active],[self.run['id']])
+        self.assertEqual(active[0]['status'],'paused')
+
     def test_manual_resume_waits_for_operator_and_blocks_publish_while_paused(self):
         self.setup_plan(); self.start('manual')
         self.control('pause')

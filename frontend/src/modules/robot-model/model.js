@@ -4,10 +4,20 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const $=id=>document.getElementById(id),api=window.OpsAPI,form=$('model-form'),viewport=$('model-viewport');
 if(parent!==window&&new URLSearchParams(location.search).has('embedded')){
   $('model-home').textContent='← 返回地图';
-  $('model-home').onclick=event=>{event.preventDefault();parent.postMessage({type:'robot-model-close'},location.origin);};
+  $('model-home').onclick=event=>{event.preventDefault();if(window.OrangeNavigation?.canLeave?window.OrangeNavigation.canLeave():canLeave())parent.postMessage({type:'robot-model-close'},location.origin);};
 }
 let data,saved,renderer,scene,camera,controls,robot,animation,resizeObserver;
+let loaded=false,canSave=false,saving=false,dirty=false;
 const notice=(message,error=false)=>{$('model-notice').textContent=message;$('model-notice').classList.toggle('error',error);};
+function updateActions(){
+  $('save-model').disabled=!loaded||!canSave||saving;
+  $('reset-model').disabled=!loaded||saving;
+  $('export-urdf').disabled=!loaded||saving;
+  form.querySelectorAll('input').forEach(input=>{input.disabled=!loaded||saving;});
+}
+function canLeave(){return !dirty&&!saving||window.confirm(saving?'车体模型正在保存，离开后请重新核对结果。确定离开？':'车体模型尚未保存，确定放弃修改并离开？');}
+window.OrangeNavigation?.registerLeaveGuard(canLeave);
+window.addEventListener('beforeunload',event=>{if((dirty||saving)&&!window.OrangeNavigation?.leaveApproved()){event.preventDefault();event.returnValue='';}});
 function collect(){
   const body={};for(const key of ['length','width','height','center_x','center_y','center_z']){
     const input=form.elements.namedItem(key),value=Number(input.value);
@@ -67,11 +77,14 @@ function initScene(){
   function animate(){animation=requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
 }
 async function init(){
-  data=await api.get('/api/robot-model');saved=structuredClone(data.model);fill(saved);mountText();
+  loaded=false;canSave=false;dirty=false;updateActions();$('retry-model').hidden=true;
+  const modelData=await api.get('/api/robot-model');
   const actor=await api.get('/api/operations/me');
-  const canSave=actor.permissions.includes('*')||actor.permissions.includes('ros:maintain');
-  $('save-model').disabled=!canSave;
-  if(!canSave)$('save-model').textContent='当前账号仅可预览';
+  data=modelData;saved=structuredClone(data.model);fill(saved);mountText();
+  canSave=actor.permissions.includes('*')||actor.permissions.includes('ros:maintain');
+  loaded=true;updateActions();
+  $('save-model').textContent=canSave?'保存模型':'当前账号仅可预览';
+  $('model-status').textContent=data.model.dimensions_confirmed?'已填写实测尺寸':'未标定 · 示意模型';
   try{initScene();drawModel();fit();}catch(error){viewport.textContent='三维预览不可用：'+error.message;viewport.classList.add('error-view');}
   if(!data.model.dimensions_confirmed)notice('当前为示意尺寸。测量车体和 base_link 原点后再勾选实测确认。');
 }
@@ -79,7 +92,7 @@ form.addEventListener('input',event=>{
   if(event.target.name==='confirmation')return;
   form.elements.namedItem('confirmation').value='';
   if(event.target.type==='number')$('dimensions-confirmed').checked=false;
-  try{drawModel();notice('预览已更新，尚未保存。');}catch(error){notice(error.message,true);}
+  try{const model=collect();dirty=loaded&&canSave&&(model.dimensions_confirmed!==saved.dimensions_confirmed||Object.keys(model.body).some(key=>model.body[key]!==saved.body[key]));drawModel();notice(canSave?'预览已更新'+(dirty?'，尚未保存。':'，与已保存值一致。'):'仅更新预览；当前账号不能保存模型。');}catch(error){dirty=loaded&&canSave;notice(error.message,true);}
 });
 $('preview-yaw').oninput=()=>{const value=Number($('preview-yaw').value);$('preview-yaw-value').textContent=value+'°';if(robot)robot.rotation.z=value*Math.PI/180;};
 $('fit-model').onclick=fit;
@@ -87,11 +100,14 @@ $('check-tf').onclick=async()=>{
   const button=$('check-tf');button.disabled=true;
   try{const result=await api.get('/api/robot-model/runtime-check');$('tf-result').textContent=`实际父级：${result.parent_chain.join(' → ')}。雷达安装 TF：${result.mount_matches_tf===null?'缺少可比对数据':result.mount_matches_tf?'与配置一致':'与配置不一致'}；map → odom → base_link 链：${result.standard_chain?'层级正确':'尚未统一'}。${result.runtime_verified?'TF 数值及新鲜度检查通过。':'运行时坐标链未通过完整检查。'}${result.message}`;}catch(error){$('tf-result').textContent=error.message;}finally{button.disabled=false;}
 };
-$('reset-model').onclick=()=>{if(!saved)return;fill(saved);drawModel();fit();notice('已恢复已保存的模型。');};
+$('reset-model').onclick=()=>{if(!loaded||saving||!saved)return;fill(saved);form.elements.namedItem('confirmation').value='';dirty=false;drawModel();fit();notice('已恢复已保存的模型。');};
 form.onsubmit=async event=>{
-  event.preventDefault();const button=$('save-model');button.disabled=true;
-  try{if(form.elements.namedItem('confirmation').value.trim()!=='保存车体模型')throw new Error('请输入“保存车体模型”确认');data=await api.put('/api/robot-model',{model:collect(),confirmation:'保存车体模型'});saved=structuredClone(data.model);form.elements.namedItem('confirmation').value='';mountText();drawModel();parent.postMessage({type:'robot-model-updated'},location.origin);notice(data.shared_with_ros?'模型已保存。ROS 核心服务重启后读取相同模型；运行时 TF 仍需核对。':'模型已保存到本机。设备部署时需让 Web 与 ROS 共用 RCS_DATA_DIR。');}catch(error){notice(error.message,true);}finally{button.disabled=false;}
+  event.preventDefault();
+  if(!loaded||!canSave||saving){notice('模型和权限尚未读取成功，或当前账号不能保存。请先重新读取。',true);return;}
+  try{if(form.elements.namedItem('confirmation').value.trim()!=='保存车体模型')throw new Error('请输入“保存车体模型”确认');const model=collect();saving=true;updateActions();data=await api.put('/api/robot-model',{model,confirmation:'保存车体模型'});saved=structuredClone(data.model);dirty=false;form.elements.namedItem('confirmation').value='';mountText();drawModel();parent.postMessage({type:'robot-model-updated'},location.origin);notice(data.shared_with_ros?'模型已保存。ROS 核心服务重启后读取相同模型；运行时 TF 仍需核对。':'模型已保存到本机。设备部署时需让 Web 与 ROS 共用 RCS_DATA_DIR。');}catch(error){notice(error.message,true);}finally{saving=false;updateActions();}
 };
-$('export-urdf').onclick=async()=>{try{const blob=await api.download('/api/robot-model/urdf');const url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='orange_robot.urdf';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){notice(error.message,true);}};
+$('export-urdf').onclick=async()=>{if(!loaded||saving)return;try{const blob=await api.download('/api/robot-model/urdf');const url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='orange_robot.urdf';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){notice(error.message,true);}};
 window.addEventListener('pagehide',()=>{cancelAnimationFrame(animation);resizeObserver?.disconnect();controls?.dispose();if(robot)dispose(robot);renderer?.dispose();});
-init().catch(error=>notice(error.message,true));
+function reload(){return init().catch(error=>{loaded=false;canSave=false;updateActions();$('model-status').textContent='配置未读取';$('retry-model').hidden=false;notice('模型或权限读取失败，保存已禁用：'+error.message,true);});}
+$('retry-model').onclick=reload;
+reload();

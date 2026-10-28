@@ -574,5 +574,23 @@ class OperationsTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'JWT_SECRET'):
                 asyncio.run(lifespan(app).__aenter__())
 
+    def test_26_active_history_is_independent_of_newer_queued_tasks(self):
+        identity=self.published('active-query-regression')
+        async def seed():
+            async with AsyncSessionLocal() as db:
+                active=TaskRun(name='still moving',map_id=identity,from_point='A',to_point='C',status='running',operator='admin')
+                db.add(active);await db.flush();active_id=active.id
+                for index in range(7):
+                    db.add(TaskRun(name=f'new queued {index}',map_id=identity,from_point='A',to_point='C',status='queued',operator='admin'))
+                db.add(TaskRun(name='mission excluded',map_id=identity,source='mission',from_point='A',to_point='C',status='running',operator='admin'))
+                db.add(TaskRun(name='other map',map_id=identity+10000,from_point='A',to_point='C',status='running',operator='admin'))
+                await db.commit();return active_id
+        active_id=asyncio.run(seed())
+        recent=self.call('GET','/api/task-history',params={'map_id':identity,'pageSize':6,'exclude_missions':True})
+        self.assertNotIn(active_id,[row['id'] for row in recent['list']])
+        active=self.call('GET','/api/task-history',params={'map_id':identity,'pageSize':200,'exclude_missions':True,'active_only':True})
+        self.assertEqual([row['id'] for row in active['list']],[active_id])
+        self.assertEqual(active['total'],1)
+
 if __name__=='__main__':
     unittest.main(verbosity=2)

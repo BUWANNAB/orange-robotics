@@ -7,6 +7,17 @@
 (function () {
     const API_BASE = window.location.origin;
 
+    let radarBaseline=null, radarLoading=false, radarWriting=false;
+    function formSnapshot(){
+        const controls=document.querySelectorAll('#radarDrawerPanel input, #radarDrawerPanel select');
+        return JSON.stringify(Array.from(controls).filter(control=>!['radarDiscoverySelect','radarModelConfirmed','radarMountConfirmed'].includes(control.id)).map(control=>[control.id||control.name,control.type==='checkbox'||control.type==='radio'?control.checked:control.value]));
+    }
+    function radarDirty(){return radarBaseline!==null&&formSnapshot()!==radarBaseline;}
+    function updateUnsaved(){const label=document.getElementById('radar-unsaved');if(label){label.textContent=!currentConfig?'配置尚未读取，不能保存':radarDirty()?'有未保存修改':'已读取配置；无未保存修改';label.classList.toggle('is-dirty',radarDirty());}}
+    function canLeaveRadar(){
+        if(radarWriting){showNotification('正在等待配置操作回执，请稍候；离开页面不会撤销已发送请求。','error');return false;}
+        return !radarDirty()||window.confirm('雷达配置尚未保存，确定放弃修改并离开？');
+    }
     // 默认参数模板
     const MODEL_TEMPLATES = {
         "MID-360S": {
@@ -282,6 +293,7 @@
         (mount || document.body).appendChild(container);
 
         bindEvents();
+        panelLeaveRegistration();
         if (standalonePage) {
             document.querySelectorAll("input[name='radarModelRadio']").forEach(radio => { radio.checked = false; });
             document.getElementById("cardModel360s").classList.remove("active");
@@ -294,6 +306,14 @@
         }
     }
 
+    function panelLeaveRegistration(){
+        const panel=document.getElementById('radarDrawerPanel');
+        panel.addEventListener('input',updateUnsaved);panel.addEventListener('change',updateUnsaved);
+        panel.addEventListener('click',()=>queueMicrotask(updateUnsaved));
+        window.OrangeNavigation?.registerLeaveGuard(canLeaveRadar);
+        window.addEventListener('beforeunload',event=>{if((radarDirty()||radarWriting)&&!window.OrangeNavigation?.leaveApproved()){event.preventDefault();event.returnValue='';}});
+        const retry=document.getElementById('radar-retry');if(retry)retry.onclick=()=>loadConfig();
+    }
     // 绑定抽屉交互事件
     function bindEvents() {
         const triggerBtn = document.getElementById("radarTriggerBtn");
@@ -418,7 +438,7 @@
                 status.textContent = `发现 ${supported[0].model}，IP ${supported[0].ip}；已回填，尚未保存。`;
             } else if (supported.length > 1) {
                 const select = document.getElementById("radarDiscoverySelect");
-                select.replaceChildren();
+                select.replaceChildren(new Option('请选择本车雷达（不会自动替换当前 IP）',''));
                 supported.forEach(device => {
                     const option = document.createElement("option");
                     option.value = device.ip;
@@ -426,7 +446,6 @@
                     select.append(option);
                 });
                 choice.hidden = false;
-                applyDiscoveredLidar(supported[0]);
                 status.textContent = `发现 ${supported.length} 台 MID-360 系列设备；请选择本车安装的雷达。`;
             } else {
                 const unsupportedCount = lastDiscoveredLidars.length;
@@ -451,6 +470,7 @@
         document.getElementById("cardModel360").classList.toggle("active", device.model === "MID-360");
         document.getElementById("radarBadgeModel").innerText = device.model;
         document.getElementById("radarModelConfirmed").checked = false;
+        updateUnsaved();
     }
 
     // 更新 2D 俯视车体示意图
@@ -483,6 +503,7 @@
     }
 
     function closeDrawer() {
+        if(!canLeaveRadar())return;
         document.getElementById("radarDrawerOverlay").classList.remove("active");
         document.getElementById("radarDrawerPanel").classList.remove("active");
     }
@@ -498,8 +519,14 @@
     }
 
     // 从后端拉取配置
-    async function loadConfig() {
+    async function loadConfig(force=false) {
+        if(radarLoading||(!force&&!canLeaveRadar()))return;
+        radarLoading=true;radarBaseline=null;
+        const retry=document.getElementById('radar-retry');if(retry)retry.disabled=true;
+        const login=document.getElementById('radar-login');if(login){login.hidden=true;login.href='/ui/login.html';}
+        document.getElementById('radarDrawerPanel').inert=true;
         currentConfig = null;
+        ['radarHostIp','radarDeviceIp'].forEach(id=>{document.getElementById(id).value='';document.getElementById(id).placeholder='尚未读取';});
         document.getElementById("btnRadarSave").disabled = true;
         document.getElementById("btnRadarVerify").disabled = true;
         setProtectionEditable(false);
@@ -507,6 +534,7 @@
             const res = await fetch(`${API_BASE}/api/v1/lidar/config`, {
                 headers: { "Authorization": localStorage.getItem("token") || "" }
             });
+            if(login&&(res.status===401||res.status===403))login.hidden=false;
             const contentType = res.headers.get("content-type") || "";
             if (!/json/i.test(contentType)) {
                 throw new Error(`配置接口返回非 JSON（HTTP ${res.status}），请检查后端服务和接口路由。`);
@@ -515,6 +543,8 @@
             if (json.code === 0 && json.data) {
                 currentConfig = json.data;
                 applyConfigToUI(currentConfig);
+                ['radarHostIp','radarDeviceIp'].forEach(id=>document.getElementById(id).placeholder='请输入已确认的 IPv4 地址');
+                radarBaseline=formSnapshot();
                 document.getElementById("btnRadarSave").disabled = !currentConfig.deployment?.shared_configured;
                 document.getElementById("btnRadarVerify").disabled = !currentConfig.deployment?.pending_verification;
             } else {
@@ -525,6 +555,10 @@
             document.getElementById("radarDeploymentStatus").textContent = "无法读取配置；保存和验证已禁用。";
             showNotification(e.message.startsWith("配置接口返回非 JSON")
                 ? e.message : `无法连接雷达配置接口：${e.message}`, "error");
+        } finally {
+            radarLoading=false;if(retry)retry.disabled=false;
+            document.getElementById('radarDrawerPanel').inert=!currentConfig;
+            updateUnsaved();
         }
     }
 
@@ -788,6 +822,7 @@
 
     // 保存配置
     async function saveConfig() {
+        if(radarWriting||radarLoading||!currentConfig?.deployment?.shared_configured){showNotification('请先成功读取可保存的雷达配置。','error');return;}
         const btnSave = document.getElementById("btnRadarSave");
         btnSave.disabled = true;
         btnSave.innerText = "保存中...";
@@ -846,6 +881,10 @@
             payload.obstacle_protection = obstacleProtection;
         }
 
+        if(payload.device_ip!==currentConfig.lidars?.[0]?.ip&&!window.confirm(`将雷达目标 IP 从 ${currentConfig.lidars?.[0]?.ip||'未设置'} 改为 ${payload.device_ip}，确认这是本车雷达？`)){
+            btnSave.disabled=false;btnSave.innerText='💾 保存配置';return;
+        }
+        radarWriting=true;document.getElementById('radarDrawerPanel').inert=true;
         try {
             const res = await fetch(`${API_BASE}/api/v1/lidar/config`, {
                 method: "POST",
@@ -856,19 +895,23 @@
             const json = await res.json();
             if (json.code === 0) {
                 showNotification("配置已保存；按配置变化停车后重启 ROS 核心/导航服务，再点“验证生效”", "success");
-                await loadConfig();
+                await loadConfig(true);
             } else {
                 showNotification(json.message || json.detail || `保存失败: ${res.status}`, "error");
             }
         } catch (e) {
             showNotification("请求出错: " + e.message, "error");
         } finally {
+            radarWriting=false;document.getElementById('radarDrawerPanel').inert=!currentConfig;updateUnsaved();
             btnSave.disabled = !currentConfig?.deployment?.shared_configured;
             btnSave.innerText = "💾 保存配置";
         }
     }
 
     async function verifyConfig() {
+        if(radarWriting||radarLoading||!currentConfig||radarDirty()){showNotification('请先读取并保存当前修改，再验证已保存配置。','error');return;}
+        radarWriting=true;
+        document.getElementById('radarDrawerPanel').inert=true;
         const button = document.getElementById("btnRadarVerify");
         button.disabled = true;
         try {
@@ -879,11 +922,11 @@
             const json = await res.json();
             if (json.code !== 0) throw new Error(json.message || json.detail || "验证失败");
             showNotification(json.data?.message || "雷达配置已验证", "success");
-            await loadConfig();
+            await loadConfig(true);
         } catch (e) {
             showNotification(`尚未生效：${e.message}`, "error");
-            button.disabled = false;
-        }
+            button.disabled = !currentConfig?.deployment?.pending_verification;
+        } finally { radarWriting=false;document.getElementById('radarDrawerPanel').inert=!currentConfig;updateUnsaved(); }
     }
 
     // 简单轻量消息通知

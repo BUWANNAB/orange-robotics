@@ -10,7 +10,7 @@ const grid={id:'车间一层',grid:true,resolution:.05,origin:[1,2,0]};
 function harness(initial=[]){
   const elements=new Map(),calls=[],window={};
   const element=id=>{
-    if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',value:'',files:[],disabled:false,open:false});
+    if(!elements.has(id))elements.set(id,{setAttribute(){},innerHTML:'',textContent:'',value:'',files:[],disabled:false,open:false});
     return elements.get(id);
   };
   element('dialog').showModal=()=>{element('dialog').open=true;};

@@ -22,7 +22,7 @@
     upgrade:'<path d="M12 16V4M7 9l5-5 5 5M4 15v5h16v-5"/>'
   };
   const navIcon = name => `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">${navIcons[name]||navIcons.dashboard}</svg>`;
-  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapTaskTotal:0, mapMissionPlans:[], mapMissionRuns:[], taskMode:'manual', taskModeReady:false, taskModePending:false, taskModeEpoch:0, taskModeMessage:'', taskModeError:false, selectedMissionId:null, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
+  const state = {tab:'dashboard', page:1, rows:[], robots:[], mapTasks:[], mapActiveTasks:null, mapTaskTotal:0, mapMissionPlans:[], mapMissionRuns:[], taskMode:'manual', taskModeReady:false, taskModePending:false, taskModeEpoch:0, taskModeMessage:'', taskModeError:false, selectedMissionId:null, permissions:[], monitor:null, map:null, mapRow:null, mapChoices:[], selectedMapId:'', preferredAssetKey:new URLSearchParams(location.search).get('asset')||'', dirty:false, saveTimer:null, lockTimer:null, mapTaskTimer:null, viewTimer:null, loadId:0, logBefore:null, logStack:[], relocalizeConfirmationOpen:false};
   const can = permission => state.permissions.includes('*') || state.permissions.includes(permission);
   const stamp = value => value ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : value+'Z').toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}) : '—';
   const badge = value => `<span class="badge ${['success','completed','idle','released','closed'].includes(value)?'good':['failed','timeout','critical','emergency','dead'].includes(value)?'bad':['queued','busy','charging','warning','stop_requested'].includes(value)?'warn':''}">${escape(labels[value]||value)}</span>`;
@@ -49,9 +49,30 @@
   function battery(row){const value=row.telemetry?.battery;return value==null?'—':`<span data-battery="${row.id}" class="battery ${row.is_low?'low':''}"><i><b style="width:${Math.max(0,Math.min(100,value))}%"></b></i>${value}% ${row.telemetry.charging?'⚡':''}</span>${!row.online?'<span class="sub">最后已知电量</span>':''}`;}
   function field(name,label,value='',type='text',extra=''){return `<label>${label}<input name="${name}" type="${type}" value="${escape(value)}" ${extra}></label>`;}
   function selectField(name,label,options,value=''){return `<label>${label}<select name="${name}">${options.map(([v,l])=>`<option value="${escape(v)}" ${String(v)===String(value)?'selected':''}>${escape(l)}</option>`).join('')}</select></label>`;}
+  let dialogEpoch=0,dialogPending=false;
+  const mapSaves=new WeakMap();
+  function setDialogPending(value){
+    dialogPending=value;
+    for(const id of ['dialog-submit','dialog-cancel','dialog-close','mission-save-only']){const control=$(id);if(control)control.disabled=value;}
+    $('dialog').setAttribute('aria-busy',String(value));
+  }
+  function closeDialog(){if(!dialogPending)$('dialog').close();}
+  function preventPendingDialogCancel(event){if(dialogPending)event.preventDefault();}
+  function canLeaveOperations(){
+    if(dialogPending){window.alert('操作正在提交，请等待结果后再离开。');return false;}
+    return !state.map||!state.dirty||window.confirm('地图草稿尚未保存，确定放弃并离开？');
+  }
   function dialog(title,html,handler,submit='保存'){
+    const epoch=++dialogEpoch;
+    setDialogPending(false);
     $('dialog-title').textContent=title;$('dialog-body').innerHTML=html;$('dialog-error').textContent='';$('dialog-submit').hidden=!handler;$('dialog-submit').textContent=submit;
-    $('dialog-form').onsubmit=async event=>{event.preventDefault();if(!handler)return;const submitButton=$('dialog-submit'),saveOnly=$('mission-save-only');submitButton.disabled=true;if(saveOnly)saveOnly.disabled=true;try{const close=await handler(new FormData(event.target));if(close!==false){$('dialog').close();await load();}}catch(error){$('dialog-error').textContent=error.message;}finally{submitButton.disabled=false;if(saveOnly)saveOnly.disabled=false;}};
+    $('dialog-form').onsubmit=async event=>{
+      event.preventDefault();if(!handler||dialogPending)return;
+      setDialogPending(true);
+      try{const close=await handler(new FormData(event.target));if(epoch===dialogEpoch&&close!==false){$('dialog').close();await load();}}
+      catch(error){if(epoch===dialogEpoch)$('dialog-error').textContent=error.message;}
+      finally{if(epoch===dialogEpoch)setDialogPending(false);}
+    };
     $('dialog').showModal();
   }
   function details(title,row){dialog(title,`<pre>${escape(JSON.stringify(row,null,2))}</pre>`,null);}
@@ -151,16 +172,23 @@
     if(!can('task:view')){list.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';count.textContent='—';return;}
     count.textContent=String(state.mapTaskTotal);
     list.innerHTML=state.mapTasks.map(task=>`<div class="map-task-entry"><button type="button" class="map-task-row" data-action="map-task-detail" data-id="${task.id}"><span><strong>${escape(task.name)}</strong><small>${escape(task.from_point)} → ${escape(task.to_point)}</small></span>${taskMotionBadge(task)}</button>${task.status==='queued'&&can('task:edit')?button('×','map-task-cancel',task.id,'task:edit','map-task-cancel-button'):''}</div>`).join('')||'<p class="map-list-empty">暂无任务记录</p>';
-    const active=state.mapTasks.find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
+    const active=(state.mapActiveTasks??state.mapTasks).find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
     $('map-task-active').classList.toggle('has-active-task',!!active);
     $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${taskMotionBadge(active)}</span>${taskMotionControls(active)}${can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
     renderMapMissionExecution();
   }
+  function findMapTask(id){return [...(state.mapActiveTasks||[]),...state.mapTasks].find(task=>String(task.id)===String(id));}
   async function refreshMapTasks(){
     if(!state.map||!can('task:view'))return;
-    const mapId=state.mapRow.id;
-    try{const data=await api.get('/api/task-history',{pageNo:1,pageSize:6,map_id:mapId,exclude_missions:true});if(!state.map||state.mapRow?.id!==mapId)return;state.mapTasks=data.list||[];state.mapTaskTotal=Number(data.total)||0;renderMapTasks();}
-    catch(error){const list=$('map-task-list');if(list&&state.mapRow?.id===mapId)list.innerHTML=`<p class="map-list-empty">任务状态暂不可用：${escape(error.message)}</p>`;}
+    const editor=state.map,mapId=state.mapRow.id;
+    try{
+      const [data,active]=await Promise.all([
+        api.get('/api/task-history',{pageNo:1,pageSize:6,map_id:mapId,exclude_missions:true}),
+        api.get('/api/task-history',{pageNo:1,pageSize:200,map_id:mapId,exclude_missions:true,active_only:true})
+      ]);
+      if(state.map!==editor||state.mapRow?.id!==mapId)return;
+      state.mapTasks=data.list||[];state.mapActiveTasks=active.list||[];state.mapTaskTotal=Number(data.total)||0;renderMapTasks();
+    }catch(error){const list=$('map-task-list');if(list&&state.map===editor&&state.mapRow?.id===mapId)list.innerHTML=`<p class="map-list-empty">任务状态暂不可用：${escape(error.message)}</p>`;}
   }
   async function refreshRobotModel(){
     const editor=state.map;if(!editor)return;
@@ -214,7 +242,9 @@
   function renderMapMissionExecution(){
     const panel=$('map-mission-execution'),single=$('map-task-active');if(!panel||!single)return;
     const activeStates=['queued','running','waiting_manual','paused','pausing','resuming','finishing'];
-    const run=state.mapMissionRuns.find(item=>String(item.id)===String(state.selectedMissionId))||state.mapMissionRuns.find(item=>activeStates.includes(item.status))||state.mapMissionRuns[0];
+    const selected=state.mapMissionRuns.find(item=>String(item.id)===String(state.selectedMissionId));
+    const active=state.mapMissionRuns.find(item=>activeStates.includes(item.status)&&item.status!=='queued')||state.mapMissionRuns.find(item=>item.status==='queued');
+    const run=selected&&activeStates.includes(selected.status)&&(selected.status!=='queued'||active?.status==='queued')?selected:active||selected||state.mapMissionRuns[0];
     if(single.classList.contains('has-active-task')&&run&&!activeStates.includes(run.status)){
       panel.hidden=true;single.hidden=false;return;
     }
@@ -251,13 +281,15 @@
     if(!state.map||!can('task:view'))return;
     const mapId=state.mapRow.id,modeEpoch=state.taskModeEpoch;
     try{
-      const [plans,runs,mode]=await Promise.all([
+      const [plans,runs,activeRuns,mode]=await Promise.all([
         api.get('/api/task-plans',{map_id:mapId}),
         api.get('/api/mission-runs',{map_id:mapId,page_size:8}),
+        api.get('/api/mission-runs',{map_id:mapId,page_size:100,active_only:true}),
         api.get('/api/task-mode')
       ]);
       if(!state.map||state.mapRow?.id!==mapId)return;
-      state.mapMissionPlans=plans||[];state.mapMissionRuns=runs||[];if(modeEpoch===state.taskModeEpoch&&!state.taskModePending&&['manual','auto','schedule'].includes(mode.mode)){state.taskMode=mode.mode;state.taskModeReady=true;}
+      const activeIds=new Set((activeRuns||[]).map(run=>run.id));
+      state.mapMissionPlans=plans||[];state.mapMissionRuns=[...(activeRuns||[]),...(runs||[]).filter(run=>!activeIds.has(run.id))];if(modeEpoch===state.taskModeEpoch&&!state.taskModePending&&['manual','auto','schedule'].includes(mode.mode)){state.taskMode=mode.mode;state.taskModeReady=true;}
       renderMapMissions();
       if(state.resourcePlanId){const selected=document.querySelector(`[data-plan-id="${Number(state.resourcePlanId)}"]`);if(selected){selected.open=true;state.resourcePlanId=null;}}
       renderTaskMode();
@@ -393,7 +425,7 @@
 
   async function openMap(row){
     localStorage.setItem('orange.currentRouteMap',String(row.id));
-    state.mapMissionPlans=[];state.mapMissionRuns=[];state.selectedMissionId=null;state.mapTasks=[];state.mapTaskTotal=0;
+    state.mapMissionPlans=[];state.mapMissionRuns=[];state.selectedMissionId=null;state.mapTasks=[];state.mapActiveTasks=null;state.mapTaskTotal=0;
     clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;
     await api.post(`/api/maps/${row.id}/lock`);state.mapRow=row;state.dirty=false;
     state.mapChoices=[row,...state.mapChoices.filter(item=>String(item.id)!==String(row.id))];
@@ -473,13 +505,21 @@
     state.lockTimer=setInterval(()=>api.post(`/api/maps/${row.id}/lock`).catch(error=>notify(error.message,true)),60000);
   }
   async function saveMap(){
-    if(!state.map||!state.dirty)return;
+    const editor=state.map;
+    if(!editor||!state.dirty)return;
+    const pending=mapSaves.get(editor);
+    if(pending){await pending;if(state.map===editor&&state.dirty)return saveMap();return;}
     clearTimeout(state.saveTimer);
-    const draft=structuredClone(state.map.document);
-    const result=await api.post(`/api/maps/${state.mapRow.id}/draft/save`,{revision:state.mapRow.revision,document:draft});
-    state.mapRow=result;
-    state.dirty=JSON.stringify(draft)!==JSON.stringify(state.map.document);
-    $('map-save-state').textContent=`草稿 r${result.revision} 已保存`;$('map-revision-state').textContent=`草稿 r${result.revision} · 已发布 v${result.published_version||0}`;
+    const mapId=state.mapRow.id,revision=state.mapRow.revision,draft=structuredClone(editor.document);
+    const request=api.post(`/api/maps/${mapId}/draft/save`,{revision,document:draft});
+    mapSaves.set(editor,request);
+    try{
+      const result=await request;
+      if(state.map!==editor||state.mapRow?.id!==mapId)return;
+      state.mapRow=result;
+      state.dirty=JSON.stringify(draft)!==JSON.stringify(editor.document);
+      $('map-save-state').textContent=`草稿 r${result.revision} 已保存`;$('map-revision-state').textContent=`草稿 r${result.revision} · 已发布 v${result.published_version||0}`;
+    }finally{if(mapSaves.get(editor)===request)mapSaves.delete(editor);}
   }
   function leaveMap(){if(state.dirty&&!confirm('存在未保存修改，确定离开？'))return false;if(document.fullscreenElement===$('map-editor'))document.exitFullscreen().catch(()=>{});clearTimeout(state.saveTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);state.mapTaskTimer=null;state.map?.destroy();state.map=null;state.mapRow=null;state.dirty=false;$('filters').hidden=false;return true;}
   async function loadMapImage(){
@@ -628,7 +668,7 @@
     document.querySelectorAll('.rcs-tool-menu[open]').forEach(menu=>{menu.open=false;});
     const row=state.rows.find(r=>r.id===Number(id));
     if(name==='task-motion-pause'||name==='task-motion-resume'){
-      const task=state.mapTasks.find(item=>String(item.id)===String(id))||row;
+      const task=findMapTask(id)||row;
       if(!task)throw new Error('任务状态已更新，请刷新');
       const resume=name==='task-motion-resume';
       const submit=async value=>{await api.post(`/api/task-history/${id}/${resume?'resume':'pause'}`,resume?{confirmation:value}:{});notify(resume?'已请求沿原路线继续，等待设备确认。':'已请求停车，等待底盘确认。');if(state.map)await refreshMapTasks();else await load();};
@@ -712,9 +752,9 @@
     if(name==='mission-run-detail'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');return dialog('任务链执行记录',`<p><strong>${escape(run.name)}</strong> · ${escape(missionStateLabel(run))}</p><p>${escape(run.start_point)} · ${run.cycles_completed}/${run.repeat_count===-1?'∞':run.repeat_count} 轮 · 第 ${Math.min(run.step_index+1,run.steps.length)}/${run.steps.length} 步</p>${run.active_task?`<p>当前设备任务：${escape(run.active_task.name)} · ${badge(run.active_task.status)}</p>`:''}${(run.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${escape(item.status)} · ${escape(item.note)}</p>`).join('')||'<p class="help">暂无执行记录</p>'}${run.failure?`<p class="mission-error">${escape(run.failure)}</p>`:''}`,null);}
     if(name==='mission-stop-step'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));const task=run?.active_task;if(!task)throw new Error('没有正在执行的设备步骤');if(task.status==='queued')return confirmation('撤销待下发步骤',task.name,'当前步骤尚未被设备领取；撤销后任务链会停止，不会继续下发后续步骤。',async confirmation=>{if(confirmation!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${task.id}/cancel`);notify('待下发步骤已撤销，任务链将停止。');await refreshMapTasks();await refreshMapMissions();});return confirmation('停止当前导航并锁定',task.name,'停止当前任务链步骤并请求设备确认停车。确认回执前任务不会标记完成；软件停止不能代替物理急停。',async confirmation=>{const result=await api.post(`/api/task-history/${task.id}/stop`,{confirmation});notify(result.stop_status==='pending'?'停止请求已发出，等待设备确认。':'设备领取前任务已撤销。');await refreshMapTasks();await refreshMapMissions();});}
     if(name==='mission-cancel'){const run=state.mapMissionRuns.find(item=>String(item.id)===String(id));if(!run)throw new Error('任务链状态已更新，请刷新');return confirmation('取消任务链',run.name,'取消后不会继续执行后续步骤。若某个导航段已由设备接收，请先在任务执行栏停止并锁定。',async confirmation=>{await api.post(`/api/mission-runs/${id}/cancel`,{confirmation});notify('任务链已取消。');await refreshMapMissions();});}
-    if(name==='map-task-detail'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('任务记录已更新，请刷新后重试');return dialog('任务时间轴',`<p><strong>${escape(task.name)}</strong> · ${badge(task.status)}</p><p>${escape(task.from_point)} → ${escape(task.to_point)} · 机器人 ${escape(task.robot_id||'等待分配')}</p>${(task.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${badge(item.status)} ${escape(item.note)}</p>`).join('')||'<p class="help">暂无设备回执</p>'}<p>${escape(task.failure||'')}</p>`,null);}
-    if(name==='map-task-cancel'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task||task.status!=='queued')throw new Error('该任务已不在排队状态');return confirmation('取消排队任务',task.name,'仅取消尚未开始的任务。',async value=>{if(value!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${id}/cancel`);await refreshMapTasks();});}
-    if(name==='map-task-stop'){const task=state.mapTasks.find(item=>String(item.id)===String(id));if(!task)throw new Error('没有可停止的任务记录');return confirmation('停止任务并锁定',task.name,'会向设备发送停止请求并保持软件停止锁。设备回执到达前仍显示执行中；这不代替物理急停。',async value=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:value});notify(result.stop_status==='pending'?'停止请求已发送，等待设备回执。':'任务已在设备领取前撤销。');await refreshMapTasks();});}
+    if(name==='map-task-detail'){const task=findMapTask(id);if(!task)throw new Error('任务记录已更新，请刷新后重试');return dialog('任务时间轴',`<p><strong>${escape(task.name)}</strong> · ${badge(task.status)}</p><p>${escape(task.from_point)} → ${escape(task.to_point)} · 机器人 ${escape(task.robot_id||'等待分配')}</p>${(task.timeline||[]).map(item=>`<p>${stamp(item.at)} · ${badge(item.status)} ${escape(item.note)}</p>`).join('')||'<p class="help">暂无设备回执</p>'}<p>${escape(task.failure||'')}</p>`,null);}
+    if(name==='map-task-cancel'){const task=findMapTask(id);if(!task||task.status!=='queued')throw new Error('该任务已不在排队状态');return confirmation('取消排队任务',task.name,'仅取消尚未开始的任务。',async value=>{if(value!==task.name)throw new Error('任务名称不一致');await api.post(`/api/task-history/${id}/cancel`);await refreshMapTasks();});}
+    if(name==='map-task-stop'){const task=findMapTask(id);if(!task)throw new Error('没有可停止的任务记录');return confirmation('停止任务并锁定',task.name,'会向设备发送停止请求并保持软件停止锁。设备回执到达前仍显示执行中；这不代替物理急停。',async value=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:value});notify(result.stop_status==='pending'?'停止请求已发送，等待设备回执。':'任务已在设备领取前撤销。');await refreshMapTasks();});}
     if(name==='export-logs'){const params=filterParams();params.level=params.state;saveBlob(await api.download('/api/logs/export',params),'运行日志.csv');return;}
     if(name==='add-map')return newMapForm();
     if(name==='open-pgm-map')return existingPgmForm();
@@ -833,9 +873,10 @@
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();
   $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notify(e.message,true));};
   $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
-  $('dialog-close').onclick=$('dialog-cancel').onclick=()=>$('dialog').close();
+  $('dialog-close').onclick=$('dialog-cancel').onclick=closeDialog;
+  $('dialog').addEventListener('cancel',preventPendingDialogCancel);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)state.monitor?.stop();else{if(can('monitor:view'))state.monitor?.start();if(!state.map)load();}});
-  window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{if((state.dirty||dialogPending)&&!window.OrangeNavigation?.leaveApproved()){event.preventDefault();event.returnValue='';}});
   window.addEventListener('pagehide',()=>{state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);state.map?.destroy();});
   document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
   window.addEventListener('message',event=>{
@@ -851,5 +892,7 @@
     state.preferredAssetKey=typeof event.data.asset==='string'?event.data.asset:'';
     if(!state.map&&state.tab==='maps'&&!$('dialog').open)load().catch(error=>notify(error.message,true));
   });
+  const registerMapLeaveGuard=()=>window.OrangeNavigation?.registerLeaveGuard(canLeaveOperations);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',registerMapLeaveGuard,{once:true});else registerMapLeaveGuard();
   init();
 })();

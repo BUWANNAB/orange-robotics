@@ -1373,3 +1373,10 @@ body.radar-settings-page main#radarSettingsMount {
         grid-template-columns: 1fr;
     }
 }
+
+/* The return path remains visible even when configuration loading fails. */
+body.radar-settings-page>.masthead{position:sticky;top:var(--orange-bar-height,0px);z-index:20;flex-wrap:wrap;gap:16px}
+.radar-return-map{display:inline-flex;margin-top:12px;align-items:center;padding:8px 12px;border:1px solid #c5d6e9;border-radius:6px;background:#eef4ff;color:#225ea9!important;text-decoration:none;font-size:13px!important;font-weight:650}
+.radar-page-nav{flex-wrap:wrap;max-width:100%}
+.radar-page-nav #radar-retry{padding:9px 13px;font-size:13px;border:1px solid #bccfe5;background:#eef4ff;color:#225ea9;border-radius:6px}
+.radar-unsaved{margin:0 0 12px;color:#65758b;font-size:13px}.radar-unsaved.is-dirty{color:#8b5b18}

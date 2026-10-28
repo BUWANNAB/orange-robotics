@@ -74,13 +74,14 @@ async def add_task(body: TaskInput, actor=Depends(require("task:edit")), db=Depe
 async def history(keyword: str = "", state: str = "", start: datetime | None = None, end: datetime | None = None,
                   robot_id: int | None = None, pageNo: int = Query(1, ge=1, le=10000),
                   pageSize: int = Query(20, ge=1, le=200), map_id: int | None = Query(None, gt=0),
-                  exclude_missions: bool = False, actor=Depends(require("task:view")), db=Depends(get_db)):
+                  exclude_missions: bool = False, active_only: bool = False, actor=Depends(require("task:view")), db=Depends(get_db)):
     clauses = []
     if keyword: clauses.append(TaskRun.name.contains(keyword, autoescape=True))
     if state: clauses.append(TaskRun.status == state)
     if robot_id: clauses.append(TaskRun.robot_id == robot_id)
     if map_id: clauses.append(TaskRun.map_id == map_id)
     if exclude_missions: clauses.append(TaskRun.source != "mission")
+    if active_only: clauses.append(TaskRun.status.in_(["dispatched", "running"]))
     if start or end:
         start, end = time_bounds(start, end, 366)
         clauses.append(TaskRun.created_at.between(start, end))

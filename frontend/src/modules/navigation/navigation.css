@@ -34,3 +34,7 @@ html.orange-navigation-host body.route-mode{height:100dvh}
   .orange-navigation>header{display:none}
   .orange-navigation nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:6px 10px}
 }
+
+.orange-home-link{flex:none;display:inline-flex;align-items:center;min-height:34px;padding:6px 11px;border:1px solid #bfd0e6;border-radius:6px;background:#eef4ff;color:#225ea9;text-decoration:none;font:600 12px/1.4 'Microsoft YaHei','Segoe UI',sans-serif;white-space:nowrap}
+.orange-home-link:focus-visible{outline:2px solid #80b8ff;outline-offset:3px}
+@media(max-width:600px){.orange-app-bar{gap:7px}.orange-app-brand{display:none}.orange-home-link{padding:6px 8px}}

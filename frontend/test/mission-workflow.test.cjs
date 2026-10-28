@@ -17,7 +17,7 @@ function harness(publishedDocument=mapDocument) {
   const elements = new Map(), calls = [];
   const element = id => {
     if (!elements.has(id)) elements.set(id, {id,innerHTML:'',textContent:'',dataset:{},value:'',checked:false,
-      classList:{contains:()=>false,toggle(){},add(){},remove(){}},querySelectorAll:()=>[],rows:[]});
+      setAttribute(){},classList:{contains:()=>false,toggle(){},add(){},remove(){}},querySelectorAll:()=>[],rows:[]});
     return elements.get(id);
   };
   const form = element('dialog-form');

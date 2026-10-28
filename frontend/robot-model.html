@@ -4,7 +4,7 @@
 <title>车体坐标与模型 · Orange Robotics</title>
 <script>if(new URLSearchParams(location.search).has('embedded'))document.documentElement.classList.add('embedded');</script>
 <link rel="stylesheet" href="src/modules/robot-model/model.css?v=model-home-20261027-1">
-<script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script><link rel="stylesheet" href="src/modules/navigation/navigation.css?v=docked-workspace-20261028-1"><script src="src/modules/navigation/navigation.js?v=docked-workspace-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
+<script type="importmap">{"imports":{"three":"./src/libs/three/three.module.js","three/addons/":"./src/libs/three/examples/jsm/"}}</script><link rel="stylesheet" href="src/modules/navigation/navigation.css?v=industrial-review-20261028-1"><script src="src/modules/navigation/navigation.js?v=industrial-review-20261028-1" defer></script><link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
 <body>
 <header><div class="page-heading"><a id="model-home" class="home-link" href="index.html">← 返回首页</a><div><span>ORANGE ROBOTICS</span><h1>车体坐标与模型</h1></div></div><strong id="model-status">读取配置…</strong></header>
 <main><section class="model-view"><div id="model-viewport" aria-label="base_link 车体与雷达三维模型"></div>
@@ -18,7 +18,7 @@
 <section class="mount"><h2>雷达相对 base_link</h2><p id="mount-status">读取安装外参…</p><a href="radar-settings.html" target="_blank" rel="noopener">在雷达配置中修改安装外参 ↗</a></section>
 <details><summary>坐标链检查</summary><div id="tf-notes"></div><button id="check-tf" type="button">核对运行中 TF</button><p id="tf-result" role="status">尚未核对运行中 TF</p></details>
 <label class="confirmation">输入“保存车体模型”确认<input name="confirmation" autocomplete="off" required></label>
-<div class="actions"><button id="save-model" type="submit">保存模型</button><button id="reset-model" type="button">恢复已保存</button><button id="export-urdf" type="button">导出 URDF</button></div>
+<div class="actions"><button id="save-model" type="submit" disabled>保存模型</button><button id="reset-model" type="button" disabled>恢复已保存</button><button id="export-urdf" type="button" disabled>导出 URDF</button><button id="retry-model" type="button" hidden>重新读取模型与权限</button></div>
 <p id="model-notice" role="status"></p></form></aside></main>
-<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/robot-model/model.js?v=model-home-20261027-1"></script>
+<script src="src/libs/axios.min.js"></script><script src="src/api/api-simple.js"></script><script src="src/api/operations.js"></script><script type="module" src="src/modules/robot-model/model.js?v=industrial-review-20261028-1"></script>
 </body></html>
