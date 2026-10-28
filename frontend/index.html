@@ -7,7 +7,7 @@
 	<link rel="icon" href="/src/assets/logo/favicon.svg" type="image/svg+xml" />
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1, viewport-fit=cover" />
-	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=operations-layout-20261028-1" />
+	<link rel="stylesheet" type="text/css" href="/src/libs/css/index.css?v=rds-navigation-20261028-1" />
 	<link rel="stylesheet" type="text/css" href="/src/modules/operations/confirm-lock.css?v=20261024-critical-action-lock-1" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/icons.min.css" />
 	<link rel="stylesheet" type="text/css" href="/src/libs/css/boxicons.min.css" />
@@ -108,10 +108,10 @@
 
 
 	</style>
-</head>
+<link rel="stylesheet" href="src/modules/navigation/navigation.css?v=rds-navigation-20261028-1"><script src="src/modules/navigation/navigation.js?v=rds-navigation-20261028-1"></script></head>
 
 <body>
-	<div class="page" id="app">
+	<div class="page modern-view" id="app">
 		<div id="mainNavigation" class="nav-left" :class="{'nav-open': navLeftFlag}" ref="navLeft" @click="onNavLeftClick">
 			<div class="LogoName">
 				<span class="logo" style="font-size: 26px; display:flex; align-items:center; justify-content:center; background:none; width:32px; height:32px; flex:0 0 32px;">🍊</span>
@@ -120,8 +120,10 @@
 			<div class="navDiv">
 				<!-- <div class="navName">导航</div> -->
 				<div class="nav-list">
+					<section v-for="group in navigationGroups" :key="group.id" class="navigation-group">
+						<h2 class="navigation-group-title">{{ group.title }}</h2>
 					<ul>
-						<li v-for="item in sidebarItems" :key="item.id"
+						<li v-for="item in group.items" :key="item.id"
 							:class="['nav-tab', 'nav-ul', {'displaynone': !item.visible, 'a_active': activeItem === item.id}]"
 							v-show="item.visible" @click="navigateToItem(item)">
 							<a :href="item.url" class="li-a" :class="{'active': activeItem === item.id}"
@@ -131,6 +133,7 @@
 							</a>
 						</li>
 					</ul>
+					</section>
 				</div>
 			</div>
 		</div>
@@ -273,7 +276,7 @@
 			</div>
 			<div class="content-page" ref="cPage">
 				<iframe name="iframe" title="地图与路线工作台" width="100%" height="100%" frameborder="0"
-					src="/ui/map-workbench.html?console=1&ui=operations-layout-20261028-1#route"></iframe>
+					src="/ui/map-workbench.html?console=1&ui=rds-navigation-20261028-1#route"></iframe>
 			</div>
 		</div>
 	</div>
@@ -449,6 +452,7 @@
 				},
 				userRole: 'user' // 默认用户角色为user
 			},
+			computed: { navigationGroups() { return window.OrangeNavigation.navigationGroups(this.sidebarItems); } },
 			methods: {
 				isShowLeft() {
 					this.navLeftFlag = !this.navLeftFlag;
@@ -572,7 +576,7 @@
 				},
 				async loadSidebarConfig() {
 			try {
-				const response = await fetch('./src/config/sidebar.json?v=operations-layout-20261028-1');
+				const response = await fetch('./src/config/sidebar.json?v=rds-navigation-20261028-1');
 				const config = await response.json();
 
 				// 根据用户角色过滤侧边栏项目
@@ -597,7 +601,7 @@
 				console.error('加载侧边栏配置文件失败:', error);
 				// 如果配置文件加载失败，使用默认配置
 				let defaultItems = [
-					{ id: 'mapWorkbench', title: '地图与路线', icon: 'bx bx-map', url: '/ui/map-workbench.html?console=1#route', visible: true, order: 0 },
+					{ id: 'mapWorkbench', title: '地图与路线', group: 'workspace', icon: 'bx bx-map', url: '/ui/map-workbench.html?console=1#route', visible: true, order: 0 },
 					// { id: 'leftmap', title: '手动规划', icon: 'bx bx-git-compare', url: 'pages/leftmap.html', visible: true, order: 2 },
 					// { id: 'globalPath', title: '自动规划', icon: 'bx bx-shape-square', url: 'pages/globalPath.html', visible: true, order: 3 },
 					// { id: 'machine_control', title: '遥控操作', icon: 'bx bxs-joystick', url: 'pages/machine_control.html', visible: true, order: 4 },
@@ -1754,8 +1758,8 @@
 	
 	
 	</script>
-<script src="src/modules/operations/operations-layout.js?v=operations-layout-20261028-1"></script>
-<script src="src/modules/operations/legacy-localization-status.js?v=operations-layout-20261028-1"></script>
+<script src="src/modules/operations/operations-layout.js?v=rds-navigation-20261028-1"></script>
+<script src="src/modules/operations/legacy-localization-status.js?v=rds-navigation-20261028-1"></script>
 <script>
 	(function () {
 		const app = document.getElementById('app');
@@ -1774,9 +1778,12 @@
 			try {
 				const url = new URL(frame.contentWindow.location.href);
 				const layout = window.OperationsLayout.classifyPath(url.pathname);
+				app.classList.toggle('legacy-recording-view', window.OperationsLayout.showsRecording(url.pathname));
 				app.classList.toggle('map-home', layout === 'map');
-				app.classList.toggle('modern-view', layout !== 'legacy');
-				document.documentElement.classList.toggle('modern-workspace', layout !== 'legacy');
+				const active = vue.sidebarItems.find(item => new URL(item.url,location.href).pathname === url.pathname && (!new URL(item.url,location.href).hash || new URL(item.url,location.href).hash === url.hash));
+				if(active)vue.activeItem=active.id;
+				app.classList.toggle('modern-view', !window.OperationsLayout.showsRecording(url.pathname));
+				document.documentElement.classList.toggle('modern-workspace', !window.OperationsLayout.showsRecording(url.pathname));
 			} catch (_) {}
 		};
 		frame?.addEventListener('load', syncMapChrome);

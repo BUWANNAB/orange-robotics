@@ -641,6 +641,7 @@
     if(name==='cancel-task')return confirmation('取消排队任务',row.name,'仅取消尚未开始的任务。',async v=>{if(v!==row.name)throw new Error('任务名不一致');await api.post(`/api/task-history/${id}/cancel`);});
     if(name==='stop-task')return confirmation('停止执行中任务',row.name,'设备未领取时直接撤销；已领取时发送停止并锁定指令。设备确认前任务仍显示执行中；软件停止不代替物理急停。',async v=>{const result=await api.post(`/api/task-history/${id}/stop`,{confirmation:v});notify(result.stop_status==='pending'?'停止请求已排队，等待设备回执。':'任务已在设备领取前撤销。');});
     if(name==='map-open-navigation'){
+      if(window.OrangeNavigation?.open){window.OrangeNavigation.open();return;}
       if(window.top===window){
         if(state.map)await saveMap();
         window.location.href='index.html?navigation=open'+(state.mapRow?.id?'&mapId='+encodeURIComponent(state.mapRow.id):'');

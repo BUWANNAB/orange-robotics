@@ -725,3 +725,8 @@ html.modern-workspace .legacy-localization-status { display: none !important; }
 	.page .nav-left { height: 100dvh; }
 	.mobile-nav-backdrop { height: 100dvh; }
 }
+
+/* Recording belongs to the legacy route capture page, never to management pages. */
+.page:not(.legacy-recording-view) .nav-top{display:none!important}
+.page:not(.legacy-recording-view) .content-page{top:0;bottom:0;margin-top:0;transition:none}
+.page:not(.legacy-recording-view) .content-page iframe{height:100%}

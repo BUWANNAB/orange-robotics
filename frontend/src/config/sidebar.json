@@ -6,7 +6,8 @@
       "icon": "bx bx-map",
       "url": "/ui/map-workbench.html?console=1#route",
       "visible": true,
-      "order": 0
+      "order": 0,
+      "group": "workspace"
     },
     {
       "id": "rcsOperations",
@@ -14,9 +15,10 @@
       "icon": "bx bx-grid-alt",
       "url": "/ui/operations.html",
       "visible": true,
-      "order": 1
+      "order": 2,
+      "group": "operations"
     },
-        {
+    {
       "id": "leftmap_simple",
       "title": "操作运行",
       "icon": "bx bx-map",
@@ -32,14 +34,14 @@
       "visible": false,
       "order": 1
     },
-
     {
       "id": "drawMap",
       "title": "地图创建",
       "icon": "bx bx-buildings",
-      "url": "/src/components/process-map/handle_map.html",
+      "url": "/ui/map-workbench.html#build",
       "visible": true,
-      "order": 4
+      "order": 1,
+      "group": "workspace"
     },
     {
       "id": "lidarSettings",
@@ -47,18 +49,18 @@
       "icon": "bx bx-radar",
       "url": "/ui/radar-settings.html",
       "visible": true,
-      "order": 5
+      "order": 5,
+      "group": "engineering"
     },
-
     {
       "id": "dataAdmin",
       "title": "地图资源",
       "icon": "bx bx-table",
       "url": "/ui/map-resources.html",
       "visible": true,
-      "order": 6
+      "order": 3,
+      "group": "resources"
     },
-
     {
       "id": "globalPath",
       "title": "自动规划",
@@ -67,7 +69,6 @@
       "visible": false,
       "order": 5
     },
-
     {
       "id": "robot_data",
       "title": "机器参数",
@@ -99,7 +100,8 @@
       "url": "/src/components/clock/clock.html",
       "visible": false,
       "order": 10
-    },        {
+    },
+    {
       "id": "machine_control",
       "title": "遥控操作",
       "icon": "bx bxs-joystick",
@@ -107,8 +109,7 @@
       "visible": false,
       "order": 11
     },
-
-        {
+    {
       "id": "recordBag",
       "title": "录制话题",
       "icon": "bx bx-buildings",
@@ -124,7 +125,6 @@
       "visible": false,
       "order": 13
     },
-
     {
       "id": "mapRoom",
       "title": "地图房间",
@@ -133,7 +133,7 @@
       "visible": false,
       "order": 14
     },
-        {
+    {
       "id": "wornMsg",
       "title": "报警信息",
       "icon": "bx bx-buildings",
@@ -148,6 +148,24 @@
       "url": "/src/components/global-data/vehicle-safety.html",
       "visible": false,
       "order": 16
+    },
+    {
+      "id": "robotModel",
+      "title": "车体坐标与模型",
+      "icon": "bx bx-cube",
+      "url": "/ui/robot-model.html",
+      "visible": true,
+      "order": 6,
+      "group": "engineering"
+    },
+    {
+      "id": "rosMaintenance",
+      "title": "ROS 运行维护",
+      "icon": "bx bx-wrench",
+      "url": "/ui/ros-maintenance.html",
+      "visible": true,
+      "order": 7,
+      "group": "engineering"
     }
   ]
 }
