@@ -30,7 +30,6 @@ from app.services.operations_worker import tick, callbacks_tick
 from app.services.operations_common import now
 from sqlalchemy import select
 from app.services.map_editor import validate_map
-from app.api.user import generate_token
 from app.api.user import hash_password
 from app.models.user import User
 
@@ -48,7 +47,8 @@ class OperationsTests(unittest.TestCase):
         cls.client.__enter__()
         async def seed_admin():
             async with AsyncSessionLocal() as db:
-                db.add(User(userAccount="admin", userPassword=hash_password("admin")))
+                admin = await db.scalar(select(User).where(User.userAccount == "admin"))
+                admin.userPassword = hash_password("admin")
                 await db.commit()
         asyncio.run(seed_admin())
         login = cls.client.post('/user/login',json={"userAccount":"admin","userPassword":"admin"}).json()
@@ -87,10 +87,10 @@ class OperationsTests(unittest.TestCase):
         response=self.client.post('/user/register',headers=self.headers,
                                   json={'userAccount':'viewer','userPassword':'viewer-password'})
         self.assertEqual(response.json()['code'],0)
-        viewer_token=generate_token('viewer')
+        viewer_token=self.client.post('/user/login',json={'userAccount':'viewer','userPassword':'viewer-password'}).json()['data']
         current=self.client.get('/user/current',headers={'Authorization':viewer_token})
         self.assertEqual(current.json()['data']['roles'],['user'])
-        denied=self.client.post('/api/robots',headers={'Authorization':generate_token('viewer')},json={'code':'DENIED','name':'Denied','model':'X'})
+        denied=self.client.post('/api/robots',headers={'Authorization':viewer_token},json={'code':'DENIED','name':'Denied','model':'X'})
         self.assertEqual(denied.status_code,403)
         self.assertEqual(self.client.post('/user/logout',headers={'Authorization':viewer_token}).json()['code'],0)
         self.assertEqual(self.client.get('/user/current',headers={'Authorization':viewer_token}).status_code,401)
@@ -252,7 +252,8 @@ class OperationsTests(unittest.TestCase):
         map_id=self.call('POST','/api/maps',{'name':'locked-map','document':MAP})['id']
         self.call('POST',f'/api/maps/{map_id}/lock')
         with patch.dict(os.environ,{'RCS_PERMISSIONS':json.dumps({'viewer':['map:edit']})}):
-            response=self.client.post(f'/api/maps/{map_id}/draft/save',headers={'Authorization':generate_token('viewer')},json={'revision':0,'document':MAP})
+            token=self.client.post('/user/login',json={'userAccount':'viewer','userPassword':'viewer-password'}).json()['data']
+            response=self.client.post(f'/api/maps/{map_id}/draft/save',headers={'Authorization':token},json={'revision':0,'document':MAP})
             self.assertEqual(response.status_code,423)
 
     def test_11_upgrade_reservation_and_low_battery(self):

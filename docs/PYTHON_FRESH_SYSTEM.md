@@ -52,8 +52,8 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
 3. 手动部署时，在 MySQL 8 中创建**全新空数据库**和专用账号，授予该库建表及运行所需权限。不要指向旧 `db_ant`。把 `ops/config/runtime.env.example` 复制为 `~/.config/orange-agv/runtime.env`，填写真实路径、数据库连接和至少 32 字符随机 `JWT_SECRET`，设置文件权限 `600`。首次配置保留 `SIMULATION_MODE=true`、`RCS_WORKER_ENABLED=false`、`RCS_ROS_CONTROL_ENABLED=false`，不要填写 `RCS_LOCAL_ROBOT_ID`；确认环境后再按验收流程逐项开放。`ROBOT_NAV_WS` 应为 `/opt/orange/ros/orange_nav_ws`；确保服务用户可写 `ROBOT_PCD_DIR`、`ROBOT_MAP_DIR`、`RCS_DATA_DIR`、`ROBOT_FILES_DIR` 和 `ROBOT_STATIC_MAPS_DIR`；不要提交实际配置文件。
 
-   新机已部署好源码、venv 和运行目录时，可在**可交互的 SSH 终端**运行 `bash /opt/orange/ops/scripts/bootstrap-rcs-first-start.sh`。脚本会提示输入 MariaDB DBA 凭据和首个 Web 管理员密码；它只接受不存在的 `orange_rcs` 数据库及 `orange_rcs_app` 账号，生成独立 DB/JWT 密钥，初始化空表，并只启动仿真 Web。发现同名库、账号或已有运行配置时会拒绝覆盖。此脚本不会启动 ROS core、PLC、定位或建图服务。
-4. 初始化新数据库与首个管理员。命令会拒绝非 MySQL 或已有表的数据库；管理员密码在终端交互输入，不出现在命令行：
+   新机已部署好源码、venv 和运行目录时，可在**可交互的 SSH 终端**运行 `bash /opt/orange/ops/scripts/bootstrap-rcs-first-start.sh`。脚本会提示输入 MariaDB DBA 凭据；它只接受不存在的 `orange_rcs` 数据库及 `orange_rcs_app` 账号，生成独立 DB/JWT 密钥，初始化空表与两组初始 Web 账号，并只启动仿真 Web。发现同名库、账号或已有运行配置时会拒绝覆盖。此脚本不会启动 ROS core、PLC、定位或建图服务。
+4. 初始化新数据库与两组初始账号。建表命令会拒绝非 MySQL 或已有表的数据库；账号初始化补齐 `admin / 123` 和 `user / 123`，保留已有账号密码。后端启动时也会补齐缺失的初始账号：
 
    ```bash
    cd /opt/orange/backend
@@ -79,9 +79,9 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
 ## 切换与验收边界
 
-- `ops/scripts/web-service.sh` 强制生产 MySQL、单 Web 进程，并要求显式设置仿真、后台 worker 和 ROS 服务控制开关；启动时保留 ROS 的 Python 路径。生产启动还检查数据库连接、管理员账号和可选的本机机器人 ID。首次配置以仿真预览开始，现场服务需在硬件验收后显式切换。
+- `ops/scripts/web-service.sh` 强制生产 MySQL、单 Web 进程，并要求显式设置仿真、后台 worker 和 ROS 服务控制开关；启动时保留 ROS 的 Python 路径。生产启动还检查数据库连接、初始化后的管理员启用状态和可选的本机机器人 ID。首次配置以仿真预览开始，现场服务需在硬件验收后显式切换。
 - 新系统首页是 `/ui/operations.html`，并提供地图工作台、地图绑定、定位和 ROS 维护入口。旧 `/ui/index.html` 重定向到新首页；`/src` 仅为旧资源兼容。新系统不依赖旧 Java 的 116 条业务路由。
-- 新生产环境只接受带独立盐的 scrypt 密码；旧式 Java/预览密码格式只留在非生产开发环境。新建账号须设置至少 12 位密码。
+- 系统只接受带独立盐的 scrypt 密码。初始账号固定为操作员 `user / 123`、管理员 `admin / 123`；在统一顶部栏点“修改密码”可自行更改，至少 3 位，重启保留。详见 [初始账号与修改密码](ACCOUNTS_AND_PASSWORDS.md)。
 - 软件测试无法证明雷达、定位收敛、PLC 使能和底盘制动。首次接车按静止状态逐项确认地图坐标、实时位姿、停止回执、速度反馈、路线跟踪与断线锁定；未经现场确认不执行载人/自主行驶。
 - ROS 维护页提供“请求 PLC 启动”和“停车并锁定”：均需要权限、确认词和审计原因。启动先确认停车再发布 `/plc_start=1`；停车并锁定等待导航停止回执并确认静止。界面始终把物理使能显示为“未知”，不会把软件锁定冒充 PLC 断使能。`ros2plc` 仅定义了启动脉冲，没有经过确认的物理停用命令或使能状态回读；需取得实际寄存器协议并在现场验证后才能完成硬件使能切换。启动脉冲在 Modbus 写入失败时保留等待重试，但写入成功仍不等于 PLC 已使能。
 - 新增 `/plc_link_status`，仅表示最近 500 毫秒有成功的 Modbus 输入寄存器读取；Web 停车判断还要求该反馈在最近 1 秒内有效，并同时检查导航状态和速度。此连接信号**不是**物理使能回读，也不能代替安全回路。必须重新编译并部署更新后的 `ros2plc` 节点。

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.common.response import ok
 from app.models.operations import Robot, BatterySample, Alarm, Command, TaskRun
-from app.services.operations_common import require, device, public, page, audit, confirm, get_or_404, time_bounds, now
+from app.services.operations_common import require, device, public, page, audit, confirm, get_or_404, time_bounds, now, permissions
 from app.services.fleet_service import robot_view, ingest, queue_command, finish_command, COMMANDS
 
 router = APIRouter(prefix="/api")
@@ -208,6 +208,8 @@ async def battery_history(robot_id: int, start: datetime | None = None, end: dat
 async def command(robot_id: int, command: str, body: CommandInput, actor=Depends(require("robot:control")), db=Depends(get_db)):
     if command not in COMMANDS:
         raise HTTPException(400, "不支持的操作")
+    if command == "reboot" and not {"*", "ros:maintain"}.intersection(permissions(actor)):
+        raise HTTPException(403, "重启机器人需要管理员维护权限")
     row = await get_or_404(db, Robot, robot_id)
     confirm(body.confirmation, row.code)
     result = await queue_command(db, row, command, body.params, actor, body.key)
@@ -232,6 +234,8 @@ class BatchInput(BaseModel):
 async def batch(body: BatchInput, actor=Depends(require("robot:control")), db=Depends(get_db)):
     if body.command not in COMMANDS:
         raise HTTPException(400, "不支持的操作")
+    if body.command == "reboot" and not {"*", "ros:maintain"}.intersection(permissions(actor)):
+        raise HTTPException(403, "重启机器人需要管理员维护权限")
     results = []
     for identity in dict.fromkeys(body.robot_ids):
         try:

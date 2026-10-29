@@ -8,14 +8,15 @@ from collections import OrderedDict, deque
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 
 from app.config import settings
 from app.database import get_db
 from app.common.response import ok, error
 from app.models.user import User
+from app.services.auth_tokens import generate_token
 
 logger = logging.getLogger("orange_agv.api.user")
 
@@ -50,13 +51,19 @@ def record_login(key: tuple[str, str], success: bool) -> None:
             _failed_logins.popitem(last=False)
 
 class UserLoginRequest(BaseModel):
-    userAccount: str
-    userPassword: str
+    userAccount: str = Field(max_length=255)
+    userPassword: str = Field(max_length=128)
 
 class UserRegisterRequest(BaseModel):
-    userAccount: str
-    userPassword: str
-    checkPassword: Optional[str] = None
+    userAccount: str = Field(min_length=1, max_length=255)
+    userPassword: str = Field(min_length=3, max_length=128)
+    checkPassword: Optional[str] = Field(default=None, max_length=128)
+
+
+class PasswordChangeRequest(BaseModel):
+    oldPassword: str = Field(min_length=1, max_length=128)
+    newPassword: str = Field(min_length=3, max_length=128)
+    checkPassword: str = Field(min_length=3, max_length=128)
 
 def hash_password(pwd: str) -> str:
     """Hash new accounts with a per-user salt."""
@@ -77,13 +84,6 @@ def verify_password(pwd: str, stored: str) -> bool:
         except (ValueError, OverflowError):
             return False
     return False
-
-def generate_token(account: str) -> str:
-    """生成简单可靠的带时间戳令牌"""
-    ts = int(time.time() * 1000)
-    raw = f"{account}:{ts}:{settings.SECRET_KEY}"
-    signature = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
-    return f"agv_{account}_{ts}_{signature}"
 
 @router.post("/login")
 async def user_login(login_req: UserLoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
@@ -107,7 +107,7 @@ async def user_login(login_req: UserLoginRequest, request: Request, db: AsyncSes
             return error(40100, "账号或密码错误")
 
         record_login(key, True)
-        token = generate_token(account)
+        token = generate_token(account, user.userPassword)
         logger.info("用户 %s 登录成功", account)
         return ok(token, message="登录成功")
 
@@ -125,14 +125,14 @@ async def user_register(reg_req: UserRegisterRequest, db: AsyncSession = Depends
         raise HTTPException(403, "只允许管理员创建用户")
     if reg_req.checkPassword and reg_req.userPassword != reg_req.checkPassword:
         return error(40000, "两次输入的密码不一致")
+    reg_req.userAccount = reg_req.userAccount.strip()
+    if not reg_req.userAccount or not reg_req.userPassword.strip():
+        return error(40000, "账号和密码不能为空")
 
     try:
         result = await db.execute(select(User).where(User.userAccount == reg_req.userAccount))
         if result.scalar_one_or_none():
             return error(40000, "该账号已存在")
-
-        if len(reg_req.userPassword) < 12:
-            return error(40000, "密码至少 12 位")
 
         new_user = User(
             userAccount=reg_req.userAccount,
@@ -147,6 +147,34 @@ async def user_register(reg_req: UserRegisterRequest, db: AsyncSession = Depends
         logger.error("注册失败: %s", str(e))
         return error(50000, f"注册失败: {str(e)}")
 
+
+@router.post("/change-password")
+async def change_password(body: PasswordChangeRequest, request: Request,
+                          authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
+    from app.services.operations_common import authenticate, audit
+    account = await authenticate(authorization, db)
+    key = (request.client.host if request.client else "unknown", "change-password:" + account)
+    if not login_allowed(key):
+        raise HTTPException(429, "密码验证尝试过多，请五分钟后重试")
+    if body.newPassword != body.checkPassword:
+        return error(40000, "两次输入的新密码不一致")
+    if not body.newPassword.strip():
+        return error(40000, "新密码不能为空")
+    user = await db.scalar(select(User).where(User.userAccount == account, User.isDelete == 0))
+    if not verify_password(body.oldPassword, user.userPassword):
+        record_login(key, False)
+        return error(40000, "原密码不正确")
+    if body.oldPassword == body.newPassword:
+        return error(40000, "新密码不能与原密码相同")
+    changed = await db.execute(update(User).where(User.id == user.id, User.userPassword == user.userPassword)
+        .values(userPassword=hash_password(body.newPassword)))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "密码已被其他操作修改，请重新登录")
+    audit(db, account, "account", "修改自己的登录密码；全部旧登录已失效")
+    await db.commit()
+    record_login(key, True)
+    return ok(True, message="密码已修改，请使用新密码重新登录")
+
 @router.get("/current")
 async def current_user(authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
     """Return the verified account; an anonymous visitor is never an administrator."""
@@ -154,7 +182,7 @@ async def current_user(authorization: Optional[str] = Header(None), db: AsyncSes
     account = await authenticate(authorization, db)
     return ok({
         "username": account,
-        "roles": ["admin" if account == "admin" else "user"],
+        "roles": ["admin" if account == "admin" else "operator" if account == "user" else "user"],
         "permissions": permissions(account)
     })
 

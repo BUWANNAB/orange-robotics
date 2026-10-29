@@ -57,13 +57,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Database connection check failed on startup: %s", str(e))
 
+    if db_connected:
+        from app.services.initial_accounts import initialize_accounts
+        created = await initialize_accounts()
+        if created:
+            logger.info("Initialized missing accounts: %s", ", ".join(created))
+
     if settings.ENVIRONMENT == "production":
         if not db_connected:
             raise RuntimeError("生产 MySQL 未连接，拒绝启动业务服务")
         async with engine.connect() as conn:
             admin_count = await conn.scalar(text("SELECT COUNT(*) FROM t_user WHERE userAccount = 'admin' AND isDelete = 0"))
             if not admin_count:
-                raise RuntimeError("新数据库尚未创建管理员，请先运行 bootstrap_admin.py")
+                raise RuntimeError("管理员已停用，请由现场管理员核对账号状态")
             local_id = os.getenv("RCS_LOCAL_ROBOT_ID")
             if local_id:
                 robot_count = await conn.scalar(text("SELECT COUNT(*) FROM rcs_robot WHERE id = :id AND deleted = 0"),

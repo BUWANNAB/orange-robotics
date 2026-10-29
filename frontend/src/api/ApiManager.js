@@ -21,8 +21,8 @@ function isTemporaryLoginBypassEnabled() {
 // 请求拦截器（新增过期时间检查）
 axiosClient.interceptors.request.use(
   (config) => {
-    // 登录和注册接口不需要检查token
-    if (config.url === "user/login" || config.url === "user/register") {
+    // 只有登录匿名访问；创建账号需要管理员凭证。
+    if (config.url === "user/login") {
       return config;
     }
 

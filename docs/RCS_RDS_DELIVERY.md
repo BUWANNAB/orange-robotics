@@ -40,9 +40,9 @@ E:\CodexWork\rcs-rds-venv\Scripts\python.exe -m uvicorn app.main:app --host 127.
 部署要求：
 
 - **单 Uvicorn worker**。会话计数、QPS 限流和分片锁是进程内对象，未支持多进程；编辑锁、nonce、任务、升级预留则在数据库持久化。
-- 必须明确设置 `ENVIRONMENT=development` 或 `production`，且两种环境均须设置至少 32 字符的独立 `JWT_SECRET`；缺失时拒绝启动。该密钥也用于加密 WMS secret，变更前需要迁移现有密文。管理员只通过 `scripts/bootstrap_admin.py --bootstrap` 显式创建；登录不会自动生成默认账户。单进程内同一来源和账号连续失败 5 次后限制登录 5 分钟。跨域前端需通过 `ROBOT_CORS_ORIGINS` 列出准确来源。
-- 生产禁止默认管理员自动初始化，禁止匿名注册；先通过现有可信用户管理方式准备管理员。已有密码兼容策略仍保留，未进行全库密码迁移。
-- `RCS_PERMISSIONS` 为「账号 -> 权限数组」JSON。未配置时 admin 拥有全部权限，其他现有账号只有查看权限；可明确收紧 admin。
+- 必须明确设置 `ENVIRONMENT=development` 或 `production`，且两种环境均须设置至少 32 字符的独立 `JWT_SECRET`；缺失时拒绝启动。该密钥也用于加密 WMS secret，变更前需要迁移现有密文。后端启动或执行 `scripts/bootstrap_admin.py --bootstrap` 时补齐初始账号 `admin / 123` 和 `user / 123`，保留已有密码和停用状态；登录请求不会创建账号。统一顶部栏支持修改自己的密码，全部旧登录随之失效。详见 [账号说明](ACCOUNTS_AND_PASSWORDS.md)。单进程内同一来源和账号连续失败 5 次后限制登录 5 分钟。跨域前端需通过 `ROBOT_CORS_ORIGINS` 列出准确来源。
+- 禁止匿名注册；初始账号只在服务启动或显式初始化时补齐。已有账号密码不覆盖，不进行全库密码重置。
+- `RCS_PERMISSIONS` 为「账号 -> 权限数组」JSON。未配置时 admin 拥有全部权限，user 拥有日常地图与任务操作权限，其他现有账号只有查看权限；可明确收紧任一账号。
 - 回调只允许 HTTPS，主机需在 `RCS_CALLBACK_HOSTS` 列表中。列表由部署管理员维护；应配合出口 ACL，避免将不可信域名/DNS 指向内部服务。
 - `RCS_WORKER_ENABLED=false` 可运行只读/手工测试预览，暂停任务自动派发、后台回调和清理。前端仍可编辑数据，应只用于测试库。
 - 所有数据库时间为 UTC，无时区输入按 UTC 理解；界面显示 Asia/Shanghai；设备不提供客户端时间作为服务端心跳依据。

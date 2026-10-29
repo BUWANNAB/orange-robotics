@@ -20,7 +20,7 @@ switch_task = None
 @router.websocket("/ws")
 async def live(ws: WebSocket):
     from app.database import AsyncSessionLocal
-    from app.services.operations_common import authenticate, permissions, token_account
+    from app.services.operations_common import authenticate, permissions
     await ws.accept()
     try:
         first = await asyncio.wait_for(ws.receive_json(), 5)
@@ -30,13 +30,14 @@ async def live(ws: WebSocket):
         if not ({"*", "robot:view"} & set(permissions(actor))):
             raise HTTPException(403, "无定位查看权限")
         while True:
-            token_account(token)
+            async with AsyncSessionLocal() as db:
+                await authenticate(token, db)
             await ws.send_json(bridge.snapshot())
             await asyncio.sleep(0.1)
     except (WebSocketDisconnect, RuntimeError, HTTPException, ValueError, asyncio.TimeoutError):
         try:
             await ws.close(1008)
-        except RuntimeError:
+        except (RuntimeError, WebSocketDisconnect):
             pass
 
 

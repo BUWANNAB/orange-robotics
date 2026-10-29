@@ -3,16 +3,15 @@ import hmac
 import json
 import os
 import re
-import time
 import uuid
 from datetime import datetime, timedelta
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.operations import AuditLog, Robot, RevokedToken
+from app.services.auth_tokens import token_account, token_matches_password
 
 
 def now():
@@ -44,36 +43,25 @@ def audit(db, actor, module, message, robot_id=None, task_id=None, level="INFO")
                     robot_id=robot_id, task_id=task_id, level=level, trace_id=uuid.uuid4().hex))
 
 
-def token_account(token):
-    token = (token or "").removeprefix("Bearer ")
-    try:
-        prefix, ts, signature = token.rsplit("_", 2)
-        if not prefix.startswith("agv_"):
-            raise ValueError()
-        account = prefix[4:]
-        age = time.time() * 1000 - int(ts)
-        expected = hashlib.sha256(f"{account}:{ts}:{settings.SECRET_KEY}".encode()).hexdigest()[:32]
-        if not hmac.compare_digest(signature, expected) or not 0 <= age <= settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60000:
-            raise ValueError()
-        return account
-    except (ValueError, TypeError):
-        raise HTTPException(401, "登录已失效，请重新登录")
-
-
 async def authenticate(token, db):
     account = token_account(token)
     digest = hashlib.sha256((token or "").removeprefix("Bearer ").encode()).hexdigest()
     if await db.get(RevokedToken, digest):
         raise HTTPException(401, "登录已退出，请重新登录")
-    user = await db.scalar(select(User.id).where(User.userAccount == account, User.isDelete == 0))
+    user = await db.scalar(select(User).where(User.userAccount == account, User.isDelete == 0))
     if user is None:
         raise HTTPException(401, "用户不存在或已禁用")
+    if not token_matches_password(token, user.userPassword):
+        raise HTTPException(401, "密码已修改，请重新登录")
     return account
 
 
 def permissions(account):
     configured = json.loads(os.getenv("RCS_PERMISSIONS", '{}'))
-    return configured.get(account, ["*"] if account == "admin" else ["monitor:view", "robot:view", "battery:view", "alarm:view", "task:view", "map:view", "dashboard:view"])
+    viewing = ["monitor:view", "robot:view", "battery:view", "alarm:view", "task:view", "map:view", "dashboard:view"]
+    operator = viewing + ["robot:control", "alarm:handle", "task:edit", "map:edit", "map:publish", "ros:view", "log:view"]
+    defaults = ["*"] if account == "admin" else operator if account == "user" else viewing
+    return configured.get(account, defaults)
 
 
 def require(permission=None):

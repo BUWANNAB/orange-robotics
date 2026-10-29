@@ -31,17 +31,17 @@
                         <div class="mb-3">
                             <label for="userPassword" class="form-label">密码</label>
                             <div class="input-group">
-                                <input type="password" id="userPassword" class="form-control" placeholder="请输入密码（至少6位）" autocomplete="new-password" minlength="6" required>
+                                <input type="password" id="userPassword" class="form-control" placeholder="请输入密码（至少3位）" autocomplete="new-password" minlength="3" required>
                                 <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                                     <i class="bi bi-eye" id="eyeIcon"></i>
                                 </button>
                             </div>
-                            <div class="form-text">密码至少需要8个字符</div>
+                            <div class="form-text">密码至少需要3个字符；仅管理员可以创建账号</div>
                         </div>
                         <div class="mb-3">
                             <label for="confirmPassword" class="form-label">确认密码</label>
                             <div class="input-group">
-                                <input type="password" id="confirmPassword" class="form-control" placeholder="请再次输入密码" autocomplete="new-password" minlength="6" required>
+                                <input type="password" id="confirmPassword" class="form-control" placeholder="请再次输入密码" autocomplete="new-password" minlength="3" required>
                                 <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword">
                                     <i class="bi bi-eye" id="confirmEyeIcon"></i>
                                 </button>
@@ -495,7 +495,7 @@
     </script>
     <script type="text/javascript" src="../../tools/roslibjs/build/roslib.js"></script>
     <script type="module">
-            import axiosClient from "../../api/ApiManager.js";
+            import axiosClient from "../../api/ApiManager.js?v=initial-accounts-20261029-1";
           // 密码可见性切换功能
           document.getElementById('togglePassword').addEventListener('click', function() {
               const passwordInput = document.getElementById('userPassword');
@@ -560,8 +560,8 @@
                         return;
                     }
                     
-                    if (userPassword.length < 6) {
-                        registerError.textContent = '密码至少需要8个字符';
+                    if (userPassword.length < 3) {
+                        registerError.textContent = '密码至少需要3个字符';
                         registerError.style.display = 'block';
                         return;
                     }

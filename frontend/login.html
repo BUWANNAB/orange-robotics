@@ -299,7 +299,7 @@
             }
         }
     </style>
-<link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"><link rel="preload" as="image" href="src/assets/backgrounds/orange-warehouse-login-v1.png"><link rel="stylesheet" href="src/modules/theme/login-background.css?v=warehouse-login-20261028-1"></head>
+<link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"><link rel="preload" as="image" href="src/assets/backgrounds/orange-warehouse-login-v1.png"><link rel="stylesheet" href="src/modules/theme/login-background.css?v=initial-accounts-20261029-1"></head>
 <body class="login-page">
     
     <!-- 加载动画容器 -->
@@ -330,13 +330,17 @@
             <!-- 表单 -->
             <div class="login-form">
                 <h2 class="form-title">账户登录</h2>
-                 <button type="button" style="display: none;"  id="registerBtn">注册账号</button>
+                <div class="login-account-choices" role="group" aria-label="选择登录账号">
+                    <button type="button" data-login-account="user" aria-pressed="true">操作员 <small>user</small></button>
+                    <button type="button" data-login-account="admin" aria-pressed="false">管理员 <small>admin</small></button>
+                </div>
+                <p class="login-notice" id="passwordChangedNotice" role="status" hidden>密码已修改，请使用新密码登录。</p>
                 <form id="loginForm" autocomplete="off">
                     <div class="form-group">
                         <!-- 用户名输入框图标替换 -->
                         <i class="bx bx-user"></i>
-                        <input type="text" name="username" value="" class="form-input"
-                               placeholder="请输入用户名" autocomplete="off"
+                        <input type="text" name="username" value="user" class="form-input" maxlength="255"
+                               placeholder="请输入用户名" autocomplete="username"
                                onfocus="this.placeholder=''" 
                                onblur="this.placeholder='请输入用户名'">
                     </div>
@@ -344,8 +348,8 @@
                     <div class="form-group">
                         <!-- 密码输入框图标替换 -->
                     <i class="bx bx-lock-alt"></i>
-                        <input type="password" name="password" value="" class="form-input"
-                               placeholder="请输入密码" autocomplete="new-password"
+                        <input type="password" name="password" value="" class="form-input" maxlength="128"
+                               placeholder="请输入密码" autocomplete="current-password"
                                onfocus="this.placeholder=''" 
                                onblur="this.placeholder='请输入密码'">
                         <span class="toggle-password" id="togglePassword">
@@ -378,11 +382,17 @@
     </div>
 
     <script type="module">
-		import axiosClient from "./src/api/ApiManager.js"
+		import axiosClient from "./src/api/ApiManager.js?v=initial-accounts-20261029-1"
         document.addEventListener('DOMContentLoaded', function() {
             // 密码显示/隐藏切换
             const togglePassword = document.getElementById('togglePassword');
             const passwordInput = document.querySelector('input[name="password"]');
+            const usernameInput = document.querySelector('input[name="username"]');
+            const accountChoices = document.querySelectorAll('[data-login-account]');
+            const syncAccountChoice = () => accountChoices.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.loginAccount === usernameInput.value.trim())));
+            accountChoices.forEach(button => button.addEventListener('click', () => { usernameInput.value = button.dataset.loginAccount; passwordInput.value = ''; syncAccountChoice(); passwordInput.focus(); }));
+            usernameInput.addEventListener('input', syncAccountChoice);
+            document.getElementById('passwordChangedNotice').hidden = new URLSearchParams(location.search).get('passwordChanged') !== '1';
             
             togglePassword.addEventListener('click', function() {
                 const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -392,16 +402,20 @@
             // 登录表单提交处理
             const loginForm = document.getElementById('loginForm');
             const loader = document.getElementById('loader');
+            const loginButton = loginForm.querySelector('button[type="submit"]');
             
             loginForm.addEventListener('submit', function(e) {
                 e.preventDefault();
+                if (loginButton.disabled) return;
                 
                 // 获取表单数据
-                const username = document.querySelector('input[name="username"]').value;
+                const username = usernameInput.value.trim();
                 const password = document.querySelector('input[name="password"]').value;
+                if (!username || !password) { cocoMessage.error('请输入账号和密码'); return; }
                 
                 // 显示加载动画
                 loader.style.display = 'flex';
+                loginButton.disabled = true;
                 
                 // 使用真实API进行登录验证
                 const params = {
@@ -418,6 +432,7 @@
                     localStorage.setItem("tokenCreateTime", Date.now().toString());
                     // 存储用户名，用于后续判断用户角色
                     localStorage.setItem("username", username);
+                    localStorage.removeItem('robot.tempSkipLogin');
                     window.location.href = "/";
                     } else {
                         // 处理服务器返回的错误码
@@ -430,7 +445,7 @@
                         } else if(res.data.message) {
                             errorMessage = res.data.message;
                         }
-                            cocoMessage.error(登录失败,请检查账号和密码);
+                        cocoMessage.error(errorMessage);
                     }
                 })
                 .catch((error) => {
@@ -450,24 +465,9 @@
                         }
                     }
                     cocoMessage.error(errorMessage);
-                });
+                }).finally(() => { loader.style.display = 'none'; loginButton.disabled = false; });
             });
             
-            // 注册按钮点击事件
-            document.getElementById('registerBtn').addEventListener('click', function() {
-                const params = {
-                    userAccount: "",
-                    userPassword: "",
-                    checkPassword: ""
-                };
-                axiosClient.post('user/register', params)
-                .then((res) => {
-                   
-                })
-                .catch((error) => {
-                    console.error("注册请求失败:", error);
-                });
-            });
         });
     </script>
 </body>

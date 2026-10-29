@@ -13,6 +13,7 @@
 .login-page .login-logo{width:52px;height:52px;border-radius:15px;margin-bottom:16px}
 .login-page .form-title{font-size:18px;margin-bottom:22px}
 .login-page .form-input{background:#fff}
+.login-page .login-account-choices{display:flex;gap:9px;margin:-5px 0 19px}.login-page .login-account-choices button{flex:1;min-height:42px;border:1px solid #d4dfed;border-radius:7px;background:#f5f8fc;color:#526b89;font:600 13px/1.4 'Microsoft YaHei','Segoe UI',sans-serif;cursor:pointer}.login-page .login-account-choices button[aria-pressed=true]{background:#eaf2ff;border-color:#8aafe0;color:#225ea9}.login-page .login-account-choices small{margin-left:5px;font-size:11px;font-weight:400}.login-page .login-notice{padding:9px 11px;margin:0 0 16px;border:1px solid #b8d9c9;border-radius:6px;background:#eff9f3;color:#276644;font-size:12px}.login-page .login-notice[hidden]{display:none}
 @media(max-width:600px){
   .orange-theme body.login-page{background-position:12% center;background-attachment:scroll}
   .login-page .login-container{max-width:400px;padding:24px}

@@ -859,7 +859,7 @@
     }catch(error){
       $('content').innerHTML=`<div class="login-box"><h2>登录运营管理</h2><p class="help">沿用机器人平台账号。新增管理功能需要有效登录。</p><form id="login-form"><input name="userAccount" autocomplete="username" placeholder="账号" required><input name="userPassword" type="password" autocomplete="current-password" placeholder="密码" required><button class="primary">登录</button></form><p class="help" id="login-error">${escape(error.message)}</p></div>`;
       $('filters').hidden=true;
-      $('login-form').onsubmit=async event=>{event.preventDefault();try{const result=await api.post('user/login',Object.fromEntries(new FormData(event.target)));localStorage.setItem('token',result);localStorage.setItem('tokenCreateTime',String(Date.now()));localStorage.removeItem('robot.tempSkipLogin');await init();}catch(e){$('login-error').textContent=e.message;}};
+      $('login-form').onsubmit=async event=>{event.preventDefault();try{const result=await api.post('user/login',Object.fromEntries(new FormData(event.target)));localStorage.setItem('token',result);localStorage.setItem('tokenCreateTime',String(Date.now()));localStorage.removeItem('robot.tempSkipLogin');window.top.dispatchEvent(new Event('orange:account-changed'));await init();}catch(e){$('login-error').textContent=e.message;}};
     }
   }
   function closeOperationsNav(){document.body.classList.remove('operations-nav-open');$('operations-nav-toggle').setAttribute('aria-expanded','false');}
@@ -872,7 +872,7 @@
   document.addEventListener('click',async event=>{const target=event.target.closest('[data-action]');if(!target||target.disabled)return;target.disabled=true;try{await action(target.dataset.action,target.dataset.id);}catch(error){notify(error.message,true);}finally{target.disabled=target.dataset.action==='map-remove'&&state.map?.selected==null&&!state.map?.shape;}});
   $('search').onclick=()=>{state.page=1;state.logBefore=null;state.logStack=[];load();};$('refresh').onclick=()=>load();
   $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(e=>notify(e.message,true));};
-  $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
+  $('logout').onclick=async()=>{if(state.map&&!leaveMap())return;let remoteError;try{await api.post('user/logout');}catch(error){remoteError=error;}state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearInterval(state.mapTaskTimer);clearTimeout(state.saveTimer);localStorage.removeItem('token');localStorage.removeItem('tokenCreateTime');window.top.dispatchEvent(new Event('orange:account-changed'));state.permissions=[];$('nav').innerHTML='';await init();if(remoteError)alert('本机已退出；服务器未确认令牌失效，请检查连接。');};
   $('dialog-close').onclick=$('dialog-cancel').onclick=closeDialog;
   $('dialog').addEventListener('cancel',preventPendingDialogCancel);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)state.monitor?.stop();else{if(can('monitor:view'))state.monitor?.start();if(!state.map)load();}});
