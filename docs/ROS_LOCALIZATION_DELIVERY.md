@@ -99,6 +99,6 @@ ros2 topic info /navigation/result -v
 
 ## 地图拖拽重定位
 
-定位页面及工作台内嵌定位支持拖拽设置初始位置与朝向，松开后仅回填 X/Y/角度并绘制紫色预览箭头。点击重定位按钮后确认提交，继续复用停车检查、地图加载、initialpose、收敛回执及停止锁定流程。没有底图时保留数字输入。自动全局重定位尚未实现。功能缺口见 [FEATURE_GAPS.md](FEATURE_GAPS.md)。
+定位页面及工作台内嵌定位支持拖拽设置初始位置与朝向，松开后仅回填 X/Y/角度并绘制紫色预览箭头。点击重定位按钮后确认提交，继续复用停车检查、地图加载、initialpose、收敛回执及停止锁定流程。没有底图时保留数字输入。自动全局重定位已有 FPFH/RANSAC + ICP 搜索与 NDT 验证链路，目前需主动点击“自动寻找位置”，Linux/真实雷达验收边界见 [AUTO_LOCALIZATION_MOTION_CHECK.md](AUTO_LOCALIZATION_MOTION_CHECK.md)。主界面切图自动找位、启动恢复和历史有效位姿持久化列入 [FEATURE_GAPS.md](FEATURE_GAPS.md) 的工作台待优化清单。
 
 本次前端 13 项逻辑测试通过，浏览器已验证地图加载、拖拽回填与取消；仿真下禁止提交硬件请求，无实车下发。
