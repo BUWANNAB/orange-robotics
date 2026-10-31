@@ -34,7 +34,7 @@
     constructor(canvas, document, onChange, onSelect, onMeasure, onRelocalize) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.document = structuredClone(document);
       this.onChange = onChange; this.onSelect = onSelect; this.onMeasure = onMeasure; this.onRelocalize = onRelocalize; this.tool = 'select'; this.selected = null; this.shape = null;
-      this.history = []; this.future = []; this.area = []; this.areaType = 'forbidden'; this.edgeStart = null; this.drag = null;
+      this.history = []; this.future = []; this.area = []; this.areaType = 'forbidden'; this.edgeStart = null; this.drag = null; this.pendingPoint = null;
       this.layers = { background: true, paths: true, stations: true, coordinates: true, areas: true, liveRoute: true, liveTrail: true, liveRobot: true };
       this.scale = 6; this.pan = { x: 35, y: 35 };
       this.abort = new AbortController();
@@ -51,14 +51,19 @@
       this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(canvas);
       this.fit();
     }
-    setTool(tool) { this.tool = tool; this.drag = null; this.relocalization = null; if (tool !== 'measure') this.measure = null; this.draw(); }
+    setTool(tool) {
+      if (tool !== 'point' && this.pendingPoint) this.cancelPendingPoint();
+      this.tool = tool; this.drag = null; this.relocalization = null; if (tool !== 'measure') this.measure = null; this.draw();
+    }
     setLayerVisible(name, visible) { if (!(name in this.layers)) return; this.layers[name] = !!visible; this.draw(); }
     selectPoint(code) {
+      if (this.pendingPoint) this.cancelPendingPoint();
       const index = this.document.points.findIndex(point => point.code === code);
       if (index < 0) return;
       this.selected = index; this.shape = null; this.draw(); this.onSelect(this.document.points[index]);
     }
     selectObject(kind, index) {
+      if (this.pendingPoint) this.cancelPendingPoint();
       if (!this.document[kind]?.[index]) return;
       this.selected = null; this.shape = { kind, index }; this.draw(); this.onSelect({ ...this.document[kind][index], kind });
     }
@@ -67,7 +72,27 @@
       this.future = [];
     }
     changed() { this.draw(); this.onChange(this.document); }
+    confirmPendingPoint(values = {}) {
+      if (!this.pendingPoint) return false;
+      const point = { ...this.pendingPoint, ...values };
+      point.code = String(point.code || '').trim();
+      point.name = String(point.name || '').trim();
+      if (!point.code) throw new Error('请输入站点编号');
+      if (this.document.points.some(existing => existing.code === point.code)) throw new Error(`站点编号 ${point.code} 已存在`);
+      if (!Number.isFinite(Number(point.theta))) throw new Error('目标朝向必须是有效数字');
+      point.theta = Number(point.theta);
+      point.uid = objectUid();
+      delete point.kind;
+      this.checkpoint(); this.document.points.push(point); this.pendingPoint = null;
+      this.selected = this.document.points.length - 1; this.shape = null; this.changed(); this.onSelect(this.document.points[this.selected]);
+      return true;
+    }
+    cancelPendingPoint() {
+      if (!this.pendingPoint) return false;
+      this.pendingPoint = null; this.draw(); this.onSelect(null); return true;
+    }
     undo() {
+      if (this.pendingPoint) { this.cancelPendingPoint(); return; }
       if (!this.history.length) return;
       this.future.push(structuredClone(this.document)); this.document = this.history.pop(); this.selected = null; this.shape = null; this.changed(); this.onSelect(null);
     }
@@ -132,10 +157,12 @@
       } else if (this.tool === 'measure') {
         this.measure = { start: point, end: point }; this.drag = { measure: true }; this.canvas.setPointerCapture(event.pointerId); this.draw();
       } else if (this.tool === 'point') {
-        this.checkpoint(); let n = this.document.points.length + 1;
+        if (this.pendingPoint) return;
+        let n = this.document.points.length + 1;
         while (this.document.points.some(p => p.code === `P${n}`)) n++;
-        this.document.points.push({ uid: objectUid(), code: `P${n}`, name: '', type: 'station', ...point, theta: 0 });
-        this.selected = this.document.points.length - 1; this.changed(); this.onSelect(this.document.points[this.selected]);
+        this.pendingPoint = { code: `P${n}`, name: '', type: 'station', ...point, theta: 0 };
+        this.selected = null; this.shape = null; this.draw();
+        this.onSelect({ ...this.pendingPoint, kind: 'pending-point' });
       } else if ((this.tool === 'path' || this.tool === 'curve') && index >= 0) {
         const code = this.document.points[index].code;
         if (this.edgeStart && this.edgeStart !== code) {
@@ -309,6 +336,16 @@
           ctx.fillStyle = '#263d52'; ctx.fillText(label, x, y + 1);
         }
       });
+      if (this.pendingPoint) {
+        const p = this.screen(this.pendingPoint);
+        ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = '#e87832'; ctx.fillStyle = 'rgba(232,120,50,.16)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = '600 12px Microsoft YaHei, sans-serif';
+        const label = `待确认 ${this.pendingPoint.code}`, labelWidth = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.fillRect(p.x + 14, p.y - 22, labelWidth + 10, 20);
+        ctx.strokeStyle = '#e8a16f'; ctx.strokeRect(p.x + 14, p.y - 22, labelWidth + 10, 20);
+        ctx.fillStyle = '#a54d1c'; ctx.fillText(label, p.x + 19, p.y - 8); ctx.restore();
+      }
       if (this.measure) {
         const start = this.screen(this.measure.start), end = this.screen(this.measure.end), distance = Math.hypot(this.measure.end.x - this.measure.start.x, this.measure.end.y - this.measure.start.y);
         ctx.save(); ctx.strokeStyle = theme.measure; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);

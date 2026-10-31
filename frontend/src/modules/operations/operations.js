@@ -460,7 +460,12 @@
       const remove=document.querySelector('[data-action="map-remove"]');if(remove)remove.disabled=!point;
       if(point?.kind==='paths'){
         $('map-tool-hint').textContent=`路线 ${point.start} → ${point.end}`;
-        $('point-properties').innerHTML=`<p class="inspector-title">${escape(point.start)} → ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','速度上限（米/秒）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">曲线会保存为三次贝塞尔中心线，并以采样路线点发送给 ROS。发布校验仍会检查曲线越界与禁行区。</p>${button('应用路径设置','map-shape-apply','paths')}`;return;
+        $('point-properties').innerHTML=`<p class="inspector-title">${escape(point.start)} → ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','目标线速度（m/s）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">这是该路段的目标线速度。ROS 会根据弯道曲率、制动距离和加减速限制自动调整；实际车速以底盘反馈为准。曲线路径发布前会检查越界与禁行区。</p>${button('应用路径设置','map-shape-apply','paths')}`;return;
+      }
+      if(point?.kind==='pending-point'){
+        $('map-tool-hint').textContent=`待确认站点 ${point.code} · X ${Number(point.x).toFixed(2)} m · Y ${Number(point.y).toFixed(2)} m`;
+        const remove=document.querySelector('[data-action="map-remove"]');if(remove)remove.disabled=true;
+        $('point-properties').innerHTML=`<p class="inspector-title">确认添加站点</p><p class="help">点位现在只是预览；确认后才加入草稿并自动保存。位置不合适时可取消后重新选择。</p><p class="map-pending-point-coordinates">X ${Number(point.x).toFixed(3)} m · Y ${Number(point.y).toFixed(3)} m</p>${field('pending-point-code','站点编号',point.code,'text','maxlength="64" required')}${field('pending-point-name','站点名称（可选）','','text','maxlength="100"')}<div class="map-pending-point-actions">${button('确认添加','map-point-confirm','','map:edit','primary')}${button('取消','map-point-cancel','','map:edit')}</div>`;return;
       }
       if(point?.kind==='areas'){
         $('map-tool-hint').textContent=`区域：${point.name||'未命名区域'}`;
@@ -771,7 +776,7 @@
     if(name.startsWith('tool-')){
       const tool=name.slice(5);if(tool==='relocalize'&&!state.mapRow?.draft?.asset_id)throw new Error('此路线地图还没有定位点云关联；请从地图资产创建或更换底图后再定位。');
       state.map.setTool(tool);document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action===name));
-      const hints={select:'选择对象；拖动站点可微调坐标',point:'点击地图添加站点',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域边界顶点，双击闭合',pan:'拖动画布平移',measure:'按住并拖动，测量两点间距离',relocalize:'点选机器人新位置，再沿车头朝向拖动；松开后发送真实 ROS 初始位姿'};
+      const hints={select:'选择对象；拖动站点可微调坐标',point:'添加站点：点击地图放置预览点，再检查坐标并确认；按 Esc 取消',path:'依次点击两个站点创建直线路径',curve:'依次点击两个站点创建平滑曲线路径',area:'依次点击区域边界顶点，双击闭合',pan:'拖动画布平移',measure:'按住并拖动，测量两点间距离',relocalize:'点选机器人新位置，再沿车头朝向拖动；松开后发送真实 ROS 初始位姿'};
       $('map-tool-hint').textContent=hints[tool]||'地图工具已切换';if(tool==='measure')$('map-measure-result').textContent='按住并拖动地图，查看两点间距离';return;
     }
     if(name==='map-undo')return state.map.undo();if(name==='map-redo')return state.map.redo();if(name==='map-remove')return state.map.remove();if(name==='map-fit')return state.map.fit();if(name==='map-save')return saveMap();
@@ -790,6 +795,19 @@
       }return;
     }
     if(name==='map-point-apply'){const box=$('point-properties');state.map.updatePoint({code:box.querySelector('[name="point-code"]').value,name:box.querySelector('[name="point-name"]').value,type:box.querySelector('[name="point-type"]').value,theta:Number(box.querySelector('[name="point-theta"]').value)});return;}
+    if(name==='map-point-confirm'){
+      const box=$('point-properties');
+      state.map.confirmPendingPoint({code:box.querySelector('[name="pending-point-code"]').value,name:box.querySelector('[name="pending-point-name"]').value});
+      state.map.setTool('select');
+      document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
+      $('map-tool-hint').textContent='站点已加入草稿；地图已返回选择模式';
+      return;
+    }
+    if(name==='map-point-cancel'){
+      state.map.cancelPendingPoint();state.map.setTool('select');
+      document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
+      $('map-tool-hint').textContent='选择对象；拖动站点可微调坐标';return;
+    }
     if(name==='map-fullscreen'){const target=$('map-editor');if(document.fullscreenElement===target)await document.exitFullscreen();else if(target.requestFullscreen)await target.requestFullscreen();else throw new Error('当前浏览器不支持大图显示');return;}
     if(name==='map-validate'){const inspector=$('map-object-inspector');if(inspector)inspector.open=true;await saveMap();const issues=await api.post(`/api/maps/${state.mapRow.id}/validate`);$('map-issues').textContent=issues.length?issues.map(e=>`${e.element} ${e.message}`).join('\n'):'校验通过';return;}
     if(name==='map-publish'){await saveMap();const map=state.mapRow;return confirmation('发布地图',map.name,'发布前将校验连通性、禁行区与占用情况。设备从发布版本接口拉取地图。',async confirmation=>{const result=await api.post(`/api/maps/${map.id}/publish`,{revision:map.revision,confirmation});state.mapRow=await api.get(`/api/maps/${map.id}`);$('map-revision-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;$('map-save-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${state.mapRow.published_version||0}`;notify(result.localization_linked?'地图已发布，定位点云与路线版本已自动关联；设备加载结果仍需设备侧确认。':'地图已发布；设备加载结果需由设备侧确认。');});}
@@ -878,7 +896,17 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden)state.monitor?.stop();else{if(can('monitor:view'))state.monitor?.start();if(!state.map)load();}});
   window.addEventListener('beforeunload',event=>{if((state.dirty||dialogPending)&&!window.OrangeNavigation?.leaveApproved()){event.preventDefault();event.returnValue='';}});
   window.addEventListener('pagehide',()=>{state.monitor?.stop();clearInterval(state.viewTimer);clearInterval(state.lockTimer);clearTimeout(state.saveTimer);state.map?.destroy();});
-  document.addEventListener('keydown',event=>{if(!state.map||/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}});
+  document.addEventListener('keydown',event=>{
+    if(!state.map)return;
+    if(event.key==='Escape'&&state.map.tool==='point'){
+      event.preventDefault();state.map.cancelPendingPoint();state.map.setTool('select');
+      document.querySelectorAll('#map-editor [data-action^="tool-"]').forEach(button=>button.classList.toggle('map-tool-active',button.dataset.action==='tool-select'));
+      $('map-tool-hint').textContent='选择对象；拖动站点可微调坐标';return;
+    }
+    if(/INPUT|TEXTAREA|SELECT/.test(event.target.tagName))return;
+    if(event.ctrlKey&&event.key.toLowerCase()==='z'){event.preventDefault();state.map.undo();}
+    if(event.ctrlKey&&event.key.toLowerCase()==='y'){event.preventDefault();state.map.redo();}
+  });
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='robot-model-close'&&event.source===$('robot-model-frame')?.contentWindow){$('dialog').close();return;}
