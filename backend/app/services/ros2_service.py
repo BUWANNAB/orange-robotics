@@ -30,6 +30,7 @@ class ROS2BridgeService:
         self.navigation = {"status": "idle"}
         self.navigation_control = {}
         self.relocalization = {"status": "idle"}
+        self.recovery = {"status": "idle", "phase": "idle", "message": "请选择作业地图"}
         self.status_received = self.odom_received = self.battery_received = 0.0
         self.plc_link_received = 0.0
         self.lidar_received = 0.0
@@ -299,7 +300,7 @@ class ROS2BridgeService:
         fields = msg.data.split("\n", 2)
         if len(fields) != 3 or fields[0] != self.switch.get("id"):
             return
-        if fields[1] not in {"loaded", "ready", "failed"} or self.switch.get("status") in {"failed", "timeout", "ready"}:
+        if fields[1] not in {"loaded", "ready", "failed"} or self.switch.get("status") in {"failed", "timeout", "ready", "cancelled"}:
             return
         self.switch.update(status=fields[1], message=fields[2])
 
@@ -315,6 +316,7 @@ class ROS2BridgeService:
         return {**state.to_car_position_dict(), "switch": dict(self.switch),
                 "navigation": navigation, "error": self.error,
                 "relocalization": dict(self.relocalization),
+                "recovery": dict(self.recovery),
                 "auto_available": bool(not self.is_simulation and self.publishers.get('/localization/auto_request') and self.publishers['/localization/auto_request'].get_subscription_count()),
                 "connected": state.source == "ros" and self.status_fresh(), "inhibited": self.inhibited}
 
@@ -502,11 +504,12 @@ class ROS2BridgeService:
             self.require_stationary()
             request_id = uuid.uuid4().hex
             self.switch = {"id": request_id, "path": path, "status": "loading"}
-            state.localization_good, state.pose_received = False, 0
+            state.localization_good, state.pose_received, state.localization_received = False, 0, 0
             try:
                 self.publish("/localization/map_request", request_id + "\n" + path)
                 deadline = time.monotonic() + 30
                 while self.switch["status"] == "loading" and time.monotonic() < deadline:
+                    self.require_stationary()
                     await asyncio.sleep(0.05)
                 if self.switch["status"] != "loaded":
                     raise RuntimeError("地图加载未确认: " + self.switch.get("message", "超时"))
@@ -524,14 +527,16 @@ class ROS2BridgeService:
                 self.publishers[topic].publish(msg)
                 deadline = time.monotonic() + 30
                 while time.monotonic() < deadline:
+                    self.require_stationary()
                     if self.switch["status"] == "failed":
                         raise RuntimeError(self.switch.get("message", "定位失败"))
                     if self.switch["status"] == "ready" and state.localization()["valid"]:
                         return dict(self.switch)
                     await asyncio.sleep(0.1)
                 raise TimeoutError("新地图定位未收敛或新位姿未到达")
-            except Exception as exc:
-                self.switch.update(status="failed", message=str(exc))
+            except (Exception, asyncio.CancelledError) as exc:
+                self.inhibited = True
+                self.switch.update(id=uuid.uuid4().hex, status="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed", message=str(exc) or "定位已取消")
                 raise
 
     async def auto_localize(self, entry):

@@ -9,9 +9,10 @@ from sqlalchemy import select
 from app.config import settings
 from app.common.response import ok
 from app.database import get_db
-from app.models.operations import MapDocument
+from app.models.operations import MapDocument, TaskRun, MissionRun, ACTIVE_MISSION_STATES
 from app.services.operations_common import require
 from app.services.ros2_service import ros2_service as bridge
+from app.services.localization_recovery import LocalizationRecovery
 
 router = APIRouter(prefix="/api/localization", tags=["Localization"])
 switch_task = None
@@ -60,6 +61,8 @@ def catalog():
         path = (root / row["pcd"]).resolve()
         if not path.is_relative_to(root) or path.suffix.lower() != ".pcd" or not path.is_file():
             continue
+        if any(part.startswith('.') for part in path.relative_to(root).parts):
+            continue
         if any(c in str(path) for c in "\r\n"):
             continue
         asset_id=path.parent.relative_to(root).as_posix() if path.name.lower()=='globalmap.pcd' else None
@@ -104,9 +107,16 @@ class AutoInput(BaseModel):
     key:str=Field(min_length=1,max_length=256)
 
 
-async def perform_auto(entry):
-    try:await bridge.auto_localize(entry)
-    except (RuntimeError,TimeoutError):pass  # Failure is retained in the live snapshot.
+class ActivateInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    asset_id: str | None = Field(default=None, min_length=1, max_length=180)
+    map_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def selected_map(self):
+        if not self.asset_id and self.map_id is None:
+            raise ValueError("请选择作业地图")
+        return self
 
 
 async def require_localization_service():
@@ -114,6 +124,74 @@ async def require_localization_service():
     service = await ros_runtime.unit_state('localization')
     if service.get('state') != 'active':
         raise RuntimeError('雷达定位服务未运行，请先在 ROS 维护页启动定位服务')
+
+
+async def resolve_work_map(criteria):
+    from app.database import AsyncSessionLocal
+    rows = await asyncio.to_thread(catalog)
+    async with AsyncSessionLocal() as db:
+        row = None
+        if criteria.get("map_id") is not None:
+            row = await db.scalar(select(MapDocument).where(
+                MapDocument.id == criteria["map_id"], MapDocument.deleted == False))
+            if not row:
+                raise HTTPException(404, "作业地图已删除或不存在")
+            asset_id = row.draft.get("asset_id") if isinstance(row.draft, dict) else None
+            if criteria.get("asset_id") and criteria["asset_id"] != asset_id:
+                raise HTTPException(409, "作业地图与定位点云资产不一致")
+        else:
+            asset_id = criteria.get("asset_id")
+        entry = next((entry for entry in rows if asset_id and entry.get("asset_id") == asset_id), None)
+        if entry is None and criteria.get("key"):
+            entry = next((entry for entry in rows if entry["key"] == criteria["key"]), None)
+        if not entry:
+            raise HTTPException(404, "该作业地图没有可用定位点云")
+        if row is None:
+            entry = await route_asset(entry, db)
+            if entry.get("map_id") is not None:
+                row = await db.scalar(select(MapDocument).where(
+                    MapDocument.id == entry["map_id"], MapDocument.deleted == False))
+                if not row or row.draft.get("asset_id") != entry.get("asset_id"):
+                    raise HTTPException(409, "定位地图关联已失效，请重新选择作业地图")
+        return {**entry, "map_id": row.id if row else None,
+                "version": row.published_version or None if row else None,
+                "asset_revision": row.draft.get("asset_revision", "") if row else ""}
+
+
+async def require_no_active_tasks():
+    from app.database import AsyncSessionLocal
+    robot_id = os.getenv("RCS_LOCAL_ROBOT_ID")
+    async with AsyncSessionLocal() as db:
+        tasks = select(TaskRun.id).where(TaskRun.status.in_(("dispatched", "running")))
+        missions = select(MissionRun.id).where(MissionRun.status.in_(
+            tuple(status for status in ACTIVE_MISSION_STATES if status != "queued")))
+        if robot_id:
+            tasks = tasks.where(TaskRun.robot_id == int(robot_id))
+            missions = missions.where(MissionRun.robot_id == int(robot_id))
+        if await db.scalar(tasks.limit(1)) or await db.scalar(missions.limit(1)):
+            raise RuntimeError("当前仍有任务执行或暂停，请先结束任务再切换作业地图")
+
+
+recovery = LocalizationRecovery(bridge, resolve_work_map, require_no_active_tasks, require_localization_service)
+
+
+@router.post("/activate")
+async def activate(body: ActivateInput, actor=Depends(require("map:edit"))):
+    global switch_task
+    try:
+        result = await recovery.activate(body.model_dump(exclude_none=True))
+        switch_task = recovery.task
+        return ok(result)
+    except (RuntimeError, OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.post("/recovery/cancel")
+async def cancel_recovery(actor=Depends(require("map:edit"))):
+    if not recovery.busy and not recovery.startup_pending:
+        raise HTTPException(409, "没有正在执行的自动定位")
+    await recovery.cancel()
+    return ok(True, message="已取消自动定位，车辆保持停止锁定")
 
 
 @router.post('/auto')
@@ -124,17 +202,18 @@ async def automatic(body:AutoInput,actor=Depends(require('map:edit')),db=Depends
     if not entry:raise HTTPException(404,'请选择有效定位点云')
     entry=await route_asset(entry,db)
     try:
-        await require_localization_service()
-        bridge.require_stationary()
-        if not bridge.snapshot()['auto_available']:raise RuntimeError('自动重定位节点尚未连接；请检查定位服务启动状态')
-    except RuntimeError as exc:raise HTTPException(409,str(exc)) from exc
-    bridge.relocalization={'status':'pending','message':'自动重定位已排队'}
-    switch_task=asyncio.create_task(perform_auto(entry))
-    return ok({'status':'pending'})
+        result = await recovery.activate(entry, mode="auto")
+        switch_task = recovery.task
+        return ok(result)
+    except (RuntimeError, OSError, ValueError) as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post('/auto/cancel')
 async def cancel_automatic(actor=Depends(require('map:edit'))):
+    if recovery.busy or recovery.startup_pending:
+        await recovery.cancel()
+        return ok(True)
     if bridge.relocalization.get('status') not in {'pending','collecting','searching','candidate','verifying'}:
         raise HTTPException(409,'没有正在执行的自动重定位')
     if switch_task and not switch_task.done():
@@ -156,14 +235,6 @@ async def maps(actor=Depends(require("map:view"))):
     return ok(catalog())
 
 
-async def perform_switch(entry, body):
-    try:
-        await bridge.switch_map(entry["pcd"], body.x, body.y, body.yaw)
-        bridge.switch.update(map_id=entry["map_id"], version=entry["version"], key=entry["key"])
-    except Exception as exc:
-        bridge.switch.update(status="failed", message=str(exc))
-
-
 @router.post("/switch")
 async def switch(body: SwitchInput, actor=Depends(require("map:edit")),db=Depends(get_db)):
     global switch_task
@@ -179,18 +250,18 @@ async def switch(body: SwitchInput, actor=Depends(require("map:edit")),db=Depend
         raise HTTPException(404, "地图不在本机 PCD 目录或已配置目录中")
     entry = await route_asset(entry, db)
     try:
-        await require_localization_service()
-        bridge.require_stationary()
-    except RuntimeError as exc:
+        result = await recovery.activate(entry, mode="manual", pose=[body.x, body.y, body.yaw])
+        switch_task = recovery.task
+        return ok(result, message="已排队；请等待地图加载和定位收敛")
+    except (RuntimeError, OSError, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
-    bridge.switch = {"status": "pending", "key": entry["key"]}
-    switch_task = asyncio.create_task(perform_switch(entry, body))
-    return ok({"status": "pending"}, message="已排队；请等待地图加载和定位收敛")
 
 
 @router.post("/stop")
 async def stop(actor=Depends(require("robot:control"))):
-    if bridge.relocalization.get('status') in {'pending','collecting','searching','candidate','verifying'}:
+    if recovery.busy or recovery.startup_pending:
+        await recovery.cancel()
+    elif bridge.relocalization.get('status') in {'pending','collecting','searching','candidate','verifying'}:
         await cancel_automatic(actor)
     try:
         return ok(await bridge.stop_route())
@@ -202,7 +273,7 @@ async def stop(actor=Depends(require("robot:control"))):
 async def release(actor=Depends(require("robot:control"))):
     try:
         bridge.require_stationary()
-        if bridge.control_lock.locked() or bridge.switch["status"] not in {"ready", "idle"} or bridge.relocalization.get('status') in {'pending','collecting','searching','candidate','verifying'}:
+        if recovery.busy or recovery.startup_pending or bridge.control_lock.locked() or bridge.switch["status"] not in {"ready", "idle"} or bridge.relocalization.get('status') in {'pending','collecting','searching','candidate','verifying'}:
             raise RuntimeError("等待地图切换成功")
         if not bridge.snapshot()["localization"]["valid"]:
             raise RuntimeError("定位无效，不能解除停止锁定")

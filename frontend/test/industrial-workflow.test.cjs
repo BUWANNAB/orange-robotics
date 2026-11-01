@@ -8,14 +8,14 @@ function harness(){
       const classes=new Set(),attributes=new Map();
       nodes.set(id,{id,textContent:'',innerHTML:'',disabled:false,hidden:false,open:false,dataset:{},
         classList:{contains:name=>classes.has(name),toggle(name,value){if(value)classes.add(name);else classes.delete(name)},remove:name=>classes.delete(name)},
-        setAttribute:(name,value)=>attributes.set(name,value),getAttribute:name=>attributes.get(name),querySelectorAll:()=>[],
+        setAttribute:(name,value)=>attributes.set(name,value),getAttribute:name=>attributes.get(name),querySelectorAll:()=>[],addEventListener(){},
         showModal(){this.open=true},close(){this.open=false}});
     }
     return nodes.get(id);
   }
   const api={get:async(url,params)=>{calls.push({method:'get',url,params});return {list:[],total:0}},post:async(url,payload)=>{calls.push({method:'post',url,payload});return {}}};
   const window={OpsAPI:api,alert:message=>calls.push({method:'alert',message}),confirm:()=>false};
-  vm.runInNewContext(functions,{window,document:{getElementById:element,querySelectorAll:()=>[],documentElement:{classList:{contains:()=>false}}},location:{search:'',origin:'http://localhost'},URLSearchParams,structuredClone,clearTimeout,FormData:class{},Set,Map,Date,Math});
+  vm.runInNewContext(functions,{window,document:{getElementById:element,querySelectorAll:()=>[],documentElement:{classList:{contains:()=>false}}},location:{search:'',origin:'http://localhost'},URLSearchParams,structuredClone,clearTimeout,FormData:class{constructor(values){this.values=values}get(key){return this.values[key]}},Set,Map,Date,Math});
   const controller=window.probe;
   Object.assign(controller.state,{map:{document:{points:[],paths:[],areas:[]}},mapRow:{id:10,revision:1},permissions:['*']});
   return {controller,element,api,calls};
@@ -68,11 +68,11 @@ test('a second save waits for the first and persists edits made while the first 
   const first=h.controller.saveMap();
   h.controller.state.map.document.points.push({code:'new-edit'});
   const second=h.controller.saveMap();assert.equal(requests.length,1);
-  requests[0].resolve({id:10,revision:2});await first;
-  await Promise.resolve();assert.equal(requests.length,2);
+  requests[0].resolve({id:10,revision:2});
+  await new Promise(setImmediate);assert.equal(requests.length,2);
   assert.equal(requests[1].payload.revision,2);
   assert.equal(requests[1].payload.document.points[0].code,'new-edit');
-  requests[1].resolve({id:10,revision:3});await second;
+  requests[1].resolve({id:10,revision:3});await Promise.all([first,second]);
   assert.equal(h.controller.state.dirty,false);assert.equal(h.controller.state.mapRow.revision,3);
 });
 
@@ -128,4 +128,25 @@ test('a selected future queue entry does not hide a currently running mission',(
   h.controller.renderMapMissions();
   assert.match(h.element('map-mission-execution').innerHTML,/正在行驶的任务/);
   assert.match(h.element('map-mission-execution').innerHTML,/data-action="mission-pause" data-id="1"/);
+});
+
+test('a refused deletion restores the document, history, selection and remaining paths',async()=>{
+  const h=harness(),state=h.controller.state;
+  const document={points:[{code:'A'},{code:'B'},{code:'C'}],paths:[{uid:'ab',start:'A',end:'B'},{uid:'bc',start:'B',end:'C'}],areas:[]};
+  const impact={kind:'paths',index:0,label:'A → B',uid:'ab',point_codes:[],path_indices:[0],area_indices:[]};
+  const original=structuredClone(document),history=[{old:'history'}];
+  Object.assign(state.map,{document,history:structuredClone(history),future:[],selected:null,shape:{kind:'paths',index:0},selectedPathIndices:new Set([1]),
+    deletionImpact:()=>impact,setImpactPreview(){},draw(){},selectObject(kind,index){this.shape={kind,index}},
+    remove(){this.history.push(structuredClone(this.document));this.document.paths.splice(0,1);this.shape=null;this.selectedPathIndices.clear();state.dirty=true;}});
+  h.api.post=async url=>{if(url.endsWith('delete-preview'))return {allowed:true,path_indices:[0],warnings:['删除后草稿需要重新连接']};throw Error('任务引用已变化，服务器拒绝删除');};
+  await h.controller.action('map-remove');
+  assert.match(h.element('dialog-body').innerHTML,/删除后草稿需要重新连接/);
+  await h.element('dialog-form').onsubmit({preventDefault(){},target:{confirmation:impact.label}});
+  assert.deepEqual(state.map.document,original);
+  assert.deepEqual(state.map.history,history);
+  assert.deepEqual(state.map.shape,{kind:'paths',index:0});
+  assert.deepEqual([...state.map.selectedPathIndices],[1]);
+  assert.equal(state.dirty,false);
+  assert.equal(h.element('dialog').open,true);
+  assert.match(h.element('dialog-error').textContent,/请刷新核对服务器/);
 });

@@ -4,16 +4,18 @@ import asyncio
 import hashlib
 import io
 import os
+from copy import deepcopy
 from pathlib import Path
-from pydantic import BaseModel, Field
+from typing import Literal
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 import yaml
 from app.database import get_db
 from app.config import settings
 from app.models.operations import MapDocument, MapVersion, Robot, TaskRun, TaskPlan, MissionRun
 from app.common.response import ok
-from app.services.operations_common import require, get_or_404, page, public, confirm, audit, device
-from app.services.map_editor import MapData, validate_map, require_valid_references, acquire_lock, save_draft, publish, published_map
+from app.services.operations_common import require, get_or_404, page, public, confirm, audit, device, now, permissions
+from app.services.map_editor import MapData, validate_map, require_valid_references, reference_impacts, acquire_lock, save_draft, publish, published_map
 from app.services import map_assets
 from app.services.resource_identity import identify
 from sqlalchemy.exc import IntegrityError
@@ -143,6 +145,14 @@ class PublishInput(BaseModel):
     confirmation: str
 
 
+class DeletePreviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=0)
+    document: MapData
+    kind: Literal["points", "paths", "areas"]
+    index: int = Field(ge=0, strict=True)
+
+
 @router.get("/maps")
 async def maps(keyword: str = "", pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
                actor=Depends(require("map:view")), db=Depends(get_db)):
@@ -201,6 +211,56 @@ async def save(map_id: int, body: DraftInput, actor=Depends(require("map:edit"))
 async def validate(map_id: int, actor=Depends(require("map:view")), db=Depends(get_db)):
     row = await get_or_404(db, MapDocument, map_id)
     return ok(await asyncio.to_thread(validate_map, row.draft))
+
+
+@router.post("/maps/{map_id}/delete-preview")
+async def delete_preview(map_id: int, body: DeletePreviewInput, actor=Depends(require("map:edit")), db=Depends(get_db)):
+    row = await get_or_404(db, MapDocument, map_id)
+    if row.revision != body.revision:
+        raise HTTPException(409, "地图已更新，请刷新后重试")
+    if row.lock_owner and row.lock_owner != actor and row.lock_until and row.lock_until > now():
+        raise HTTPException(423, "地图正在由其他用户编辑")
+    previous = identify(row.draft, seed=row.id)
+    try:
+        document = identify(body.document.model_dump(), previous)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    require_valid_references(document)
+    if body.index >= len(document[body.kind]):
+        raise HTTPException(404, "选中对象不属于当前草稿或已被移除")
+
+    item = document[body.kind][body.index]
+    point_codes, path_indices, area_indices = [], [], []
+    candidate = deepcopy(document)
+    candidate[body.kind].pop(body.index)
+    if body.kind == "points":
+        label = item["code"]
+        point_codes = [item["code"]]
+        path_indices = [index for index, path in enumerate(document["paths"])
+                        if item["code"] in (path["start"], path["end"])]
+        candidate["paths"] = [path for path in document["paths"]
+                              if item["code"] not in (path["start"], path["end"])]
+        message = f"删除站点 {label} 将同时删除 {len(path_indices)} 条相连路线"
+    elif body.kind == "paths":
+        label = f'{item["start"]} → {item["end"]}'
+        path_indices = [body.index]
+        message = f"将删除路线 {label}，两端站点会保留"
+    else:
+        label = item["name"]
+        area_indices = [body.index]
+        message = f"将删除区域 {label}"
+
+    references = await reference_impacts(db, row, candidate, previous)
+    if references:
+        granted = permissions(actor)
+        if not ({"*", "task:view"} & set(granted)):
+            references = [{"type": ref["type"], "name": "关联任务", "reason": ref["reason"]} for ref in references]
+        message = "无法删除，请先调整或结束关联任务：" + "、".join(dict.fromkeys(ref["name"] for ref in references[:8]))
+    from app.services.map_editor import deletion_warnings
+    warnings = await asyncio.to_thread(deletion_warnings, document, candidate)
+    return ok({"allowed": not references, "message": message, "warnings": warnings, "label": label, "uid": item["uid"],
+               "point_codes": point_codes, "path_indices": path_indices, "area_indices": area_indices,
+               "reference_count": len(references), "references": references[:50]})
 
 
 @router.post("/maps/{map_id}/publish")

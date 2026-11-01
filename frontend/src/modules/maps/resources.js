@@ -75,8 +75,10 @@
     const kind=s.tab,mapId=s.mapId,impact=await api.get(`/api/maps/${mapId}/resources/${kind}/${row.uid}/impact`);
     if(mapId!==s.mapId||kind!==s.tab)return;
     const refs=`<p>相连路线：${impact.paths.length} 条 · 引用任务链：${impact.plans.length} 个</p>${impact.paths.length?`<ul>${impact.paths.map(p=>`<li>${escape(p.name)}</li>`).join('')}</ul>`:''}${impact.plans.length?`<ul>${impact.plans.map(p=>`<li>${escape(p.name)}</li>`).join('')}</ul>`:''}`;
-    if(impact.blocked){dialog('请先处理任务链引用',`<p>${escape(impact.name)} 仍被以下任务链使用，暂不能删除。</p>${refs}`,null);return;}
-    dialog('删除'+tabs[kind][0],`<p>${escape(impact.name)}</p>${refs}<p>${escape(impact.scope)}</p>${impact.paths.length?'<label class="check"><input type="checkbox" name="cascade" required>同时移除这些草稿路线，其他站点保留</label>':''}${field('confirmation','输入上方对象名称确认删除','','text','required autocomplete="off"')}`,async data=>{
+    const dependencies=(impact.dependencies||[]).map(ref=>`<p>${escape(ref.name)}：${escape(ref.reason)}</p>`).join('');
+    const warnings=(impact.warnings||[]).map(message=>`<p class="dialog-help">${escape(message)}</p>`).join('');
+    if(impact.blocked){dialog('请先处理关联任务',`<p>${escape(impact.name)} 的删除会影响关联任务，暂不能删除。</p>${dependencies}${refs}`,null);return;}
+    dialog('删除'+tabs[kind][0],`<p>${escape(impact.name)}</p>${refs}${warnings}<p>${escape(impact.scope)}</p>${impact.paths.length?'<label class="check"><input type="checkbox" name="cascade" required>同时移除这些草稿路线，其他站点保留</label>':''}${field('confirmation','输入上方对象名称确认删除','','text','required autocomplete="off"')}`,async data=>{
       if(data.get('confirmation')!==impact.name)throw Error('确认名称不一致');
       await api.post(`/api/maps/${mapId}/resources/${kind}/${row.uid}/delete`,{revision:impact.revision,confirmation:impact.name,cascade_paths:data.get('cascade')==='on'});notice('已从草稿删除，已发布版本与历史记录保留');await store.refresh();
     },'确认删除');

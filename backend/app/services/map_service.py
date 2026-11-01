@@ -1,6 +1,7 @@
 import os
 import shutil
 import logging
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -172,19 +173,56 @@ class MapService:
             return False
 
     @classmethod
-    def delete_map(cls, map_name: str) -> bool:
-        """删除指定地图"""
-        map_dir = cls.find_map_dir(map_name)
-        if not map_dir:
-            return False
+    def deletion_target(cls, map_name: str) -> Optional[Path]:
+        """Legacy leaf names must resolve uniquely and never select a parent map tree."""
+        from app.services.map_assets import identity
+        key = identity(map_name)
+        root = cls.get_maps_root().resolve()
+        matches = []
+        for metadata in root.rglob(YAML_FILE_NAME):
+            if metadata.parent.name != SETTING_DIR:
+                continue
+            directory = metadata.parent.parent
+            relative = directory.relative_to(root)
+            if any(part.startswith('.') for part in relative.parts):
+                continue
+            if (relative.as_posix() == key or '/' not in key and directory.name == key):
+                if (directory / SETTING_DIR / PGM_FILE_NAME).is_file():
+                    matches.append(directory)
+        if not matches:
+            return None
+        if len(matches) != 1:
+            raise ValueError('存在多个同名源地图，请先在地图资源中核对完整名称')
+        directory = matches[0]
+        resolved = directory.resolve()
+        if resolved == root or not resolved.is_relative_to(root) or directory.is_symlink():
+            raise ValueError('源地图路径不允许归档')
+        if any(parent.is_symlink() for parent in directory.parents if parent != root and parent.is_relative_to(root)):
+            raise ValueError('源地图路径包含链接目录，不允许归档')
+        if any(metadata.parent.name == SETTING_DIR and metadata.parent.parent != directory
+               for metadata in directory.rglob(YAML_FILE_NAME)):
+            raise ValueError('该目录包含子地图，不能整目录删除；请分别处理子地图')
+        return directory
 
-        try:
-            shutil.rmtree(map_dir)
-            logger.info("成功删除地图: %s", map_dir)
-            return True
-        except Exception as e:
-            logger.error("删除地图失败: %s", str(e))
+    @classmethod
+    def delete_map(cls, map_name: str, expected: Optional[Path] = None) -> bool:
+        """Archive an independent map; never recursively erase shared map folders."""
+        directory = cls.deletion_target(map_name)
+        if directory is None:
             return False
+        if expected is not None and directory.resolve() != expected.resolve():
+            raise ValueError('源地图目录已变化，请刷新后重试')
+        root = cls.get_maps_root().resolve()
+        archive = root / '.deleted-map-assets'
+        if archive.is_symlink() or archive.resolve().parent != root:
+            raise ValueError('地图归档目录不允许使用链接或越级路径')
+        archive.mkdir(exist_ok=True)
+        destination = archive / (directory.name + '-' + uuid.uuid4().hex)
+        if not directory.resolve().is_relative_to(root) or destination.resolve().parent != archive.resolve():
+            raise ValueError('地图归档路径越界')
+        directory.rename(destination)
+        logger.info('已归档源地图: %s -> %s', directory, destination)
+        return True
 
     @classmethod
     def get_pcd_list(cls) -> List[Dict[str, Any]]:

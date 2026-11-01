@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select, update, or_
-from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MapVersion, Robot, TaskRun, MissionRun
+from app.models.operations import ACTIVE_MISSION_STATES, MapDocument, MapVersion, Robot, TaskRun, TaskPlan, MissionRun
 from app.services.operations_common import now, audit, get_or_404
 from app.services.resource_identity import identify
 
@@ -47,6 +47,7 @@ class MapData(BaseModel):
     width: float = Field(default=100, gt=0, le=100000)
     height: float = Field(default=100, gt=0, le=100000)
     resolution: float = Field(default=0.05, gt=0, le=10)
+    default_speed: float = Field(default=0.5, gt=0, le=3)
     origin_x: float = 0
     origin_y: float = 0
     asset_id: str = Field(default="", max_length=180)
@@ -115,48 +116,52 @@ def validate_map(data):
     errors = []
     points = {}
     cells = {}
-    def error(message, element=""):
-        errors.append({"level": "error", "message": message, "element": element})
+    def error(message, element="", *, point_codes=(), path_indices=(), area_indices=()):
+        errors.append({"level": "error", "message": message, "element": element,
+                       "targets": {"points": list(dict.fromkeys(point_codes)),
+                                   "paths": list(dict.fromkeys(path_indices)),
+                                   "areas": list(dict.fromkeys(area_indices))}})
     def in_bounds(x, y):
         return document.origin_x <= x <= document.origin_x + document.width and document.origin_y <= y <= document.origin_y + document.height
     for p in document.points:
-        if p.code in points: error("点位编号重复", p.code)
-        if not in_bounds(p.x, p.y): error("点位超出地图边界", p.code)
+        if p.code in points: error("点位编号重复", p.code, point_codes=[p.code])
+        if not in_bounds(p.x, p.y): error("点位超出地图边界", p.code, point_codes=[p.code])
         cell = (math.floor(p.x*10), math.floor(p.y*10))
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 for other in cells.get((cell[0]+dx, cell[1]+dy), []):
-                    if math.hypot(p.x-other.x, p.y-other.y) < 0.1: error("点位间距小于 0.1 米", p.code)
+                    if math.hypot(p.x-other.x, p.y-other.y) < 0.1:
+                        error(f"点位间距小于 0.1 米：{other.code} 与 {p.code}", p.code, point_codes=[other.code, p.code])
         cells.setdefault(cell, []).append(p)
         points[p.code] = p
     forbidden = []
-    for area in document.areas:
+    for area_index, area in enumerate(document.areas):
         poly = area.polygon
-        if any(not in_bounds(x,y) for x,y in poly): error("区域顶点越界", area.name)
+        if any(not in_bounds(x,y) for x,y in poly): error("区域顶点越界", area.name, area_indices=[area_index])
         edges = list(zip(poly, poly[1:] + poly[:1]))
         signed_area = sum(a[0]*b[1]-b[0]*a[1] for a,b in edges)
-        if abs(signed_area) < 1e-8: error("区域面积为零", area.name)
+        if abs(signed_area) < 1e-8: error("区域面积为零", area.name, area_indices=[area_index])
         for i, (a,b) in enumerate(edges):
             for j in range(i+2, len(edges)):
                 if i == 0 and j == len(edges)-1: continue
-                if intersects(a,b,*edges[j]): error("区域边界自相交", area.name)
-        if area.type == "forbidden": forbidden.append(poly)
+                if intersects(a,b,*edges[j]): error("区域边界自相交", area.name, area_indices=[area_index])
+        if area.type == "forbidden": forbidden.append((area_index, poly))
     reverse = {code: set() for code in points}
     for i, path in enumerate(document.paths):
         if path.start not in points or path.end not in points:
-            error("路径端点不存在", str(i)); continue
-        if path.start == path.end: error("路径不能连接同一端点", str(i))
+            error("路径端点不存在", str(i), point_codes=[path.start, path.end], path_indices=[i]); continue
+        if path.start == path.end: error("路径不能连接同一端点", str(i), point_codes=[path.start], path_indices=[i])
         a, b = points[path.start], points[path.end]
         pa, pb = (a.x,a.y), (b.x,b.y)
         centerline = path_polyline(path, pa, pb, samples=max(32, path_sample_count(pa, pb)))
         if any(not in_bounds(x, y) for x, y in centerline):
-            error("路径中心线超出地图边界", str(i))
-        crosses_forbidden = any(
+            error("路径中心线超出地图边界", str(i), point_codes=[path.start, path.end], path_indices=[i])
+        crossed_areas = [area_index for area_index, poly in forbidden if any(
             inside(segment_start, poly) or inside(segment_end, poly)
             or any(intersects(segment_start, segment_end, c, d) for c, d in zip(poly, poly[1:] + poly[:1]))
-            for segment_start, segment_end in zip(centerline, centerline[1:])
-            for poly in forbidden)
-        if crosses_forbidden: error("路径穿越禁行区", str(i))
+            for segment_start, segment_end in zip(centerline, centerline[1:]))]
+        if crossed_areas:
+            error("路径穿越禁行区", str(i), point_codes=[path.start, path.end], path_indices=[i], area_indices=crossed_areas)
         reverse[path.end].add(path.start)
         if path.bidirectional: reverse[path.start].add(path.end)
     if points:
@@ -169,7 +174,7 @@ def validate_map(data):
             current = pending.pop()
             for neighbor in forward[current] | reverse[current]:
                 if neighbor not in visited: visited.add(neighbor); pending.append(neighbor)
-        for code in points.keys()-visited: error("点位未连接到路线网络", code)
+        for code in points.keys()-visited: error("点位未连接到路线网络", code, point_codes=[code])
     return errors
 
 
@@ -198,24 +203,90 @@ def require_valid_references(document):
         raise HTTPException(409, "路线端点不属于当前地图")
 
 
+async def reference_impacts(db, row, document, previous=None):
+    """Describe dependencies broken by a draft edit without writing any state."""
+    previous = previous if previous is not None else identify(row.draft, seed=row.id)
+    retained = {point["uid"]: point["code"] for point in document.get("points", [])}
+    changed_codes = {point["code"] for point in previous.get("points", [])
+                     if retained.get(point["uid"]) != point["code"]}
+    edges = {path["uid"]: (path["start"], path["end"], path.get("bidirectional", True))
+             for path in document.get("paths", [])}
+    topology_changed = any(edges.get(path["uid"]) != (path["start"], path["end"], path.get("bidirectional", True))
+                           for path in previous.get("paths", []))
+    if not changed_codes and not topology_changed:
+        return []
+
+    from app.services.mission_service import validate_chain
+    references = []
+    plans = (await db.scalars(select(TaskPlan).where(TaskPlan.map_id == row.id).order_by(TaskPlan.id))).all()
+    for plan in plans:
+        used_codes = {plan.start_point, *(step.get("point") for step in plan.steps)}
+        reason = ""
+        if changed_codes.intersection(used_codes):
+            reason = "任务链引用的站点被删除、重命名或替换身份"
+        elif topology_changed:
+            # A pre-existing invalid plan must not prevent unrelated cleanup.
+            try:
+                validate_chain(previous, plan.start_point, plan.steps, plan.repeat_count)
+            except HTTPException:
+                continue
+            try:
+                validate_chain(document, plan.start_point, plan.steps, plan.repeat_count)
+            except HTTPException as exc:
+                reason = str(exc.detail)
+        if reason:
+            references.append({"type": "task_plan", "id": plan.id, "name": plan.name, "reason": reason})
+
+    # Active runs use published snapshots. Keep their route network stable until
+    # they finish rather than guessing which draft edge an executing robot uses.
+    tasks = (await db.scalars(select(TaskRun).where(TaskRun.map_id == row.id,
+        TaskRun.status.in_(["queued", "dispatched", "running"])).order_by(TaskRun.id))).all()
+    missions = (await db.scalars(select(MissionRun).where(MissionRun.map_id == row.id,
+        MissionRun.status.in_(ACTIVE_MISSION_STATES)).order_by(MissionRun.id))).all()
+    references.extend({"type": "task", "id": task.id, "name": task.name,
+                       "reason": "当前地图有未结束任务，暂不能删除站点或改变路线连接"} for task in tasks)
+    references.extend({"type": "mission", "id": run.id, "name": run.name,
+                       "reason": "当前地图有未结束任务链，暂不能删除站点或改变路线连接"} for run in missions)
+    return references
+
+
+def deletion_warnings(previous, candidate):
+    """Explain newly disconnected stations without invalidating published snapshots."""
+    def disconnected_codes(document):
+        codes = [point['code'] for point in document.get('points', [])]
+        if not codes:
+            return set()
+        edges = {code: set() for code in codes}
+        for path in document.get('paths', []):
+            if path['start'] in edges and path['end'] in edges:
+                edges[path['start']].add(path['end'])
+                edges[path['end']].add(path['start'])
+        visited, pending = set(), [codes[0]]
+        while pending:
+            code = pending.pop()
+            if code not in visited:
+                visited.add(code)
+                pending.extend(edges[code] - visited)
+        return set(codes) - visited
+    disconnected = sorted(disconnected_codes(candidate) - disconnected_codes(previous))
+    return (["删除后路线网络将断开，涉及站点：" + "、".join(disconnected[:12])
+             + "。草稿可继续编辑；重新连接或清理孤立站点后才能发布，当前已发布路线仍保留。"]
+            if disconnected else [])
+
+
 async def save_draft(db, row, actor, revision, document):
     await acquire_lock(db, row, actor)
     previous = identify(row.draft, seed=row.id)
     try:
-        document = identify(document, previous)
+        document = identify(MapData.model_validate(document).model_dump(), previous)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     require_valid_references(document)
-    from app.models.operations import TaskPlan
-    retained = {point["uid"]: point["code"] for point in document.get("points", [])}
-    changed = {point["code"] for point in previous.get("points", [])
-               if retained.get(point["uid"]) != point["code"]}
-    if changed:
-        plans = (await db.scalars(select(TaskPlan).where(TaskPlan.map_id == row.id))).all()
-        affected = [plan.name for plan in plans if changed.intersection(
-            {plan.start_point, *(step.get("point") for step in plan.steps)})]
-        if affected:
-            raise HTTPException(409, "站点被任务链引用，请先调整任务链：" + "、".join(affected[:8]))
+    references = await reference_impacts(db, row, document, previous)
+    if references:
+        from app.services.operations_common import permissions
+        names = "、".join(ref["name"] for ref in references[:8]) if {"*", "task:view"} & set(permissions(actor)) else "关联任务"
+        raise HTTPException(409, "地图对象被任务引用，请先调整或结束关联任务：" + names)
     result = await db.execute(update(MapDocument).where(MapDocument.id == row.id, MapDocument.revision == revision)
         .values(draft=document, revision=revision+1, operator=actor))
     if result.rowcount != 1:

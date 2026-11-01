@@ -93,6 +93,8 @@ async def lifespan(app: FastAPI):
     # 启动核心遥测服务：WebSocket 广播与 ROS 2 桥接
     ws_manager.start_broadcast_loop()
     ros2_service.start()
+    from app.api import localization
+    localization.recovery.start()
     local_robot_task = None
     if os.getenv("RCS_LOCAL_ROBOT_ID"):
         from app.services.local_robot import run_local_robot
@@ -113,6 +115,7 @@ async def lifespan(app: FastAPI):
     logging.getLogger().removeHandler(log_handler)
     from app.api import localization
     from app.services import map_assets
+    await localization.recovery.close()
     for pending in (local_robot_task, localization.switch_task, *list(map_assets.tasks.values())):
         if pending:
             pending.cancel()

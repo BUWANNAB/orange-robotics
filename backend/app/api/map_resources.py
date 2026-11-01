@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.common.response import ok
 from app.database import get_db
 from app.models.operations import MapDocument, MapVersion, TaskPlan
-from app.services.map_editor import MapData, save_draft
+from app.services.map_editor import MapData, save_draft, reference_impacts, deletion_warnings
 from app.services.mission_service import validate_chain
 from app.services.operations_common import require, permissions, get_or_404, public, confirm, audit
 from app.services.resource_identity import identify, identity_error
@@ -152,8 +152,18 @@ async def deletion_impact(map_id: int, kind: Kind, uid: str,
     if item is None:
         raise HTTPException(404, "对象不属于当前地图或已被删除")
     refs = point_references(document, await plans_for(db, map_id), item["code"]) if kind == "points" else {"paths": [], "plans": []}
+    candidate = deepcopy(document)
+    candidate[kind] = [entry for entry in candidate[kind] if entry["uid"] != uid]
+    if kind == "points":
+        candidate["paths"] = [path for path in candidate["paths"] if item["code"] not in (path["start"], path["end"])]
+    dependencies = await reference_impacts(db, row, candidate, document)
+    if not ({"*", "task:view"} & set(permissions(actor))):
+        refs["plans"] = [{"name": "关联任务"} for _ in refs["plans"]]
+        dependencies = [{"type": ref["type"], "name": "关联任务", "reason": ref["reason"]} for ref in dependencies]
+    warnings = await asyncio.to_thread(deletion_warnings, document, candidate)
     return ok({"revision": row.revision, "name": label(kind, item), **refs,
-               "blocked": bool(refs["plans"]), "scope": "仅修改草稿；已发布版本与历史执行记录保留"})
+               "blocked": bool(dependencies), "dependencies": dependencies, "warnings": warnings,
+               "scope": "仅修改草稿；已发布版本与历史执行记录保留"})
 
 
 class ResourceDelete(BaseModel):
@@ -172,8 +182,6 @@ async def delete_resource(map_id: int, kind: Kind, uid: str, body: ResourceDelet
     confirm(body.confirmation, label(kind, item))
     if kind == "points":
         refs = point_references(document, await plans_for(db, map_id), item["code"])
-        if refs["plans"]:
-            raise HTTPException(409, "站点被任务链引用，请先调整任务链：" + "、".join(p["name"] for p in refs["plans"][:8]))
         if refs["paths"] and not body.cascade_paths:
             raise HTTPException(409, "请确认同时移除草稿中与此站点相连的路线")
         document["paths"] = [path for path in document["paths"] if item["code"] not in (path["start"], path["end"])]

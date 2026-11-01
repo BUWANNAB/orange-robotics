@@ -1,10 +1,13 @@
 import logging
+import asyncio
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response, Depends
 from fastapi.responses import FileResponse
 
 from app.common.response import ok, error
 from app.services.map_service import MapService
+from app.database import get_db
+from app.services.operations_common import require
 
 logger = logging.getLogger("orange_agv.api.map")
 
@@ -80,13 +83,41 @@ async def save_as_map(
         return error(50000, f"地图另存为异常: {str(e)}")
 
 @router.post("/pgm/delete/{map_name}")
-async def delete_map(map_name: str):
-    """删除指定地图"""
+async def delete_map(map_name: str, actor=Depends(require('map:edit')), db=Depends(get_db)):
+    """Protect shared source assets before archiving a legacy PGM map."""
     try:
-        success = MapService.delete_map(map_name)
+        from sqlalchemy import select
+        from app.models.operations import MapDocument
+        from app.models.route import Route
+        from app.services.ros2_service import ros2_service
+        from app.api.localization import recovery
+        directory = await asyncio.to_thread(MapService.deletion_target, map_name)
+        if directory is None:
+            raise HTTPException(404, '源地图不存在或已归档')
+        root = MapService.get_maps_root().resolve()
+        key = directory.relative_to(root).as_posix()
+        maps = (await db.scalars(select(MapDocument).where(MapDocument.deleted == False))).all()
+        if any(isinstance(row.draft, dict) and row.draft.get('asset_id') == key for row in maps):
+            raise HTTPException(409, '源地图仍被路线地图引用，请先调整或删除相关路线地图；不会删除共享 PGM/PCD')
+        if await db.scalar(select(Route.id).where(Route.isDelete == 0, Route.mapName.in_([key, directory.name])).limit(1)):
+            raise HTTPException(409, '源地图仍被旧版路线引用，请先处理相关路线')
+        selected = recovery.selected or {}
+        if key in {ros2_service.switch.get('asset_id'), selected.get('asset_id')}:
+            raise HTTPException(409, '源地图仍是作业定位地图，请先切换作业地图')
+        active_path = ros2_service.switch.get('path')
+        if active_path:
+            from app.config import settings
+            from pathlib import Path
+            if Path(active_path).resolve() == (settings.PCD_DIR / key / 'GlobalMap.pcd').resolve():
+                raise HTTPException(409, '源地图仍在定位使用，请先切换作业地图')
+        success = await asyncio.to_thread(MapService.delete_map, map_name, directory)
         if success:
-            return ok(True, message="地图删除成功")
+            return ok(True, message="源地图已归档保留，其他地图与已发布版本保留")
         return error(40400, "删除失败，地图未找到")
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     except Exception as e:
         logger.error("删除地图异常: %s", str(e))
         return error(50000, f"删除地图异常: {str(e)}")
