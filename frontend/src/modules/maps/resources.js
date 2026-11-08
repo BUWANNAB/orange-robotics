@@ -27,9 +27,10 @@
     $('map-state').textContent=s.data?`草稿 r${s.data.map.revision} · 已发布 ${s.data.map.published_version?'v'+s.data.map.published_version:'—'}`:s.loading?'正在读取…':'尚未打开地图';
     $('resource-tabs').innerHTML=Object.entries(tabs).map(([tab,[title,help]])=>`<button type="button" data-tab="${tab}" aria-pressed="${s.tab===tab&&!(tab==='points'&&pointCategory)}"><span>${title}<small>${help}</small></span><b>${count(tab)}</b></button>`+(tab==='points'?Object.entries(pointViews).map(([type,[label,description]])=>`<button type="button" class="resource-subcategory" data-tab="points" data-point-category="${type}" aria-pressed="${s.tab==='points'&&pointCategory===type}"><span>${label}<small>${description}</small></span><b>${s.data?.document.points.filter(point=>point.type===type).length||0}</b></button>`).join(''):'')).join('');
     const view=s.tab==='points'&&pointCategory?pointViews[pointCategory]:tabs[s.tab];
-    $('section-title').textContent=view[0];$('section-help').textContent=s.data?`${s.data.map.name} · ${s.tab==='files'&&s.data.file_warning?s.data.file_warning:view[1]}`:'选择地图后显示真实资源';
+    const needsPoints=s.tab==='paths'&&s.data?.document.points.length<2;
+    $('section-title').textContent=view[0];$('section-help').textContent=s.data?`${s.data.map.name} · ${needsPoints?'添加至少两个站点后，就可以连接路线':s.tab==='files'&&s.data.file_warning?s.data.file_warning:view[1]}`:'选择地图后显示真实资源';
     $('create').hidden=!['points','paths','areas','plans'].includes(s.tab)||!can(s.tab==='plans'?'task:edit':'map:edit');
-    $('create').textContent=pointCategory&&s.tab==='points'?'添加'+view[0]:{points:'添加站点',paths:'添加路线',areas:'在地图绘制',plans:'在地图配置任务链'}[s.tab]||'添加';$('create').disabled=!s.data||s.loading;
+    $('create').textContent=pointCategory&&s.tab==='points'?'添加'+view[0]:{points:'添加站点',paths:needsPoints?'添加站点':'添加路线',areas:'在地图绘制',plans:'在地图配置任务链'}[s.tab]||'添加';$('create').disabled=!s.data||s.loading;
     const options=s.tab==='points'?['station','charger','shelf','waiting','elevator']:s.tab==='areas'?['forbidden','slow','work','charge']:s.tab==='plans'?['ready','needs_review']:[];
     $('type-filter').innerHTML='<option value="">全部类型</option>'+options.map(type=>`<option value="${type}" ${s.type===type?'selected':''}>${types[type]||({ready:'可用',needs_review:'需要核对'})[type]}</option>`).join('');$('type-filter').hidden=!options.length||!!pointCategory;
     $('search').value=s.keyword;const rows=currentRows(),pages=Math.max(1,Math.ceil(rows.length/20));s.page=Math.min(s.page,pages);
@@ -51,25 +52,92 @@
     $('inspector').innerHTML=`<div class="inspector-heading"><span>${tabs[s.tab][0]}</span><h2>${display(columns(row)[0])}</h2></div><dl>${headers[s.tab].slice(1).map((title,index)=>`<dt>${title}</dt><dd>${display(columns(row)[index+1])}</dd>`).join('')}</dl>${extra}${['points','paths','areas','plans'].includes(s.tab)?'<button data-show-map class="primary" type="button">在地图查看</button>':''}`;
   }
   function mapUrl(row){return `/ui/index.html?mapId=${s.mapId}${row&&s.tab==='points'?'&point='+encodeURIComponent(row.code):''}${row&&['paths','areas'].includes(s.tab)?'&object='+s.tab+'&uid='+encodeURIComponent(row.uid):''}${row&&s.tab==='plans'?'&planId='+row.id:''}`;}
-  function showMap(row){if(!s.mapId)return;window.top.location.href=mapUrl(row);}
-  let submitAction=null;
+  function showMap(row){
+    if(!s.mapId||window.top.OrangeNavigation?.canLeave?.()===false)return;
+    window.top.location.href=mapUrl(row);
+  }
+  const resourceDialog=$('resource-dialog'),resourceForm=$('resource-form');
+  let dialogState=null;
+  function formSnapshot(){return JSON.stringify([...new FormData(resourceForm)]);}
+  function hasUnsavedInput(){return !!(dialogState?.protectInput&&dialogState.baseline!==formSnapshot());}
+  function updateDialog(){
+    const {handler,label,progress,saving,confirmDiscard}=dialogState;
+    $('dialog-fields').inert=saving||confirmDiscard;
+    resourceForm.setAttribute('aria-busy',String(saving));
+    $('dialog-submit').disabled=$('dialog-cancel').disabled=$('dialog-close').disabled=saving;
+    $('dialog-submit').hidden=!handler||confirmDiscard;
+    $('dialog-submit').textContent=saving?progress:label;
+    $('dialog-cancel').hidden=confirmDiscard;
+    $('dialog-cancel').textContent=handler?'取消':'关闭';
+    $('dialog-keep').hidden=$('dialog-discard').hidden=!confirmDiscard;
+    $('dialog-state').textContent=saving?'正在等系统确认，请稍候。':confirmDiscard?'这次填写还没保存，要继续编辑还是放弃修改？':hasUnsavedInput()?'有修改尚未保存。':'';
+  }
+  function closeDialog(){dialogState=null;resourceDialog.close();}
+  function keepEditing(){
+    dialogState.confirmDiscard=false;
+    updateDialog();
+    if($('dialog-fields').contains(dialogState.previousField))dialogState.previousField.focus();
+    else $('dialog-fields').querySelector('input,select')?.focus();
+  }
+  function requestDialogClose(){
+    if(!dialogState||dialogState.saving)return;
+    if(dialogState.confirmDiscard){keepEditing();return;}
+    if(!hasUnsavedInput()){closeDialog();return;}
+    dialogState.previousField=document.activeElement;
+    dialogState.confirmDiscard=true;
+    updateDialog();
+    $('dialog-keep').focus();
+  }
+  function canLeaveResourcePage(){
+    if(dialogState?.saving){window.alert('正在等待保存结果，请稍候再离开。');return false;}
+    return !hasUnsavedInput()||window.confirm('这次填写还没保存。确定放弃修改并离开地图资源吗？');
+  }
+  function showDialogError(error){
+    const message=error.message||'系统暂时无法处理';
+    const stale=message.includes('地图已更新');
+    const uncertain=/Network Error|timeout|请求超时|Failed to fetch|status code 5\d\d/i.test(message);
+    $('dialog-error').textContent=stale?'地图草稿已有新版本，填写内容已保留。请先核对最新内容，再按最新草稿重新编辑。':
+      uncertain?'暂时没有收到结果。请先核对最新草稿，确认这次操作有没有生效。':
+      dialogState.protectInput?`${message}。填写内容已保留，可以修改后再试。`:message;
+    const review=$('dialog-review');
+    review.hidden=!(stale||uncertain);
+    if(!review.hidden)review.href=`/ui/map-resources.html?mapId=${s.mapId}&tab=${s.tab}`;
+  }
   function rememberMap(){if(!s.mapId)return;localStorage.setItem('orange.currentRouteMap',String(s.mapId));const url=new URL(location.href);url.searchParams.set('mapId',s.mapId);url.searchParams.set('tab',s.tab);if(pointCategory)url.searchParams.set('type',pointCategory);else url.searchParams.delete('type');history.replaceState(null,'',url);}
-  function dialog(title,html,handler,label='保存草稿'){$('dialog-title').textContent=title;$('dialog-fields').innerHTML=html;$('dialog-error').textContent='';$('dialog-submit').textContent=label;$('dialog-submit').hidden=!handler;submitAction=handler;$('resource-dialog').showModal();}
+  function dialog(title,html,handler,{label='保存草稿',progress='保存中…',protectInput=false}={}){
+    if(resourceDialog.open)return;
+    $('dialog-title').textContent=title;
+    $('dialog-fields').innerHTML=html;
+    $('dialog-error').textContent='';
+    $('dialog-review').hidden=true;
+    dialogState={handler,label,progress,protectInput,baseline:formSnapshot(),saving:false,confirmDiscard:false};
+    updateDialog();
+    resourceDialog.showModal();
+  }
   function field(name,label,value='',type='text',attributes=''){return `<label>${label}<input name="${name}" type="${type}" value="${escape(value)}" ${attributes}></label>`;}
   function select(name,label,options,value){return `<label>${label}<select name="${name}">${options.map(([v,t])=>`<option value="${escape(v)}" ${String(v)===String(value)?'selected':''}>${escape(t)}</option>`).join('')}</select></label>`;}
   function edit(row){
     if(!s.data)return;const kind=s.tab,mapId=s.mapId,revision=s.data.map.revision,item=row?structuredClone(row):{};
+    const initialAngle=((item.theta??0)*180/Math.PI).toFixed(2);
     let form='';
-    if(kind==='points')form=field('code','站点编号',item.code||'','text','required pattern="[a-zA-Z0-9_-]{1,80}" maxlength="80"')+field('name','站点名称',item.name||'','text','maxlength="128"')+select('type','用途',['station','waiting','shelf','charger','elevator'].map(t=>[t,types[t]]),item.type||pointCategory||'station')+field('x','X（米）',item.x??0,'number','required step="0.01"')+field('y','Y（米）',item.y??0,'number','required step="0.01"')+field('theta','朝向（度）',((item.theta||0)*180/Math.PI).toFixed(2),'number','required step="0.1"');
-    if(kind==='paths'){const points=s.data.document.points.map(p=>[p.code,`${p.code} · ${p.name||'未命名'}`]);form=select('start','起点',points,item.start)+select('end','终点',points,item.end)+select('bidirectional','通行方向',[[true,'双向'],[false,'单向']],item.bidirectional??true)+field('speed','速度上限（米/秒）',item.speed??0.5,'number','required min="0.01" max="3" step="0.01"')+field('width','通道宽度（米）',item.width??1,'number','required min="0.01" max="20" step="0.01"');}
-    if(kind==='areas')form=field('name','区域名称',item.name,'text','required maxlength="128"')+select('type','区域类型',['forbidden','slow','work','charge'].map(t=>[t,types[t]]),item.type)+field('speed','区域速度（仅减速区生效，米/秒）',item.speed??0.3,'number','required min="0.01" max="3" step="0.01"')+'<p>区域边界请通过“在地图查看”编辑。</p>';
-    dialog(`${row?'编辑':'添加'}${tabs[kind][0]}`,`<div class="form-grid">${form}</div><p class="dialog-help">${escape(s.data.map.name)} · 保存到草稿；当前执行与已发布版本保持原样。</p>`,async data=>{
+    if(kind==='points')form=field('code','站点编号',item.code||'','text','required pattern="[a-zA-Z0-9_\\-]{1,80}" maxlength="80" title="用字母、数字、短横线或下划线填写站点编号"')+field('name','站点名称',item.name||'','text','maxlength="128"')+select('type','用途',['station','waiting','shelf','charger','elevator'].map(t=>[t,types[t]]),item.type||pointCategory||'station')+field('x','X（米）',item.x??0,'number','required step="any"')+field('y','Y（米）',item.y??0,'number','required step="any"')+field('theta','朝向（度）',initialAngle,'number','required step="any"');
+    if(kind==='paths'){
+      const points=s.data.document.points.map(p=>[p.code,`${p.code} · ${p.name||'未命名'}`]);
+      form=select('start','起点',[['','请选择起点'],...points],item.start??'')+select('end','终点',[['','请选择终点'],...points],item.end??'')+select('bidirectional','通行方向',[[true,'双向'],[false,'单向']],item.bidirectional??true)+field('speed','目标线速度（米/秒）',item.speed??s.data.document.default_speed??0.5,'number','required min="0" max="3" step="any"')+field('width','通道宽度（米）',item.width??1,'number','required min="0" max="20" step="any"');
+    }
+    if(kind==='areas')form=field('name','区域名称',item.name,'text','required maxlength="128"')+select('type','区域类型',['forbidden','slow','work','charge'].map(t=>[t,types[t]]),item.type)+field('speed','区域速度（仅减速区生效，米/秒）',item.speed??0.3,'number','required min="0" max="3" step="any"')+'<p>区域边界请通过“在地图查看”编辑。</p>';
+    dialog(`${row?'编辑':'添加'}${tabs[kind][0]}`,`<div class="form-grid">${form}</div><p class="dialog-help">保存到「${escape(s.data.map.name)}」的草稿。要用于后续任务，请回到地图主页检查并发布。</p>`,async data=>{
       const values=Object.fromEntries(data);for(const name of ['x','y','speed','width'])if(name in values)values[name]=Number(values[name]);
-      if('theta' in values)values.theta=Number(values.theta)*Math.PI/180;if('bidirectional' in values)values.bidirectional=values.bidirectional==='true';
-      if(kind==='paths'&&values.start===values.end)throw Error('路线起点和终点不能相同');
+      if('theta' in values)values.theta=values.theta===initialAngle?(item.theta??0):Number(values.theta)*Math.PI/180;
+      if('bidirectional' in values)values.bidirectional=values.bidirectional==='true';
+      if(kind==='paths'&&(!values.start||!values.end))throw Error('请选择路线的起点和终点');
+      if(kind==='paths'&&values.start===values.end)throw Error('请选择不同的起点和终点');
+      if('speed' in values&&values.speed<=0)throw Error('速度需大于 0 米/秒');
+      if('width' in values&&values.width<=0)throw Error('通道宽度需大于 0 米');
       const url=`/api/maps/${mapId}/resources/${kind}`+(row?'/'+encodeURIComponent(row.uid):'');
-      await api[row?'put':'post'](url,{revision,item:{...item,...values}});notice('已保存草稿；发布后用于后续任务');await store.refresh();
-    });
+      await api[row?'put':'post'](url,{revision,item:{...item,...values}},{timeout:20000});
+      return `${tabs[kind][0]}已保存到草稿。请在地图主页检查并发布。`;
+    },{protectInput:true});
   }
   async function remove(row){
     const kind=s.tab,mapId=s.mapId,impact=await api.get(`/api/maps/${mapId}/resources/${kind}/${row.uid}/impact`);
@@ -80,17 +148,57 @@
     if(impact.blocked){dialog('请先处理关联任务',`<p>${escape(impact.name)} 的删除会影响关联任务，暂不能删除。</p>${dependencies}${refs}`,null);return;}
     dialog('删除'+tabs[kind][0],`<p>${escape(impact.name)}</p>${refs}${warnings}<p>${escape(impact.scope)}</p>${impact.paths.length?'<label class="check"><input type="checkbox" name="cascade" required>同时移除这些草稿路线，其他站点保留</label>':''}${field('confirmation','输入上方对象名称确认删除','','text','required autocomplete="off"')}`,async data=>{
       if(data.get('confirmation')!==impact.name)throw Error('确认名称不一致');
-      await api.post(`/api/maps/${mapId}/resources/${kind}/${row.uid}/delete`,{revision:impact.revision,confirmation:impact.name,cascade_paths:data.get('cascade')==='on'});notice('已从草稿删除，已发布版本与历史记录保留');await store.refresh();
-    },'确认删除');
+      await api.post(`/api/maps/${mapId}/resources/${kind}/${row.uid}/delete`,{revision:impact.revision,confirmation:impact.name,cascade_paths:data.get('cascade')==='on'},{timeout:20000});
+      return `${tabs[kind][0]}已从草稿删除。要将这次删除用于后续任务，请回到地图主页发布。`;
+    },{label:'确认删除',progress:'删除中…'});
   }
-  $('resource-form').onsubmit=async event=>{event.preventDefault();if(!submitAction)return;$('dialog-submit').disabled=true;$('dialog-cancel').disabled=true;$('dialog-close').disabled=true;try{await submitAction(new FormData(event.target));$('resource-dialog').close();}catch(error){$('dialog-error').textContent=error.message;}finally{$('dialog-submit').disabled=false;$('dialog-cancel').disabled=false;$('dialog-close').disabled=false;}};
-  $('resource-dialog').addEventListener('cancel',event=>{if($('dialog-submit').disabled)event.preventDefault();});
-  $('dialog-close').onclick=$('dialog-cancel').onclick=()=>$('resource-dialog').close();
+  resourceForm.onsubmit=async event=>{
+    event.preventDefault();
+    const current=dialogState;
+    if(!current?.handler||current.saving||current.confirmDiscard)return;
+    const data=new FormData(resourceForm);
+    $('dialog-error').textContent='';
+    $('dialog-review').hidden=true;
+    current.saving=true;
+    updateDialog();
+    let message;
+    try{message=await current.handler(data);}
+    catch(error){
+      current.saving=false;
+      updateDialog();
+      showDialogError(error);
+      return;
+    }
+    closeDialog();
+    notice(message);
+    await store.refresh();
+    if(s.error)notice(message+' 列表暂时无法更新，请点击「重新读取」。',true);
+  };
+  resourceForm.addEventListener('input',()=>{if(dialogState&&!dialogState.saving)updateDialog();});
+  resourceDialog.addEventListener('cancel',event=>{event.preventDefault();requestDialogClose();});
+  $('dialog-close').onclick=$('dialog-cancel').onclick=requestDialogClose;
+  $('dialog-keep').onclick=keepEditing;
+  $('dialog-discard').onclick=closeDialog;
+  const registerLeaveGuard=()=>window.OrangeNavigation?.registerLeaveGuard(canLeaveResourcePage);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',registerLeaveGuard,{once:true});
+  else registerLeaveGuard();
+  window.addEventListener('beforeunload',event=>{
+    if((dialogState?.saving||hasUnsavedInput())&&!window.OrangeNavigation?.leaveApproved?.()){
+      event.preventDefault();event.returnValue='';
+    }
+  });
   $('map-select').onchange=async event=>{notice('');await store.select(event.target.value);if(s.tab==='points'&&pointCategory)s.type=pointCategory;render();rememberMap();};
   $('resource-tabs').onclick=event=>{const button=event.target.closest('[data-tab]');if(!button)return;s.tab=button.dataset.tab;s.page=1;s.keyword='';pointCategory=button.dataset.pointCategory||'';s.type=pointCategory;s.selected=null;render();rememberMap();};
   $('search').oninput=event=>{s.keyword=event.target.value;s.page=1;render();$('search').focus();};$('type-filter').onchange=event=>{s.type=event.target.value;s.page=1;render();};
   $('previous').onclick=()=>{s.page--;render();};$('next').onclick=()=>{s.page++;render();};$('refresh').onclick=()=>store.refresh();$('back-map').onclick=()=>showMap();
-  $('create').onclick=()=>['areas','plans'].includes(s.tab)?showMap():edit();
+  $('create').onclick=()=>{
+    if(['areas','plans'].includes(s.tab)){showMap();return;}
+    if(s.tab==='paths'&&s.data?.document.points.length<2){
+      s.tab='points';s.page=1;s.keyword='';s.type='';s.selected=null;pointCategory='';
+      render();rememberMap();
+    }
+    edit();
+  };
   document.addEventListener('click',async event=>{const target=event.target.closest('[data-select],[data-edit],[data-delete],[data-show-map],[data-version],[data-download],[data-retry]');if(!target)return;try{
     if(target.hasAttribute('data-select')){s.selected=target.dataset.select;render();}
     if(target.hasAttribute('data-edit'))edit(find(target.dataset.edit));

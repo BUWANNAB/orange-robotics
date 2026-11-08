@@ -149,6 +149,14 @@ export function createViewer(host,onSelection){
     drawOrigin(callback){if(!points)return;clearCursor();activeStroke=null;anchor=null;previewBox=null;previewOrigin=null;brushCursor=null;fit();onOrigin=callback;mode='origin';controls.enabled=false;renderer.domElement.style.cursor='crosshair';},
     drawBox(kind){if(!points)return;clearCursor();activeStroke=null;anchor=null;previewOrigin=null;brushCursor=null;fit();mode=kind;controls.enabled=false;renderer.domElement.style.cursor='crosshair';},
     drawBrush(){if(!points)return;activeStroke=null;anchor=null;previewBox=null;previewOrigin=null;fit();mode='erase-brush';controls.enabled=false;renderer.domElement.style.cursor='crosshair';},
+    restoreSelection(selection){
+      crop=selection.crop||null;
+      erase=selection.erase||[];
+      eraseStrokes=selection.erase_brush||[];
+      brushPointCount=eraseStrokes.reduce((count,stroke)=>count+stroke.points.length,0);
+      brushLimitReached=false;
+      drawSelections();
+    },
     selection(){return {...(crop?{crop}:{}),erase:erase.map(b=>({...b})),erase_brush:eraseStrokes.map(stroke=>({radius:stroke.radius,points:stroke.points.map(point=>({...point}))})),...(origin?{origin:{...origin}}:{})};}
   };
 }

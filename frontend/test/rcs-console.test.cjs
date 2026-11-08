@@ -62,7 +62,7 @@ function navigationHarness(failSave=false){
   const element=id=>{
     if(!nodes.has(id)){
       const classes=new Set();
-      nodes.set(id,{textContent:'',innerHTML:'',classList:{toggle:(name,value)=>value?classes.add(name):classes.delete(name),contains:name=>classes.has(name)}});
+      nodes.set(id,{textContent:'',innerHTML:'',dataset:{},querySelectorAll:()=>[],classList:{toggle:(name,value)=>value?classes.add(name):classes.delete(name),contains:name=>classes.has(name)}});
     }
     return nodes.get(id);
   };

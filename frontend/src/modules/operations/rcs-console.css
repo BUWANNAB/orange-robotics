@@ -43,6 +43,12 @@ body:has(.rcs-console) #dialog .primary{border-color:#015ee7;background:#015ee7;
 @media(min-width:781px) and (max-width:1000px){.rcs-console .rcs-edit-toggle span{display:none}.rcs-console .rcs-tool-menu>summary.rcs-edit-toggle{min-width:30px;padding:4px 7px}}
 
 .rcs-console .rcs-measure-readout{bottom:32px}.rcs-console .rcs-measure-readout:empty{display:none}.rcs-console .map-canvas-head{background:transparent;opacity:.65}
+.rcs-console .map-canvas-head #map-save-state{color:#354c60;font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcs-console #map-save-detail{font-weight:600;color:#275741}
+.rcs-console #map-save-detail[data-tone="pending"],.rcs-console #map-save-state[data-tone="pending"],.rcs-console .map-fields-pending{color:#774818}
+.rcs-console #map-save-detail[data-tone="error"],.rcs-console #map-save-state[data-tone="error"]{color:#982d2d}
+.rcs-console .map-fields-pending{padding:6px 0}
+.rcs-console .map-fields-pending button{margin-left:6px}
 
 .rcs-console .rcs-header-map{display:flex;align-items:center;gap:7px;font-size:12px;color:#7e90a9;margin-right:8px}.rcs-console .rcs-header-map select{width:clamp(120px,12vw,195px);max-width:195px;background:#f5f8fd;color:#637c9e}
 .rcs-console .mission-plan-row>summary{display:flex;align-items:center;gap:7px;min-height:29px;list-style:none;cursor:pointer}.rcs-console .mission-plan-row>summary::before{content:'▸';color:#94a6bd;font-size:10px}.rcs-console .mission-plan-row[open]>summary::before{content:'▾'}.rcs-console .mission-plan-row>summary strong{flex:1;min-width:0}.rcs-console .mission-plan-row>summary>span{color:#91a2b9;font-size:10px;white-space:nowrap}.rcs-console .mission-plan-detail{padding:7px 0 2px;border-top:1px solid #edf0f6;margin-top:5px}.rcs-console .rcs-inspector-actions{padding:8px 0}

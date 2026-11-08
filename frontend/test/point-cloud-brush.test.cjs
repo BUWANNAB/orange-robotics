@@ -20,6 +20,7 @@ test('brush strokes are previewed in source XY and included in new-map processin
   assert.match(viewer, /drawBrush\(\).*mode='erase-brush'/);
   assert.match(viewer, /brushFootprint\(stroke\)/);
   assert.match(viewer, /erase_brush:eraseStrokes\.map/);
-  assert.match(workbench, /viewer\?\.selection\(\)/);
-  assert.match(workbench, /橡皮擦删除/);
+  assert.match(workbench, /viewer\.selection\(\)/);
+  assert.match(viewer, /erase_brush:eraseStrokes\.map/);
+  assert.match(workbench, /\.\.\.viewer\.selection\(\)/);
 });

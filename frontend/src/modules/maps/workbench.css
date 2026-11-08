@@ -137,3 +137,9 @@ body.route-mode .job-strip{grid-column:1/-1;grid-row:2}
   body.route-mode .workflow-docked .workflow-sheet{border-left:0;border-top:1px solid #dce4ea}
   body.route-mode.drawer-open .job-strip{grid-row:3}
 }
+
+/* Save feedback stays next to its controls in both the drawer and full page. */
+.save-feedback:not(:empty){padding:9px 11px;border-left:3px solid #6b9d98;background:#edf7f5;color:#275852;border-radius:4px;font-size:12px}
+.save-feedback.error:not(:empty),.job-strip.error{background:#fff0ee;color:#9b2922;border-left:3px solid #b3261e}
+.job-strip>div{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.job-strip>button{margin-left:auto;flex-shrink:0}

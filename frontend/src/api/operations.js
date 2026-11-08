@@ -12,13 +12,13 @@
     }
   }
   window.OpsAPI = {
-    get: (path, params) => request('GET', path, undefined, { params }),
-    post: (path, data = {}) => request('POST', path, data),
+    get: (path, params, config) => request('GET', path, undefined, { ...config, params }),
+    post: (path, data = {}, config) => request('POST', path, data, config),
     form: (path, data) => request('POST', path, data, { headers: { 'Content-Type': undefined } }),
-    put: (path, data) => request('PUT', path, data),
+    put: (path, data, config) => request('PUT', path, data, config),
     delete: (path, params) => request('DELETE', path, undefined, { params }),
     upload: (path, data, params) => request('POST', path, data, { params, headers: { 'Content-Type': 'application/octet-stream' } }),
     chunk: (id, index, data) => request('PUT', `/api/firmware/${id}/chunks/${index}`, data, { headers: { 'Content-Type': 'application/octet-stream' } }),
-    download: (path, params) => request('GET', path, undefined, { params, responseType: 'blob' })
+    download: (path, params, config) => request('GET', path, undefined, { ...config, params, responseType: 'blob' })
   };
 })();

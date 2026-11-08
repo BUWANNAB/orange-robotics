@@ -42,6 +42,12 @@
     .zoom-controls #btnResetZoom:hover{background:#dbe7e1!important}
     .zoom-display{min-width:54px;color:#485b60;font-size:13px}
     button:focus-visible,select:focus-visible{outline:3px solid rgba(191,128,87,.42);outline-offset:2px}
+    #grid-save-dialog{max-width:min(470px,calc(100vw - 32px));border:1px solid #d8e1e7;border-radius:10px;padding:22px;color:#172b3a}
+    #grid-save-dialog::backdrop{background:#172b3a77}
+    #grid-save-dialog form{display:grid;gap:12px}
+    #grid-save-dialog footer{display:flex;justify-content:flex-end;gap:9px}
+    #grid-save-dialog p{margin:0;line-height:1.65;overflow-wrap:anywhere}
+    #grid-save-dialog button:disabled{opacity:.55;cursor:wait}
     </style>
 <link rel="stylesheet" href="/ui/src/modules/theme/console-theme.css?v=comfortable-theme-20261028-1"></head>
 <body class="raster-theme">
@@ -204,18 +210,27 @@
             <p class="result-placeholder">上传PGM文件并编辑后点击"生成抠图"按钮</p>
         </div>
         <div class="tools">
-            <button id="btnDownPNG"><i>📥</i> 另存地图</button>
-            <button id="btnDownPGM"><i>📥</i> 覆盖当前地图</button>
+            <button id="btnDownPNG" type="button">另存为新地图</button>
+            <button id="btnDownPGM" type="button">更新当前二维地图</button>
         </div>
     </div>
 
 
 </div>
+<dialog id="grid-save-dialog" aria-labelledby="grid-save-title">
+    <form id="grid-save-form">
+        <h2 id="grid-save-title">保存二维地图</h2>
+        <p id="grid-save-description"></p>
+        <label id="grid-save-name-row">新地图名称<input id="grid-save-name" maxlength="180"></label>
+        <p id="grid-save-result" role="status" aria-live="polite"></p>
+        <footer><button id="grid-save-cancel" type="button">返回编辑</button><button id="grid-save-confirm" type="submit">保存</button></footer>
+    </form>
+</dialog>
 <script src="../../../src/libs/axios.min.js"></script>
  <script src="../../../src/api/ApiManager-traditional.js"></script>
  <script type="text/javascript" src="../../../src/libs/coco-message.js"></script>
  <script src="../../../src/api/api-simple.js"></script>
 <script src="js/map_coordinates.js?v=coordinate-frame-1"></script>
-<script src="js/handle_map.js?v=comfortable-theme-20261028-1"></script>
+<script src="js/handle_map.js?v=20261109-grid-dirty-snapshot-1"></script>
 </body>
 </html>

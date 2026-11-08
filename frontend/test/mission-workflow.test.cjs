@@ -6,7 +6,7 @@ const vm = require('node:vm');
 // Run the actual console functions without starting its network/DOM boot loop.
 const source = fs.readFileSync('frontend/src/modules/operations/operations.js', 'utf8');
 const functions = source.slice(0, source.indexOf("  $('nav').onclick=")) +
-  'window.consoleTest={state,action,taskMotionControls,taskMotionBadge,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions,changeTaskMode,taskModeMarkup};})();';
+  'window.consoleTest={state,action,taskMotionControls,taskMotionBadge,missionDesigner,refreshMapMissions,refreshMapTasks,renderMapMissions,changeTaskMode,taskModeMarkup,canLeaveOperations,preventPendingDialogCancel};})();';
 const mapDocument = {points:[{code:'A'},{code:'C'}],paths:[{start:'A',end:'C',bidirectional:true}]};
 const plan = {id:1,name:'巡回任务',map_id:10,start_point:'A',steps:[
   {node_id:'one',action:'navigate',point:'C',delay_seconds:0},
@@ -42,7 +42,7 @@ function harness(publishedDocument=mapDocument) {
     post:async (url,payload) => {calls.push({method:'post',url,payload});return {...payload,id:1,status:'waiting_manual'};},
     put:async (url,payload) => {calls.push({method:'put',url,payload});return {...payload,id:1};}
   };
-  const window = {OpsAPI:api};
+  const window = {OpsAPI:api,alert(){}};
   class FormData {constructor(form){this.values=form.values;}get(key){return this.values.get(key)??null;}}
   vm.runInNewContext(functions,{window,document,location:{search:'',origin:'http://localhost'},URLSearchParams,FormData,Set,Map,Date,Math});
   const controller=window.consoleTest;
@@ -69,6 +69,31 @@ test('saving an infinite template never starts a device run',async()=>{
   assert.equal(saves.length,1);
   assert.equal(saves[0].payload.repeat_count,-1);
   assert.equal(h.calls.some(call=>call.method==='post'&&call.url.endsWith('/runs')),false);
+});
+
+test('saving a task template locks cancel, Escape and workspace navigation until the server replies',async()=>{
+  const h=harness();await h.controller.missionDesigner(plan);
+  let finish;h.api.put=async(url,payload)=>new Promise(resolve=>{finish=()=>resolve({...payload,id:plan.id});});
+  const pending=h.element('mission-save-only').onclick();
+  assert.equal(h.element('mission-save-only').disabled,true);
+  assert.equal(h.element('dialog-cancel').disabled,true);
+  assert.equal(h.element('dialog-close').disabled,true);
+  assert.equal(h.controller.canLeaveOperations(),false);
+  let prevented=false;h.controller.preventPendingDialogCancel({preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);
+  finish();await pending;
+  assert.equal(h.element('mission-save-only').disabled,false);
+  assert.equal(h.controller.canLeaveOperations(),true);
+});
+
+test('task designer refuses to open against a map that changed while versions were loading',async()=>{
+  const h=harness();let finish;
+  h.api.get=async url=>url.endsWith('/versions')?new Promise(resolve=>{finish=()=>resolve([{version:1,document:mapDocument}]);}):[];
+  const pending=h.controller.missionDesigner(plan);
+  h.controller.state.mapRow={id:20,published_version:1};
+  finish();
+  await assert.rejects(pending,/地图已切换/);
+  assert.notEqual(h.element('dialog').open,true);
 });
 
 test('execution requires the typed name and carries the mode shown when opened',async()=>{

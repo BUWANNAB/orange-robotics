@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('frontend/src/modules/operations/operations.js','utf8');
-const functions=source.slice(0,source.indexOf("  $('nav').onclick="))+'window.probe={state,dialog,closeDialog,preventPendingDialogCancel,canLeaveOperations,saveMap,refreshMapTasks,refreshMapMissions,renderMapMissions,action};})();';
+const functions=source.slice(0,source.indexOf("  $('nav').onclick="))+'window.probe={state,dialog,closeDialog,preventPendingDialogCancel,canLeaveOperations,saveMap,leaveMap,mapRecoveries,refreshMapTasks,refreshMapMissions,renderMapMissions,action};})();';
 function harness(){
   const nodes=new Map(),calls=[];
   function element(id){
@@ -52,14 +52,44 @@ test('late save responses cannot replace a different map or dereference a closed
     const h=harness();h.controller.state.dirty=true;
     let resolve;h.api.post=()=>new Promise(done=>{resolve=done});
     const saving=h.controller.saveMap();
+    const statusBeforeReceipt=h.element('map-save-state').textContent;
     const replacement=leave?null:{document:{points:[{code:'new-map'}],paths:[],areas:[]}};
     h.controller.state.map=replacement;h.controller.state.mapRow=leave?null:{id:20,revision:7};h.controller.state.dirty=!leave;
     resolve({id:10,revision:2,draft:{points:[],paths:[],areas:[]}});await saving;
     assert.equal(h.controller.state.map,replacement);
     assert.equal(h.controller.state.mapRow?.id,leave?undefined:20);
     assert.equal(h.controller.state.dirty,!leave);
-    assert.equal(h.element('map-save-state').textContent,'');
+    assert.equal(h.element('map-save-state').textContent,statusBeforeReceipt);
   }
+});
+
+test('failed save preserves the editable draft and local snapshot before a retry',async()=>{
+  const h=harness(),state=h.controller.state,editor=state.map;
+  state.dirty=true;editor.document.points.push({code:'A'});
+  const local=[];
+  h.controller.mapRecoveries.set(editor,{write:(document,revision)=>{local.push({document:structuredClone(document),revision});return true;},remove:()=>local.pop()});
+  h.api.post=async()=>{throw Error('Network Error');};
+  assert.equal(await h.controller.leaveMap(),false);
+  assert.equal(state.map,editor);
+  assert.deepEqual(local.at(-1),{document:{points:[{code:'A'}],paths:[],areas:[]},revision:1});
+  assert.match(h.element('map-save-state').textContent,/本机已暂存/);
+  h.api.post=async()=>({id:10,revision:2,published_version:1});
+  await h.controller.saveMap();
+  assert.equal(state.dirty,false);
+  assert.equal(local.length,0);
+  assert.match(h.element('map-save-state').textContent,/服务器已保存草稿 r2/);
+});
+
+test('publishing uses the server receipt without a second fetch that could report a false failure',async()=>{
+  const h=harness();
+  Object.assign(h.controller.state.mapRow,{name:'验证地图',published_version:2});
+  h.api.post=async(url,payload)=>{h.calls.push({method:'post',url,payload});return {version:3};};
+  await h.controller.action('map-publish');
+  await h.element('dialog-form').onsubmit({preventDefault(){},target:{confirmation:'验证地图'}});
+  assert.equal(h.calls.filter(call=>call.method==='post').length,1);
+  assert.equal(h.calls.filter(call=>call.method==='get').length,0);
+  assert.match(h.element('map-save-state').textContent,/已发布 v3 · 等待设备加载确认/);
+  assert.equal(h.controller.state.mapRow.revision,2);
 });
 
 test('a second save waits for the first and persists edits made while the first was pending',async()=>{

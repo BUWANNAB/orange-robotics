@@ -2603,118 +2603,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
      */
 
     function downloadPGM() {
-        generateCutout();
-        if (!lastCutoutPGMData || !mapSelector.value) {
-            statusMessage.style.display = 'block';
-            statusMessage.textContent = "没有可下载的结果或未选择地图";
-            return;
-        }
-
-        statusMessage.style.display = 'block';
-        statusMessage.textContent = "正在保存PGM文件...";
-
-        // 1. 创建PGM文件内容 - 单一部分
-        const { width, height, maxValue, imageData } = lastCutoutPGMData;
-        let pgmContent = `P5\n${width} ${height}\n${maxValue}\n`;
-
-        // 2. 合并文件头和图像数据
-        const encoder = new TextEncoder();
-        const header = encoder.encode(pgmContent);
-        const pgmBytes = new Uint8Array(header.length + imageData.length);
-        pgmBytes.set(header);
-        pgmBytes.set(imageData, header.length);
-
-        // 3. 创建正确的Blob和File对象 🔑
-        const pgmBlob = new Blob([pgmBytes], {
-            type: 'image/x-portable-greymap'  // 标准PGM MIME类型
-        });
-
-        // 4. 创建File对象确保包含文件名
-        const pgmFile = new File([pgmBlob], "map.pgm", {
-            type: 'image/x-portable-greymap',
-            lastModified: Date.now()
-        });
-
-        // 5. 构建FormData
-        const formData = new FormData();
-        formData.append('pgm', pgmFile);
-        
-        // 判断是主地图还是子地图
-        let mapNameToSave;
-        if (currentSelectedSubFile) {
-            // 如果是子地图，使用child.path作为mapName
-            mapNameToSave = currentSelectedSubFile.path;
-            console.log(`保存子地图: ${mapNameToSave}`);
-        } else {
-            // 如果是主地图，使用选择器的值
-            mapNameToSave = mapSelector.value;
-            console.log(`保存主地图: ${mapNameToSave}`);
-        }
-
-        formData.append('mapName', mapNameToSave);
-       
-        
-
-
-        // 7. 获取当前地图的YAML文件内容
-        const mapName = mapSelector.value;
-        
-        // 异步获取YAML文件内容
-        fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapNameToSave)}`, {headers:mapAuth()})
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`YAML配置加载失败: ${response.status} ${response.statusText}`);
-                }
-                return response.text();
-            })
-            .then(yamlContent => {
-                // 8. 创建YAML Blob对象
-                const yamlBlob = new Blob([yamlContent], { type: 'text/yaml' });
-
-                // 9. 构建FormData用于新的/pgm/save接口
-                const formData = new FormData();
-                
-                // 直接添加Blob对象，并指定文件名
-                formData.append('pgm', pgmBlob, "map.pgm");
-                formData.append('metadata', yamlBlob, "map.yaml");
-
-                // 10. 验证FormData内容
-      
-                const xhr = new XMLHttpRequest();
-                
-                // 设置请求完成和错误处理
-                xhr.onload = function() {
-                    let result;
-                    try { result = JSON.parse(xhr.responseText); } catch { result = {}; }
-                    if (xhr.status >= 200 && xhr.status < 300 && result.code === 0) {
-                        if (result.data.id === loadedMapKey) gridRevision = result.data.revision;
-                        parent.postMessage({type:'map-saved',id:result.data.id}, location.origin);
-                        statusMessage.textContent = "地图保存成功！";
-                        setTimeout(() => statusMessage.style.display = 'none', 3000);
-                    } else {
-                        console.error("地图保存失败:", xhr.status, xhr.responseText);
-                        statusMessage.textContent = `保存失败: ${result.message || result.detail || xhr.status}`;
-                    }
-                };
-                
-                xhr.onerror = function() {
-                    console.error("地图保存失败: 网络错误");
-                    statusMessage.textContent = "保存失败: 网络错误";
-                };
-                
-                // 打开POST请求到/pgm/save端点，path作为URL参数
-                formData.append('asset_id', mapNameToSave);
-                if (gridRevision) formData.append('revision', gridRevision);
-                xhr.open('POST', '/api/map-workbench/grid', true);
-                xhr.setRequestHeader('Authorization', localStorage.getItem('token') || '');
-                
-                // 发送FormData - 浏览器会自动设置正确的Content-Type和边界
-                xhr.send(formData);
-            })
-            .catch(error => {
-                console.error("YAML文件加载失败:", error);
-                statusMessage.textContent = `保存失败: ${error.message}`;
-            });
+        openGridSave(false);
     }
     /**
      * 添加任务
@@ -3022,6 +2911,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
 
     // 地图选择器逻辑
     let gridRevision = null;
+    let loadedGridYaml = null;
     let loadedMapKey = null;
     let mapLoadGeneration = 0;
     const mapAuth = () => ({Authorization: localStorage.getItem('token') || ''});
@@ -3048,10 +2938,9 @@ let isDrawingRect = false; // 是否正在绘制矩形
             const selectedAsset = before.data?.find(row=>row.id===mapName&&row.grid);
             if (!selectedAsset) throw new Error('这张地图没有完整的 PGM / YAML 栅格');
             const version = selectedAsset?.revision;
-            setMapCoordinateFrame(selectedAsset);
             const [responsepgm, responseyaml] = await Promise.all([
-                fetch(`/api/map-workbench/file/pgm/${encodeURIComponent(mapName)}`, {headers:mapAuth()}),
-                fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapName)}`, {headers:mapAuth()})
+                fetch(`/api/map-workbench/file/pgm/${encodeURIComponent(mapName)}`, {headers:mapAuth(),cache:'no-store'}),
+                fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(mapName)}`, {headers:mapAuth(),cache:'no-store'})
             ]);
             if (generation !== mapLoadGeneration) return;
     
@@ -3071,11 +2960,16 @@ let isDrawingRect = false; // 是否正在绘制矩形
             const yamlContent = await responseyaml.text();
             if (!yamlContent.trim()) throw new Error('地图 YAML 内容为空');
          
-            // 使用现有方法解析PGM文件
+            const afterResponse = await fetch('/api/map-workbench/assets', {headers:mapAuth(),cache:'no-store'});
+            const after = await afterResponse.json();
+            if (!afterResponse.ok || after.code !== 0 || after.data?.find(row=>row.id===mapName)?.revision !== version) {
+                throw new Error('地图在加载期间已更新，请重新加载后再编辑');
+            }
             const parsedData = await parsePGM(pgmFile);
             if (generation !== mapLoadGeneration) return;
             pgmData = parsedData;
-            gridRevision = version; loadedMapKey = mapName;
+            setMapCoordinateFrame(selectedAsset);
+            gridRevision = version; loadedMapKey = mapName; loadedGridYaml = yamlContent; savedGridSnapshot = null;
             lastCutoutPGMData = null; lastCutoutImageData = null;
             resultContainer.replaceChildren();
             originalPgmData = {
@@ -3084,6 +2978,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
             };
             // 重置状态
             resetAll();
+            savedGridSnapshot = captureGridSnapshot();
 
             // 绘制图像
             drawPGM();
@@ -3131,6 +3026,10 @@ let isDrawingRect = false; // 是否正在绘制矩形
 
     // 地图选择器事件监听
     mapSelector.addEventListener('change', () => {
+        if (!window.gridCanLeave()) {
+            mapSelector.value = loadedMapKey || '';
+            return;
+        }
         const selectedMap = mapSelector.value;
       
         if (selectedMap) {
@@ -3152,6 +3051,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
     });
     // 刷新地图列表按钮事件 - 修改为实现回到父地图功能
     reloadMapsBtn.addEventListener('click', () => {
+        if (!window.gridCanLeave()) return;
      
         
         if (currentParentMap) {
@@ -3220,6 +3120,7 @@ let isDrawingRect = false; // 是否正在绘制矩形
 
             // 保存初始状态
             saveHistory();
+            savedGridSnapshot = captureGridSnapshot();
 
             // 绘制图像
             drawPGM();
@@ -3610,159 +3511,142 @@ let isDrawingRect = false; // 是否正在绘制矩形
      */
 
 
-    function saveAsNewMap() {
-        generateCutout();
-        if (!lastCutoutPGMData) {
-            statusMessage.style.display = 'block';
-            statusMessage.textContent = "没有可保存的结果";
-            return;
-        }
+    const gridSaveDialog = document.getElementById('grid-save-dialog');
+    const gridSaveForm = document.getElementById('grid-save-form');
+    const gridSaveName = document.getElementById('grid-save-name');
+    const gridSaveResult = document.getElementById('grid-save-result');
+    const gridSaveCancel = document.getElementById('grid-save-cancel');
+    const gridSaveConfirm = document.getElementById('grid-save-confirm');
+    let gridSaveBusy = false;
+    let gridSaveAs = false;
+    let savedGridSnapshot = null;
+    let gridLeaveApprovedUntil = 0;
+    const copyNames = new Map();
 
-        // 获取当前选中的地图名称
-        const currentMapName = mapSelector.value;
-        if (!currentMapName) {
-            statusMessage.style.display = 'block';
-            statusMessage.textContent = "请先选择一个地图";
-            return;
-        }
-
-        // 获取所有地图名称
-        const mapNames = Array.from(mapSelector.options).map(opt => opt.value);
-
-        // 提取基础名称（移除任何现有的副本后缀）
-        const baseName = currentMapName.replace(/-副本\d*$/, '');
-
-        // 找出所有以基础名称开头的副本
-        const copyRegex = new RegExp('^' + baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-副本(\\d+)$');
-        const simpleCopyRegex = new RegExp('^' + baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-副本$');
-
-        let maxCopyNumber = 0;
-        mapNames.forEach(name => {
-            // 检查带编号的副本
-            const match = name.match(copyRegex);
-            if (match) {
-                const copyNum = parseInt(match[1]);
-                if (copyNum > maxCopyNumber) {
-                    maxCopyNumber = copyNum;
-                }
-            }
-            // 检查不带编号的副本
-            else if (simpleCopyRegex.test(name)) {
-                if (maxCopyNumber === 0) {
-                    maxCopyNumber = 1; // 将不带编号的副本视为副本1
-                }
-            }
-        });
-
-        // 计算下一个副本编号
-        const nextCopyNumber = maxCopyNumber + 1;
-        const defaultNewName = baseName + '-副本' + nextCopyNumber;
-
-
-        // 弹出输入框，默认显示计算出的副本名称
-        const newMapName = prompt("请输入新地图的名称:", defaultNewName);
-
-        if (!newMapName) {
-            // 用户取消了输入
-            return;
-        }
-
-        if (!newMapName.trim()) {
-            statusMessage.style.display = 'block';
-            statusMessage.textContent = "地图名称不能为空";
-            return;
-        }
-        // 其余保存逻辑保持不变...
-        statusMessage.style.display = 'block';
-        statusMessage.textContent = "正在保存PGM文件...";
-
-        // 创建PGM文件内容
-        const { width, height, maxValue, imageData } = lastCutoutPGMData;
-        let pgmContent = `P5\n${width} ${height}\n${maxValue}\n`;
-
-        // 合并文件头和图像数据
-        const encoder = new TextEncoder();
-        const header = encoder.encode(pgmContent);
-        const pgmBytes = new Uint8Array(header.length + imageData.length);
-        pgmBytes.set(header);
-        pgmBytes.set(imageData, header.length);
-
-        // 创建PGM Blob对象
-        const pgmBlob = new Blob([pgmBytes], {
-            type: 'image/x-portable-greymap'
-        });
-
-        // 获取当前地图的YAML文件内容
-        fetch(`/api/map-workbench/file/yaml/${encodeURIComponent(currentMapName)}`, {headers:mapAuth()})
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`YAML配置加载失败: ${response.status} ${response.statusText}`);
-                }
-                return response.text();
-            })
-            .then(yamlContent => {
-                // 创建YAML Blob对象
-                const yamlBlob = new Blob([yamlContent], { type: 'text/yaml' });
-
-                // 构建FormData用于新的/pgm/save-as接口
-                const formData = new FormData();
-                
-                // 添加parentPath参数（当前选中的地图路径）
-                formData.append('create_only', 'true');
-                
-                // 添加newName参数（用户输入的新地图名称）
-                formData.append('asset_id', newMapName);
-                
-                // 创建File对象确保包含文件名
-                const pgmFile = new File([pgmBlob], "map.pgm", {
-                    type: 'image/x-portable-greymap',
-                    lastModified: Date.now()
-                });
-                
-                const yamlFile = new File([yamlBlob], "map.yaml", {
-                    type: 'text/yaml',
-                    lastModified: Date.now()
-                });
-                
-                // 添加File对象
-                formData.append('pgm', pgmFile);
-                formData.append('metadata', yamlFile);
-                // 使用XMLHttpRequest发送multipart/form-data请求
-                const xhr = new XMLHttpRequest();
-                // 设置请求完成和错误处理
-                xhr.onload = function() {
-                    let result;
-                    try { result = JSON.parse(xhr.responseText); } catch { result = {}; }
-                    if (xhr.status >= 200 && xhr.status < 300 && result.code === 0) {
-                        if (result.data.id === loadedMapKey) gridRevision = result.data.revision;
-                        parent.postMessage({type:'map-saved',id:result.data.id}, location.origin);
-                        statusMessage.textContent = "地图保存成功！";
-                        setTimeout(() => statusMessage.style.display = 'none', 3000);
-                        // 刷新地图列表以包含新保存的地图
-                        loadMapList();
-                    } else {
-                        console.error("保存失败:", xhr.status, xhr.responseText);
-                        statusMessage.textContent = `保存失败: ${result.message || result.detail || xhr.status}`;
-                    }
-                };
-                
-                xhr.onerror = function() {
-                    console.error("保存失败: 网络错误");
-                    statusMessage.textContent = "保存失败: 网络错误";
-                };
-                
-                // 打开POST请求到/pgm/save-as端点
-                xhr.open('POST', '/api/map-workbench/grid', true);
-                xhr.setRequestHeader('Authorization', localStorage.getItem('token') || '');
-                
-                // 发送FormData - 浏览器会自动设置正确的Content-Type和边界
-                xhr.send(formData);
-            })
-            .catch(error => {
-                console.error("保存失败:", error);
-                statusMessage.textContent = `保存失败: ${error.message}`;
-            });
+    function gridOverlaySnapshot() {
+        return JSON.stringify({points,isClosed,tasks,taskSelectionOrder,taskNumberCounter,arrows,perpendicularLines});
     }
+
+    function captureGridSnapshot() {
+        if (!pgmData) return null;
+        return {
+            width: pgmData.width,
+            height: pgmData.height,
+            imageData: new Uint8ClampedArray(pgmData.imageData),
+            overlays: gridOverlaySnapshot()
+        };
+    }
+
+    function gridHasEdits() {
+        if (!pgmData || !originalPgmData) return false;
+        if (!savedGridSnapshot) return true;
+        if (pgmData.width !== savedGridSnapshot.width || pgmData.height !== savedGridSnapshot.height || gridOverlaySnapshot() !== savedGridSnapshot.overlays) return true;
+        return pgmData.imageData.some((value, index) => value !== savedGridSnapshot.imageData[index]);
+    }
+
+    window.gridCanLeave = () => {
+        if (gridSaveBusy) return false;
+        if (!gridHasEdits()) return true;
+        if (!window.confirm('二维地图还有修改未保存。确定放弃这些修改？')) return false;
+        gridLeaveApprovedUntil = Date.now() + 1000;
+        return true;
+    };
+    window.addEventListener('beforeunload', event => {
+        if (gridSaveBusy || (gridHasEdits() && Date.now() >= gridLeaveApprovedUntil)) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+
+    function nextCopyName(source) {
+        const stem = source.replace(/-副本\d*$/, '');
+        const names = new Set(Array.from(mapSelector.options, option => option.value));
+        let index = 1;
+        while (names.has(stem + '-副本' + index)) index++;
+        return stem + '-副本' + index;
+    }
+
+    function openGridSave(createOnly) {
+        if (gridSaveBusy || gridSaveDialog.open) return;
+        if (!pgmData || loadedMapKey !== mapSelector.value || !gridRevision || !loadedGridYaml) {
+            statusMessage.style.display = 'block';
+            statusMessage.textContent = '请先选择地图，并等待二维底图加载完成。';
+            return;
+        }
+        if (points.length && (points.length < 3 || !isClosed)) {
+            statusMessage.style.display = 'block';
+            statusMessage.textContent = '选区还未闭合。请完成选区，或清除选区后再保存。';
+            return;
+        }
+        gridSaveAs = createOnly;
+        document.getElementById('grid-save-title').textContent = createOnly ? '另存为新地图' : '更新当前二维地图';
+        document.getElementById('grid-save-description').textContent = createOnly
+            ? `以“${loadedMapKey}”为源地图，在地图库中新增一张二维底图，保留原地图和点云。`
+            : `保存后会更新“${loadedMapKey}”的二维通行区域，原始点云和坐标保持不变。`;
+        document.getElementById('grid-save-name-row').hidden = !createOnly;
+        gridSaveName.disabled = !createOnly;
+        gridSaveName.required = createOnly;
+        gridSaveName.value = createOnly ? (copyNames.get(loadedMapKey) ?? nextCopyName(loadedMapKey)) : loadedMapKey;
+        gridSaveResult.textContent = '';
+        gridSaveConfirm.textContent = createOnly ? '保存新地图' : '确认更新';
+        gridSaveDialog.showModal();
+        if (createOnly) gridSaveName.select(); else gridSaveCancel.focus();
+    }
+
+    function saveAsNewMap() {
+        openGridSave(true);
+    }
+
+    gridSaveName.addEventListener('input', () => {
+        if (gridSaveAs && loadedMapKey) copyNames.set(loadedMapKey, gridSaveName.value);
+    });
+    gridSaveCancel.addEventListener('click', () => gridSaveDialog.close());
+    gridSaveDialog.addEventListener('cancel', event => { if (gridSaveBusy) event.preventDefault(); });
+
+    gridSaveForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (gridSaveBusy || !loadedGridYaml || loadedMapKey !== mapSelector.value) return;
+        const source = loadedMapKey;
+        const target = gridSaveAs ? gridSaveName.value.trim() : source;
+        if (!target || (gridSaveAs && Array.from(mapSelector.options).some(option => option.value.toLowerCase() === target.toLowerCase()))) {
+            gridSaveResult.textContent = '请输入一个尚未使用的地图名称。';
+            gridSaveName.focus();
+            return;
+        }
+        generateCutout();
+        if (!lastCutoutPGMData) return;
+        const {width, height, maxValue, imageData} = lastCutoutPGMData;
+        const formData = new FormData();
+        formData.append('asset_id', target);
+        if (gridSaveAs) formData.append('create_only', 'true');
+        else formData.append('revision', gridRevision);
+        formData.append('pgm', new Blob([`P5\n${width} ${height}\n${maxValue}\n`, imageData], {type:'image/x-portable-greymap'}), 'map.pgm');
+        formData.append('metadata', new Blob([loadedGridYaml], {type:'text/yaml'}), 'map.yaml');
+
+        gridSaveBusy = true;
+        gridSaveConfirm.disabled = gridSaveCancel.disabled = true;
+        gridSaveName.readOnly = true;
+        gridSaveResult.textContent = `正在保存“${target}”，请等待服务器确认。`;
+        try {
+            const response = await fetch('/api/map-workbench/grid', {method:'POST',headers:mapAuth(),body:formData,signal:window.AbortSignal?.timeout?.(20000)});
+            const body = await response.json();
+            if (!response.ok || body.code !== 0) throw new Error(body.detail || body.message || '服务器没有确认保存');
+            if (body.data.id === source) gridRevision = body.data.revision;
+            savedGridSnapshot = captureGridSnapshot();
+            copyNames.delete(source);
+            gridSaveDialog.close();
+            statusMessage.style.display = 'block';
+            statusMessage.className = 'status-message success';
+            statusMessage.textContent = `“${body.data.id}”已保存到地图库，可继续规划路线。`;
+            if (window.parent !== window) parent.postMessage({type:'map-saved',id:body.data.id},location.origin);
+        } catch (error) {
+            gridSaveResult.textContent = `尚未收到保存确认。当前修改和名称仍在此页。${error.message}。可以关闭此窗口，再选择重试或另存为新地图。`;
+        } finally {
+            gridSaveBusy = false;
+            gridSaveConfirm.disabled = gridSaveCancel.disabled = false;
+            gridSaveName.readOnly = false;
+        }
+    });
 
     // 修改按钮事件绑定
     document.getElementById('btnDownPNG').addEventListener('click', saveAsNewMap);

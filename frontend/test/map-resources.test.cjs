@@ -63,3 +63,101 @@ test('a late map inventory cannot replace a user-selected map',async()=>{
   const load=store.load(1);await store.select(2);resolve({list:[{id:1}],total:1});await load;
   assert.equal(store.state.mapId,2);assert.equal(rows(store.state)[0].name,'chosen');
 });
+
+function resourcePage({write=async()=>{},refresh=async()=>{}}={}){
+  const vm=require('node:vm'),fs=require('node:fs'),elements=new Map(),events=new Map();
+  const point={uid:'point-1',code:'P1',name:'初始站点',type:'station',x:1.23456,y:2,theta:0.3912345};
+  const s={mapId:7,tab:'points',type:'',keyword:'',data:{
+    map:{name:'测试地图',revision:3},document:{points:[point,{...point,uid:'point-2',code:'P2'}],paths:[],default_speed:0.75}
+  }};
+  let guard;
+  function el(id){
+    if(!elements.has(id))elements.set(id,{
+      open:false,values:{},listeners:new Map(),classList:{contains:()=>false},
+      addEventListener(type,listener){this.listeners.set(type,listener);},
+      setAttribute(){},contains(){return false;},querySelector(){return null;},focus(){},
+      showModal(){this.open=true;},close(){this.open=false;}
+    });
+    return elements.get(id);
+  }
+  const window={
+    OpsAPI:{post:write,put:write},
+    MapResourceStore:{createStore:()=>({state:s,load:()=>new Promise(()=>{}),refresh:()=>refresh(s)}),rows},
+    OrangeNavigation:{registerLeaveGuard(fn){guard=fn;}},
+    addEventListener:(type,listener)=>events.set(type,listener),
+    alert(){},confirm:()=>false
+  };
+  window.top=window;
+  const document={getElementById:el,readyState:'complete',addEventListener:(type,listener)=>events.set(type,listener)};
+  const location={search:'',href:'http://localhost/ui/map-resources.html'};
+  const localStorage={getItem:()=>null};
+  class FormData extends Map{constructor(form){super(Object.entries(form.values));}}
+  vm.runInNewContext(fs.readFileSync('frontend/src/modules/maps/resources.js','utf8'),{
+    window,document,location,localStorage,URLSearchParams,FormData,structuredClone
+  });
+  const form=el('resource-form');
+  form.values={code:point.code,name:point.name,type:point.type,x:String(point.x),y:String(point.y),theta:(point.theta*180/Math.PI).toFixed(2)};
+  const edit=()=>events.get('click')({target:{closest:()=>({hasAttribute:key=>key==='data-edit',dataset:{edit:point.uid}})}});
+  const submit=()=>form.onsubmit({preventDefault(){}});
+  return {el,events,form,point,s,edit,submit,guard:()=>guard()};
+}
+
+test('resource edits survive cancel, Escape and a blocked navigation until the operator discards them',async()=>{
+  const page=resourcePage();await page.edit();
+  page.form.values.name='修改后的站点';
+  page.form.listeners.get('input')();
+  assert.match(page.el('dialog-state').textContent,/尚未保存/);
+  assert.equal(page.guard(),false);
+  const unload={preventDefault(){this.prevented=true;}};
+  page.events.get('beforeunload')(unload);
+  assert.equal(unload.prevented,true);
+  page.el('dialog-cancel').onclick();
+  assert.equal(page.el('dialog-discard').hidden,false);
+  assert.equal(page.el('dialog-fields').inert,true);
+  page.el('dialog-keep').onclick();
+  assert.equal(page.el('dialog-fields').inert,false);
+  assert.equal(page.form.values.name,'修改后的站点');
+  page.el('resource-dialog').listeners.get('cancel')({preventDefault(){}});
+  assert.equal(page.el('resource-dialog').open,true);
+  page.el('dialog-discard').onclick();
+  assert.equal(page.el('resource-dialog').open,false);
+  assert.equal(page.guard(),true);
+});
+
+test('resource save blocks duplicate requests, preserves exact coordinates and separates save success from a failed list refresh',async()=>{
+  let reject,attempts=0,payload;
+  const page=resourcePage({
+    write:async (url,data)=>{payload=data;if(++attempts===1)await new Promise((_,fail)=>{reject=fail;});},
+    refresh:async s=>{s.error='清单离线';}
+  });
+  await page.edit();
+  page.form.values.name='待保存名称';
+  const pending=page.submit();
+  await page.submit();
+  assert.equal(attempts,1);
+  assert.equal(page.el('dialog-submit').textContent,'保存中…');
+  assert.equal(page.el('dialog-fields').inert,true);
+  assert.equal(page.guard(),false);
+  page.el('dialog-close').onclick();
+  assert.equal(page.el('resource-dialog').open,true);
+  reject(Error('Network Error'));await pending;
+  assert.equal(page.el('dialog-review').hidden,false);
+  assert.match(page.el('dialog-review').href,/mapId=7/);
+  assert.equal(page.form.values.name,'待保存名称');
+  assert.equal(page.el('resource-dialog').open,true);
+  await page.submit();
+  assert.equal(attempts,2);
+  assert.equal(payload.item.theta,page.point.theta);
+  assert.equal(payload.item.x,page.point.x);
+  assert.equal(page.el('resource-dialog').open,false);
+  assert.match(page.el('notice').textContent,/已保存到草稿。.*列表暂时无法更新/);
+});
+
+test('new routes inherit the map speed and require explicitly chosen endpoints',()=>{
+  const page=resourcePage();page.s.tab='paths';
+  page.el('create').onclick();
+  const fields=page.el('dialog-fields').innerHTML;
+  assert.match(fields,/请选择起点/);
+  assert.match(fields,/请选择终点/);
+  assert.match(fields,/name="speed"[^>]*value="0.75"/);
+});

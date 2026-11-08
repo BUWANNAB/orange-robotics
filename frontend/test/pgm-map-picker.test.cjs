@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync('frontend/src/modules/operations/operations.js','utf8');
 const functions=source.slice(0,source.indexOf("  $('nav').onclick="))+
-  'openMap=async row=>{window.opened=row;};load=async()=>{};window.pgmTest={state,existingPgmForm};})();';
+  'openMap=async row=>{window.opened=row;return true;};load=async()=>{};window.pgmTest={state,existingPgmForm};})();';
 const grid={id:'车间一层',grid:true,resolution:.05,origin:[1,2,0]};
 
 function harness(initial=[]){

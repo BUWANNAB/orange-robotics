@@ -24,11 +24,11 @@ test('home/map links preserve hashes and replace stale map identifiers',()=>{
 });
 const workbenchSource=fs.readFileSync('frontend/src/modules/maps/workbench.js','utf8');
 function workbench(){
- const nodes=new Map(),el=id=>{if(!nodes.has(id))nodes.set(id,{value:id==='mapping-name'?'fixture':'0',type:'number',checked:false,hidden:false,disabled:false,textContent:'',setAttribute(){},removeAttribute(){},focus(){},classList:{toggle(){},add(){},remove(){}},getAttribute(){return this.src||''},contentWindow:{postMessage(){}}});return nodes.get(id);};
+ const nodes=new Map(),el=id=>{if(!nodes.has(id))nodes.set(id,{value:id==='mapping-name'?'fixture':'0',type:'number',checked:false,hidden:false,disabled:false,textContent:'',addEventListener(){},setAttribute(){},removeAttribute(){},focus(){},classList:{toggle(){},add(){},remove(){}},getAttribute(){return this.src||''},contentWindow:{postMessage(){}}});return nodes.get(id);};
  const window={OpsAPI:{},OrangeNavigation:{registerLeaveGuard(){}},addEventListener(){},confirm:()=>false};
  const document={body:{classList:{add(){},remove(){},toggle(){}}},activeElement:null,getElementById:el};
  const prefix=workbenchSource.slice(0,workbenchSource.indexOf('function setBusy('));
- vm.runInNewContext(prefix+'window.test={pointDirty,canLeavePoint,openWorkflowDrawer,closeWorkflowDrawer,baseline(v){viewer=v;pointAsset="fixture";pointBaseline=pointSnapshot();}}',{window,document,URLSearchParams,location:{search:'',hash:'',origin:'http://localhost'},localStorage:{getItem:()=>null},Date,Map,JSON});
+ vm.runInNewContext(prefix+'window.test={pointDirty,canLeavePoint,openWorkflowDrawer,closeWorkflowDrawer,baseline(v){viewer=v;pointAsset="fixture";pointBaseline=pointSnapshot();}}',{window,document,URLSearchParams,location:{search:'',hash:'',origin:'http://localhost'},localStorage:{getItem:()=>null},Date,Map,JSON,clearTimeout(){},setTimeout(){return 1;}});
  return {window,el,controller:window.test};
 }
 test('unprocessed point-cloud selections require confirmation and undo restores a clean state',()=>{
