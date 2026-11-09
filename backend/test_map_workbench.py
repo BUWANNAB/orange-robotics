@@ -244,7 +244,7 @@ class MapWorkbenchTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,'必须已安装并确认停止'):
                     await mapping.require_localization_and_motion_stopped()
             with (patch('app.services.ros_runtime.unit_state',new=AsyncMock(return_value={'load':'loaded','state':'inactive'})),
-                  patch('app.services.ros_runtime.graph',return_value=['vehicle_navigation_node'])):
+                  patch('app.services.ros_runtime.graph',return_value=['controller_server'])):
                 with self.assertRaisesRegex(RuntimeError,'运动控制节点仍在运行'):
                     await mapping.require_localization_and_motion_stopped()
         asyncio.run(check())

@@ -17,7 +17,7 @@
 | orange-ros-core | 一个 Livox 驱动、点云转换、车体 robot_state_publisher 与安装 TF | 雷达/建图基础服务；不依赖 PLC |
 | orange-ros-plc | ros2plc Modbus 通信 | 单独启动；PLC 协议确认前保持停止 |
 | orange-ros-localization | global_relocalization、lidar_localization、tf_to_pose | 只依赖 core；不绑定 PLC 或底盘使能服务。自动全局重定位需要 PLC 提供新鲜里程计和停车反馈 |
-| orange-ros-navigation | vehicle_navigation、可选点云防护链 | 依赖 core、定位和 PLC 通信；只运行运动控制节点，不发送底盘使能脉冲 |
+| orange-ros-navigation | Nav2 FollowPath / Regulated Pure Pursuit、Nav2 Velocity Smoother、点云预处理及可选 Collision Monitor | 依赖 core、定位和 PLC 通信；启动服务不发送行驶目标或底盘使能脉冲 |
 | orange-ros-mapping | build_map_manager | 只依赖 core；控制器常驻，LIO-SAM 按需启动/结束；人工推车建图不要求 PLC |
 
 新增 ROS 包 `orange_runtime`：
@@ -33,8 +33,10 @@
 - 安装外参写在雷达 JSON 顶层 `robot_mount`，位置用毫米、姿态用度；`lidar_configs[0].extrinsic_parameter` 保持为零是预期行为，不代表外参没保存。配置页读取不会写文件；保存时六个实测值、现场确认框和共享文件路径必须通过校验。
 - 暂存雷达型号、IP、安装外参和点云防护参数时，必须确认建图已结束、LIO-SAM 采集节点以及定位、运动控制服务均已停止。此操作只写共享配置与待验证标记，不控制 PLC 或底盘，因此不要求 PLC 停车回读；配置需按维护流程重启相关 ROS 服务后才会生效。
 - 新服务入口要求显式初始位姿；首次无可用地图时，定位节点等待地图和初始位姿，不对空点云建立匹配目标。
-- 自动导航防护链为 PointCloud2 → `orange_pointcloud_filter`（TF 到 `base_link`、CropBox、近远距离裁剪、VoxelGrid）→ Nav2 Humble `collision_monitor` → 新鲜度看门狗 → `/cmd_vel`。区域默认关闭，启用时必须至少有一个停车区；碰撞区顶点按 Humble 参数格式传为扁平数值数组。点云或监测速度过期时，看门狗持续输出零速度。
-- 分区保护只覆盖 `vehicle_navigation` 的自动路线速度；Web 遥控走 PLC 的独立通道，不经过此链路。它不负责规划绕行，也不是安全认证的急停设备。上线前须在现场校准检测区、点数阈值、体素大小、雷达外参和制动距离。
+- 固定路线由 Nav2 `FollowPath` 动作和 Regulated Pure Pursuit 控制器跟踪，站点转向由 Nav2 `Spin` 动作执行；Nav2 Velocity Smoother 限制速度和加减速度后输出到底盘链路。橙智后端负责路线、站点、速度限制和任务进度，不计算或发布自研速度曲线。
+- 点云输入为 PointCloud2 → `orange_pointcloud_filter`（TF 到 `base_link`、CropBox、近远距离裁剪、VoxelGrid）→ Nav2 局部代价地图。Collision Monitor 按配置选择启用，启用时链路为 Nav2 Smoother → Collision Monitor → 新鲜度看门狗 → `/cmd_vel`。区域默认关闭；启用时必须至少有一个停车区，且必须先现场标定外形、区域、阈值、雷达外参和制动距离。
+- 本路线模式不启动 Nav2 全局规划器，不会自动规划绕障替代路线。点云代价地图与碰撞监测不构成安全认证的急停设备；Web 遥控仍走 PLC 独立通道。
+- Nav2 参数位于 `orange_runtime/config/nav2_route_params.yaml`。现有底盘外形尚无实测尺寸时，navigation launch 会拒绝启动；速度平滑器使用开环初始配置，确认 `/odom_topic` 的频率和延迟后再考虑闭环并按载荷、制动距离调参。
 
 旧 Java 启动脚本已从活动目录移除并在 Git 历史中保留；现场已有的旧自启动项仍须按维护流程停用，不能与新 systemd 服务并行。旧 driver launch 和直接启动的 ROS 进程也必须清理。ROS DDS 发现可帮助拒绝重复启动，但不能替代现场清理原自启动链。
 

@@ -1,27 +1,22 @@
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.route import Route, Station, RouteDetail, Param
-from app.services.velocity_profiler import BidirectionalVelocityProfiler, TrajectoryPoint
 
 logger = logging.getLogger("orange_agv.route_service")
 
-PATH_POINT_FIELD_COUNT = 9
-PATH_POINT_HEADER_SIZE = 0
+ROUTE_POINT_FIELD_COUNT = 9
 
-async def build_path_point_payload(
+async def build_nav_route_payload(
     route_id: int,
-    session: AsyncSession,
-    apply_profiling: bool = False,
-    resample_step: float = 0.25
+    session: AsyncSession
 ) -> Tuple[bool, str, List[float]]:
     """
-    根据路线 ID 构建符合 ROS 2 vehicle_navigation 硬件协议的 path_point 数组。
+    将保存的站点路线编码为稳定的 9 字段兼容结构，由 ROS 桥接层转换为 Nav2 FollowPath。
     数组格式：[x1, y1, yaw1, id1, speed1, mode1, loc1, 0, duration1, x2, ...]
-    严格对应 9 * N 的契约。
-    apply_profiling=True 时，应用工业级双向加减速规划器 (Nav2 / Autoware 模型)。
+    速度控制与加减速由 Nav2 控制器和速度平滑器完成；本函数只传递业务路线属性。
     """
     if not route_id or route_id <= 0:
         return False, "路线ID无效", []
@@ -63,7 +58,7 @@ async def build_path_point_payload(
     )
     details_map = {d.stationId: d for d in details_res.scalars().all()}
 
-    raw_trajectory: List[TrajectoryPoint] = []
+    route_points: List[List[float]] = []
 
     for idx, sid in enumerate(station_ids):
         station = stations_map.get(sid)
@@ -85,38 +80,14 @@ async def build_path_point_payload(
         if duration < 0:
             duration = 0.0
 
-        raw_trajectory.append(TrajectoryPoint(
-            x=float(x),
-            y=float(y),
-            yaw=float(yaw),
-            id=float(station.id),
-            speed=float(pt_speed),
-            run_mode=float(run_mode),
-            location_mode=float(location_mode),
-            reserved=0.0,
-            stop_time=float(duration)
-        ))
+        route_points.append([
+            float(x), float(y), float(yaw), float(station.id), float(pt_speed),
+            float(run_mode), float(location_mode), 0.0, float(duration),
+        ])
 
-    # 若开启平滑规划，则调用双向规划器
-    if apply_profiling and len(raw_trajectory) >= 2:
-        profiler = BidirectionalVelocityProfiler(resample_step=resample_step)
-        final_points = profiler.profile(raw_trajectory, initial_speed=0.0, dense=True)
-    else:
-        final_points = raw_trajectory
+    payload = [value for point in route_points for value in point]
 
-    payload = []
-    for pt in final_points:
-        payload.append(pt.x)
-        payload.append(pt.y)
-        payload.append(pt.yaw)
-        payload.append(pt.id)
-        payload.append(pt.speed)
-        payload.append(pt.run_mode)
-        payload.append(pt.location_mode)
-        payload.append(pt.reserved)
-        payload.append(pt.stop_time)
-
-    expected_len = PATH_POINT_HEADER_SIZE + len(final_points) * PATH_POINT_FIELD_COUNT
+    expected_len = len(route_points) * ROUTE_POINT_FIELD_COUNT
     if len(payload) != expected_len:
         return False, f"协议打包长度不匹配: 期望 {expected_len}, 实际 {len(payload)}", []
 

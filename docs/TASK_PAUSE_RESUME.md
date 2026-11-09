@@ -2,50 +2,37 @@
 
 ## 页面操作
 
-在地图主界面右侧“任务执行”或任务历史中：
+1. 点击“暂停路线”：后端取消当前 Nav2 动作，并等 PLC 在线反馈和本次请求之后的新鲜里程计共同确认线速度、角速度均不超过 0.02 m/s、0.02 rad/s 后，页面才显示“已暂停”。
+2. 点击“继续原路线”并确认：保持原任务、路线 ID、地图版本和业务站点进度；从当前车体位姿向剩余路线点重新提交 Nav2 `FollowPath`。它会重新跟踪剩余固定路线，不会回到路线起点。
+3. 点击“停止并锁定”：取消 Nav2 动作、等待动作编排退出并确认车辆停稳，之后不能通过“继续原路线”解锁。
 
-1. 点击黄色 **暂停路线**，立即提交停车请求，不经过确认弹窗。显示“正在停车，等待设备确认”。
-2. ROS 保留当前路线和路段索引，持续输出零速度。收到本次请求之后的新鲜里程计、导航状态及 PLC 在线反馈，确认线速度和角速度均不超过 0.02 后，页面显示“已暂停”。
-3. 点击绿色 **继续原路线**，核对现场并在弹窗中确认。设备校验通过后从原进度继续，显示“执行中”。已经完成的路段、任务步骤及轮次不会重新执行。
-4. 红色 **停止并锁定** 保持独立：取消当前路线并设置软件停止锁，不能再用“继续原路线”恢复。
+任务暂停期间，数据库中的 `TaskRun` 和当前执行命令仍保持占用，阻止调度、回充、地图编辑和升级并发操作。刷新网页只读取已保存状态，不自动恢复行驶。桥接进程重启后无法证明原路线进度，必须保持锁定并由操作员核实。
 
-单次导航与任务链都使用同一套设备控制协议。无正在行驶的步骤时，暂停任务链只阻止后续步骤下发。顶部“手动/自动/调度”仍只决定新任务链的推进方式，不代表暂停，也不切换实体驾驶模式。
+## Nav2 动作与路径进度
 
-## 保留什么，何时拒绝继续
+- FastAPI 将橙智保存的站点坐标、目标线速度、站点动作和等待时间交给 Nav2 路线适配器。
+- 路段由 Nav2 Controller Server 的 `FollowPath` 动作执行，使用 Regulated Pure Pursuit 跟踪给定路线；站点原地转向使用 Nav2 `Spin` 动作。
+- 暂停是取消当前 Nav2 动作并保存业务路线数据及投影得到的当前站点索引。继续时以当前定位位姿和剩余路线点创建新 `FollowPath` 目标。Nav2 不保留旧目标句柄供续接。
+- 运行中由路线适配器发布 `/speed_limit`，把当前路段的最高线速度传给 Nav2 Controller Server。Nav2 Velocity Smoother 按配置的线速度、角速度、加速度和减速度限制输出 `/cmd_vel`。
+- 路线跟踪不等于自由导航：本实现不启动全局规划器，也不自动绕开障碍去寻找替代路径。路径、地图版本、定位和新鲜点云不满足要求时拒绝启动或锁定停止。
 
-- 保留路线 ID、原始路线数组、当前稠密路段索引、终点转向和转向阶段状态。继续不重发 `/path_point`，也不重新规划到任务起点。
-- 暂停期间原 `execute-task` 和 `TaskRun` 保持运行占用，通过 `motion_state` 区分 `pausing / paused / resuming / running / unknown`；设备继续发送执行心跳，续期当前指令。调度、回充、地图编辑与升级继续受占用保护。
-- 刷新网页重新读取数据库中的暂停状态，不自动发送继续或重新定位。桥接进程重启后原行驶结果未知，执行失败并锁定，禁止自动重放。
-- 继续要求同一任务执行、同一路线 ID 和定位地图版本，未处于软件锁/急停/维护中，定位有效，PLC 在线，速度和导航状态新鲜且停稳。
-- ROS 再检查保留路线仍存在、里程计/位姿时间戳有效，以及停车后位移不超过 0.25 m、航向变化不超过 0.26 rad。暂停期间避障模式或正在使用的避障路径发生变化，保守拒绝继续，避免重置进度后误行驶。
-- 五秒内无法完成 ROS 控制确认时请求取消路线并锁定；设备控制指令回执过期也会锁定并提示核实，不显示虚假的“已暂停”。“停止并锁定”优先，迟到的继续回执不能覆盖已取消的任务。
+## 控制数据流
 
-停车请求经过网络和设备处理，车辆实际停车距离取决于底盘制动能力；软件暂停不能代替物理急停。
-
-## API 与 ROS 契约
-
-- `POST /api/task-history/{id}/pause`：权限 `task:edit`、`robot:control`，无需确认正文。
-- `POST /api/task-history/{id}/resume`：同上，正文 `{ "confirmation": "任务名称" }`。
-- 任务链原有 `/api/mission-runs/{id}/pause|resume` 接入同一流程；原有确认字段保留，页面直接提交暂停身份值，继续仍有弹窗。
-- 新增设备命令 `pause-task`、`resume-task`，携带 `task_id`、`execute_command_id` 和本机适配器保存的 `navigation_id`，与原执行命令分开回执。设备必须通过心跳显式声明这两项能力；旧适配器会明确拒绝操作。
-- `/navigation/control`（`std_msgs/String`）为 `路线ID\n单调递增序号\npause或resume`。
-- `/navigation/control_result` 为 `路线ID\n相同序号\npaused或running或rejected\n原因`。过期序号不执行，回执只匹配当前路线、本次序号和期望动作。旧的 `/vehicle_run_star=1` 不能绕过新暂停锁。
-- 不新增数据库列；暂停状态存储在任务时间轴和执行命令 JSON 中，兼容现有表。服务端、设备适配器和 `vehicle_navigation` 包需一起更新。仅更新页面不能让旧导航节点支持该功能。
-
-## 验证范围
-
-- 后端临时 SQLite：任务链暂停/继续、同一任务保留、执行心跳续期、停止覆盖继续、设备能力不足、回执超时锁定及确认校验。
-- 前端：暂停无弹窗、继续有确认、等待时禁止重复控制、未知状态隐藏继续、暂停中的任务不提供直接取消。
-- 本机 WSL ROS Humble：导航包编译；`motion_profiles`；`retained_route_pause` 使用 localhost 和隔离 ROS domain，注入合成里程计/位姿验证零速度、进度保留、旧指令不能绕过暂停、取消后不能恢复、车辆被推走及里程计过期时拒绝恢复。
-- Windows 桥接测试使用虚拟 ROS 传输；网页验收使用隔离演示数据。以上不代表实车停车距离、制动性能或现场导航验收通过。本轮未连接或部署 021。
-
-2026-10-28 本机结果：后端任务链 15 项、运营与本机设备适配器 27 项、ROS 桥接 26 项；前端 77 项；浏览器 4 条流程检查全部通过。ROS 导航包编译通过，两个 CTest 目标通过，其中暂停集成测试包含 4 条真实 ROS 节点与合成反馈的流程（含终点转向续接）。编译保留原有 `regulateCurvatureSpeed` 中 `min_speed` 未使用的警告。
-
-ROS 回归（已配置 ROS Humble 的本机工作空间）：
-
-```bash
-source /opt/ros/humble/setup.bash
-colcon build --packages-select vehicle_navigation --cmake-args -DBUILD_TESTING=ON
-source install/setup.bash
-colcon test --packages-select vehicle_navigation --ctest-args -R 'retained_route_pause|motion_profiles' --output-on-failure
+```text
+橙智任务与站点路线
+  → FollowPath / Spin 动作
+  → Nav2 Controller Server（Regulated Pure Pursuit）
+  → Nav2 Velocity Smoother
+  → 可选 Collision Monitor 与点云看门狗
+  → ros2plc /cmd_vel
 ```
+
+暂停、继续、停止由 Nav2 Action 的 goal/cancel/result 完成；旧 `/path_point`、`/vehicle_run_star`、`/close_route` 及 `/navigation/control` ROS 契约不再用于路线控制。
+
+## 部署和验收边界
+
+- ROS 2 Humble 部署需安装 `nav2_controller`、`nav2_regulated_pure_pursuit_controller`、`nav2_behaviors`、`nav2_velocity_smoother`、`nav2_msgs` 和 `nav2_lifecycle_manager`。
+- 导航 launch 要求设备模型中车长、车宽和 `base_link` 偏移已实测确认；未确认时拒绝启动，不能把示意模型用于碰撞代价地图。
+- 现场须先核对 `map`、`odom`、`base_link` TF、`/odom_topic` 新鲜度、Nav2 生命周期、滤波点云、最终 `/cmd_vel` 订阅链和 PLC 实际响应，再以具备物理急停的低速短路线验收。
+- Nav2 平滑器参数是初始配置，尚未按该底盘、载荷和制动距离标定。软件暂停与点云监测不能替代安全认证的急停回路。
+- 本地代码修改不代表 Linux ROS 构建、021 部署或真实车辆验收已完成。本轮没有连接或部署 021。

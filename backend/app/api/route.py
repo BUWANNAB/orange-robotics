@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.common.response import ok, error
 from app.models.route import Route, Station, RouteDetail
-from app.services.route_service import build_path_point_payload
+from app.services.route_service import build_nav_route_payload
 from app.services.ros2_service import ros2_service
 from app.services.operations_common import require
 
@@ -17,23 +17,23 @@ router = APIRouter()
 @router.get("/detail/{route_id}")
 async def get_route_detail_data(route_id: int, db: AsyncSession = Depends(get_db)):
     """
-    根据路线ID获取符合底层导航契约的点位数组 (9*N)
-    兼容旧端: GET /route/detail/{id}
+    根据路线ID获取站点路线属性数组（每站 9 个业务字段）。
+    保留既有 HTTP 路由供旧页面读取；ROS 侧由 Nav2 Action 适配器接管。
     """
-    success, msg, payload = await build_path_point_payload(route_id, db)
+    success, msg, payload = await build_nav_route_payload(route_id, db)
     if not success:
         return error(40000, msg)
     return ok(payload)
 
 @router.post("/publish/{route_id}", dependencies=[Depends(require("robot:control"))])
 async def publish_route(route_id: int, db: AsyncSession = Depends(get_db)):
-    """Publish 9*N points and wait for navigation receipt; does not start motion."""
-    success, msg, payload = await build_path_point_payload(route_id, db)
+    """Load a route into the Nav2 adapter without starting motion."""
+    success, msg, payload = await build_nav_route_payload(route_id, db)
     if not success:
         return error(40000, msg)
     try:
         result = await ros2_service.route(payload)
-        return ok(result, message="导航节点已确认接收路线，尚未启动行驶")
+        return ok(result, message="路线已载入 Nav2 适配器，尚未提交行驶动作")
     except (RuntimeError, ValueError, TimeoutError) as exc:
         raise HTTPException(409, str(exc)) from exc
 

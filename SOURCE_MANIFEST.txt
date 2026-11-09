@@ -6,7 +6,7 @@ ros/orange_nav_ws/src/mapping/build_map_manager <- build_map_manager
 ros/orange_nav_ws/src/localization/ndt_omp_ros2 <- ndt_omp_ros2
 ros/orange_nav_ws/src/localization/lidar_localization_ros2 <- lidar_localization_ros2
 ros/orange_nav_ws/src/navigation/tf_to_pose <- tf_to_pose
-ros/orange_nav_ws/src/navigation/vehicle_navigation <- vehicle_navigation
+ROS 2 Humble 系统依赖：Nav2 Controller Server、Regulated Pure Pursuit、Behavior Server、Velocity Smoother、Collision Monitor
 ros/orange_nav_ws/src/hardware/ros2plc <- ros2plc
 ros/orange_nav_ws/src/mapping/parameter_server <- parameter_server
 ros/orange_nav_ws/src/mapping/pcd2pgm <- pcd2pgm

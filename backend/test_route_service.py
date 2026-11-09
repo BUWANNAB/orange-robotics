@@ -4,7 +4,7 @@ import json
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.database import Base
 from app.models.route import Route, Station, RouteDetail, Param
-from app.services.route_service import build_path_point_payload
+from app.services.route_service import build_nav_route_payload
 
 async def test_route_payload():
     # 使用纯内存 SQLite 测试
@@ -41,7 +41,7 @@ async def test_route_payload():
         await session.commit()
 
         # 5. 调用核心函数
-        ok, msg, payload = await build_path_point_payload(1, session)
+        ok, msg, payload = await build_nav_route_payload(1, session)
         print("Success:", ok)
         print("Message:", msg)
         print("Payload:", payload)

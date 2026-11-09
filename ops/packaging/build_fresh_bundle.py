@@ -45,12 +45,6 @@ ROOTS = (
 SKIP_DIRS = {".git", "__pycache__", "node_modules", "build", "install", "log", ".deps-build"}
 SKIP_NAMES = {".env", "runtime.env", ".DS_Store", "Thumbs.db"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".class", ".jar", ".java", ".db", ".sqlite", ".sqlite3"}
-# This C++ source is referenced by vehicle_navigation/CMakeLists.txt when
-# BUILD_TESTING is enabled, so the offline ROS build needs it even though
-# ordinary test fixtures are excluded from the delivery bundle.
-BUILD_REQUIRED_TEST_SOURCES = {
-    "ros/orange_nav_ws/src/navigation/vehicle_navigation/test/test_motion_profiles.cpp",
-}
 
 
 def inventory(root: Path = ROOT) -> list[Path]:
@@ -70,9 +64,7 @@ def inventory(root: Path = ROOT) -> list[Path]:
                 continue
             if path.name in SKIP_NAMES or path.suffix.lower() in SKIP_SUFFIXES:
                 continue
-            if path.name.startswith(".env") or (
-                path.name.startswith("test_") and relative.as_posix() not in BUILD_REQUIRED_TEST_SOURCES
-            ):
+            if path.name.startswith(".env") or path.name.startswith("test_"):
                 continue
             selected.append(relative)
     return sorted(set(selected), key=lambda path: path.as_posix())

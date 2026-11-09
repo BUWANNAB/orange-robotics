@@ -213,8 +213,8 @@ async def run_local_robot():
                         "speed": abs(state.linear_velocity), "charging": state.charging, "voltage": state.voltage,
                         "localization": snap["localization"], "map_version": bridge.switch.get("version"),
                         "capabilities": ["execute-task", "goto-point", "goto-charge", "lock", "unlock", "emergency-stop", "release-stop"] +
-                            (["pause-task", "resume-task"] if bridge.publishers.get("/navigation/control") and
-                             bridge.publishers["/navigation/control"].get_subscription_count() else [])}
+                            (["pause-task", "resume-task"] if bridge.action_clients.get("follow_path") and
+                             bridge.action_clients["follow_path"].server_is_ready() else [])}
                 if state.battery_soc is not None and time.monotonic()-sampled_at > 10:
                     db.add(BatterySample(robot_id=robot_id, percent=state.battery_soc, voltage=state.voltage, charging=bool(state.charging)))
                     sampled_at = time.monotonic()
