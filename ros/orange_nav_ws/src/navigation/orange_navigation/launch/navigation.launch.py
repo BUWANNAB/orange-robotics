@@ -9,13 +9,13 @@ from launch.actions import LogInfo
 from launch_ros.actions import LifecycleNode, Node
 from nav2_common.launch import RewrittenYaml
 
-from orange_runtime.robot_model import load_model
+from orange_robot_model.robot_model import load_model
 
 
 def _load_obstacle_config():
     configured = os.environ.get("ORANGE_OBSTACLE_CONFIG_FILE", "").strip()
     path = (Path(configured).expanduser() if configured else
-            Path(get_package_share_directory("orange_runtime")) / "config" / "obstacle_protection.json")
+            Path(get_package_share_directory("orange_navigation")) / "config" / "obstacle_protection.json")
     if not path.is_file():
         if configured:
             raise RuntimeError(f"ORANGE_OBSTACLE_CONFIG_FILE 指向的配置不存在: {path}")

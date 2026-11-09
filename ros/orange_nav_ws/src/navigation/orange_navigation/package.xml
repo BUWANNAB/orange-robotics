@@ -12,7 +12,7 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>orange_runtime</exec_depend>
+  <exec_depend>orange_robot_model</exec_depend>
   <exec_depend>orange_pointcloud_filter</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_controller</exec_depend>

@@ -6,7 +6,8 @@
 |---|---|---|
 | 上游导航算法 | ROS 2 Humble 的 Nav2 包 | Controller Server、Regulated Pure Pursuit、Behavior Server、Velocity Smoother、Costmap 和可选 Collision Monitor。由 `orange_navigation/package.xml` 声明依赖，运行时直接启动上游节点，不复制 Nav2 源码。 |
 | 橙智导航启动与安全集成 | `ros/orange_nav_ws/src/navigation/orange_navigation` | Nav2 生命周期节点启动、参数、车体 footprint 注入、点云预处理配置和速度看门狗。 |
-| 传感器、定位、建图运行时 | `orange_runtime` | Livox、定位/建图节点与通用 ROS 工具；不再拥有 Nav2 启动文件和 Nav2 控制器参数。导航启动仍依赖它提供的车体模型读取模块与默认防护配置。 |
+| 共用车体模型 | `src/common/orange_robot_model` | 共享车体模型、雷达安装变换和 URDF 生成；运行时与导航包单向依赖此基础包。 |
+| 传感器、定位、建图运行时 | `orange_runtime` | Livox、定位/建图节点与通用 ROS 工具；不再拥有 Nav2 启动文件、Nav2 控制器参数或点云防护默认模板。 |
 | 路线业务 | FastAPI `nav2_route.py`、`ros2_service.py` | 校验任务和路线，把站点路线转换成 `nav_msgs/Path`，调用 Nav2 标准动作，处理速度限制、进度、暂停/停止状态。这里不计算底盘电机命令。 |
 | 底盘接口 | ROS 包 `ros2plc` | 订阅 `/cmd_vel`，检查自动/手动控制模式，将速度字段换算成底盘协议数据，经 Modbus 发给 PLC，并发布底盘反馈。 |
 

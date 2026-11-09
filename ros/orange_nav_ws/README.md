@@ -9,10 +9,11 @@ ROS 2 Humble 导航工作区，汇聚现场导航链路的**全部功能包**。
 | 驱动 | `src/drivers` | `livox_ros_driver2`（Livox MID-360） |
 | 建图 | `src/mapping` | `lio_sam`（LIO-SAM-MID360）、`build_map_manager`、`pcd2pgm`；参数由节点自身 ROS 2 参数和 YAML 提供 |
 | 定位 | `src/localization` | `lidar_localization_ros2`、`ndt_omp_ros2` |
+| 共享模型 | `src/common` | `orange_robot_model` 提供共用车体模型、传感器外参转换和 URDF 生成；运行时与导航依赖此包，避免互相依赖 |
 | 导航 | `src/navigation` 与 ROS 2 Humble 上游包 | `orange_navigation` 负责 Nav2 启动、参数、点云安全链；FastAPI ROS 桥把业务路线转成 Nav2 `FollowPath` 动作。`tf_to_pose` 保留为独立坐标工具 |
 | 硬件 | `src/hardware` | `ros2plc` |
 | 第三方依赖 | `third_party` | `gtsam`、`Livox-SDK2`（构建期依赖，非 ROS 包） |
-| 点云防护 | `src/runtime/orange_pointcloud_filter`、`orange_navigation` | C++ PCL TF/CropBox/VoxelGrid 预处理 + Nav2 Collision Monitor（Humble；默认关闭） |
+| 点云防护 | `src/runtime/orange_pointcloud_filter`、`orange_navigation` | C++ PCL TF/CropBox/VoxelGrid 预处理 + Nav2 Collision Monitor（Humble；默认关闭）；默认保护模板也由 `orange_navigation` 管理 |
 
 ## 启动组件 ↔ 包 对照
 

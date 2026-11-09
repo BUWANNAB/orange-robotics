@@ -29,7 +29,7 @@ _LIO_SAM_MAPPING_NODES = {
 }
 _NAV_WS = Path(os.getenv("ROBOT_NAV_WS", str(WORKSPACE_ROOT / "ros" / "orange_nav_ws"))).expanduser()
 _TEMPLATES = _NAV_WS / "src" / "drivers" / "livox_ros_driver2" / "config"
-_OBSTACLE_DEFAULT_PATH = _NAV_WS / "src" / "runtime" / "orange_runtime" / "config" / "obstacle_protection.json"
+_OBSTACLE_DEFAULT_PATH = _NAV_WS / "src" / "navigation" / "orange_navigation" / "config" / "obstacle_protection.json"
 
 # 使用当前配置工作区内的型号模板；现场运行配置由 MID360_CONFIG_FILE 单独指定。
 CONFIG_PATHS = [

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from orange_runtime.robot_model import DEFAULT_MODEL, mount_from_sensor, load_model, build_urdf
+from orange_robot_model.robot_model import DEFAULT_MODEL, mount_from_sensor, load_model, build_urdf
 
 def generate_launch_description():
     config=os.environ.get('MID360_CONFIG_FILE','')
