@@ -20,12 +20,13 @@
 | orange-ros-navigation | Nav2 FollowPath / Regulated Pure Pursuit、Nav2 Velocity Smoother、点云预处理及可选 Collision Monitor | 依赖 core、定位和 PLC 通信；启动服务不发送行驶目标或底盘使能脉冲 |
 | orange-ros-mapping | build_map_manager | 只依赖 core；控制器常驻，LIO-SAM 按需启动/结束；人工推车建图不要求 PLC |
 
-新增 ROS 包 `orange_runtime`：
+新增 ROS 包 `orange_runtime` 和 `orange_navigation`：
 
 - 雷达驱动固定输出 `/livox/lidar_custom`（Livox CustomMsg），保留 `/livox/imu`。
 - `livox_cloud_converter` 将自定义点云转换为 `/livox/lidar`（PointCloud2 XYZI），保留源时间戳、frame_id、XYZ 和反射率，过滤非有限坐标，不做位姿变换。
 - LIO-SAM 读取自定义消息；定位和 Web 雷达检查读取 PointCloud2。不存在同一话题上同时发布两种消息类型的情况。
 - 新 mapping launch 显式 `manage_livox=false`，只拥有自身 LIO-SAM 进程。停止回执为 `mapping_stopped`；旧模式 `rviz_livox_started` 仍兼容。
+- `orange_navigation` 单独安装 Nav2 启动文件、控制器参数和点云命令看门狗；`orange_runtime` 不再承载 Nav2 bringup。上游 Nav2 由 ROS 依赖安装，工作区只配置并调用上游节点。
 - `build_map_manager` 把建图/保存工作放到可等待回收的 worker 中，只向自己启动的进程组发停止信号；保存先写隐藏临时目录，校验非空 `GlobalMap.pcd` 后再发布正式目录。已有同名地图不覆盖；保存服务超时且请求仍在执行时会先停止所属 LIO-SAM 进程，再清理临时文件。
 - `orange_runtime/live_grid_preview` 订阅注册点云并发布 `/orange/mapping/live_grid` 与低频状态心跳。它只提供建图期间的端点占用预览，未观测区域保留为 unknown；它不替代最终 PGM 生成或导航代价地图。
 - 新模式关闭 LIO-SAM 的 RViz 和重复 robot_state_publisher。核心服务的 `orange_robot_state_publisher` 从共享车体模型生成 URDF，并从雷达 JSON 的 `robot_mount` 发布唯一的 `base_link → livox_frame` 静态 TF；Livox 驱动外参必须保持零，防止点云重复变换。首次复制型号模板后，先在 Web 页面填入现场实测安装外参，才能启动核心服务。定位启动链不再重复发布该 TF。
@@ -36,13 +37,13 @@
 - 固定路线由 Nav2 `FollowPath` 动作和 Regulated Pure Pursuit 控制器跟踪，站点转向由 Nav2 `Spin` 动作执行；Nav2 Velocity Smoother 限制速度和加减速度后输出到底盘链路。橙智后端负责路线、站点、速度限制和任务进度，不计算或发布自研速度曲线。
 - 点云输入为 PointCloud2 → `orange_pointcloud_filter`（TF 到 `base_link`、CropBox、近远距离裁剪、VoxelGrid）→ Nav2 局部代价地图。Collision Monitor 按配置选择启用，启用时链路为 Nav2 Smoother → Collision Monitor → 新鲜度看门狗 → `/cmd_vel`。区域默认关闭；启用时必须至少有一个停车区，且必须先现场标定外形、区域、阈值、雷达外参和制动距离。
 - 本路线模式不启动 Nav2 全局规划器，不会自动规划绕障替代路线。点云代价地图与碰撞监测不构成安全认证的急停设备；Web 遥控仍走 PLC 独立通道。
-- Nav2 参数位于 `orange_runtime/config/nav2_route_params.yaml`。现有底盘外形尚无实测尺寸时，navigation launch 会拒绝启动；速度平滑器使用开环初始配置，确认 `/odom_topic` 的频率和延迟后再考虑闭环并按载荷、制动距离调参。
+- Nav2 启动和参数位于独立 ROS 包 `orange_navigation`；导航服务调用 `ros2 launch orange_navigation navigation.launch.py`。现有底盘外形尚无实测尺寸时，navigation launch 会拒绝启动；速度平滑器使用开环初始配置，确认 `/odom_topic` 的频率和延迟后再考虑闭环并按载荷、制动距离调参。
 
 旧 Java 启动脚本已从活动目录移除并在 Git 历史中保留；现场已有的旧自启动项仍须按维护流程停用，不能与新 systemd 服务并行。旧 driver launch 和直接启动的 ROS 进程也必须清理。ROS DDS 发现可帮助拒绝重复启动，但不能替代现场清理原自启动链。
 
 ## Linux 部署步骤（模板未在 Windows 安装）
 
-1. 在机器人 ROS 2 Humble 工作区编译 `orange_runtime` 及依赖，同时重编本次修改的 `build_map_manager`、`pcd2pgm`、`lidar_localization_ros2`、`lio_sam`。需要雷达 SDK、PCL、底盘及现有数据库/参数依赖。使用 `/opt/orange/ros/orange_nav_ws` 或运行配置中的 `ROBOT_NAV_WS`，执行 `colcon build --symlink-install --packages-up-to orange_runtime`，并确保改动过的组件已重新构建。
+1. 在机器人 ROS 2 Humble 工作区编译 `orange_navigation` 及依赖，同时重编本次修改的 `build_map_manager`、`pcd2pgm`、`lidar_localization_ros2`、`lio_sam`。需要雷达 SDK、PCL、底盘及现有数据库/参数依赖。使用 `/opt/orange/ros/orange_nav_ws` 或运行配置中的 `ROBOT_NAV_WS`，执行 `colcon build --symlink-install --packages-up-to orange_navigation`，并确保改动过的组件已重新构建。
 2. 确认车辆处于现场维护状态，迁移并停用旧的 ROS 启动链；不要直接同时启动新服务。
 3. 同一机器人用户下，将 `ops/scripts/ros-service.sh` 放到 `~/.config/orange-agv/ros-service.sh`；将五个 `ops/systemd/orange-ros-*.service` 放到 `~/.config/systemd/user/`。从 Windows 复制时确保脚本 LF 换行。入口用 bash 执行，不依赖可执行位。
 4. 创建 `~/.config/orange-agv/runtime.env`，使用实际绝对路径，不使用 `$HOME` 或 shell 插值：
@@ -68,7 +69,7 @@
 
    这里的路径示意必须替换，`MID360_CONFIG_FILE` 应是经过确认的真实设备网络配置。底盘、授权、数据库和其他现场依赖继续按原部署配置，不能从节点启动成功推断这些依赖通过。
 
-   若启用点云防护，`ORANGE_OBSTACLE_CONFIG_FILE` 必须由 Web 与导航服务指向同一绝对路径；先把仓库内 `orange_runtime/config/obstacle_protection.json` 模板复制到该运行目录。安装 Nav2 Collision Monitor、lifecycle manager 和 PCL 开发依赖，并通过工作区构建将 `orange_pointcloud_filter` 安装到 ROS 环境。
+   若启用点云防护，`ORANGE_OBSTACLE_CONFIG_FILE` 必须由 Web 与导航服务指向同一绝对路径；先把仓库内 `orange_runtime/config/obstacle_protection.json` 模板复制到该运行目录。安装 `orange_navigation` 声明的 Nav2 Collision Monitor、lifecycle manager 和 PCL 依赖，并通过工作区构建将 `orange_pointcloud_filter` 安装到 ROS 环境。
 
 5. 确认车辆处于物理禁动状态、雷达网络与外参已核实后，同用户运行 `systemctl --user daemon-reload` 并启动 core。core 确认正常后，可启动 mapping 和 localization；启动定位不要求 PLC 协议确认，也不会发送底盘使能脉冲。定位算法需要新鲜里程计时，再按现场核实结果配置 `ROBOT_PLC_PROTOCOL=legacy_8_register`、`ROBOT_PLC_HOST` 并单独启动 PLC 通信。PLC 通信不等于底盘物理使能；运动控制服务还要求 core、定位服务和 PLC 通信均运行。不要把 PLC 服务加入开机自启动，除非现场已完成协议与启动行为验收。无人登录即开机启动需要管理员为该机器人用户配置 lingering。
 6. Web 使用同一机器人用户、同一 `ROS_DOMAIN_ID`、PCD/MAPS 根目录和已 source 的工作区，并能访问该用户的 systemd bus。Web 自己不能放入上述 ROS 服务的停止依赖里。首次配置保持 `SIMULATION_MODE=true`、`RCS_WORKER_ENABLED=false`、`RCS_ROS_CONTROL_ENABLED=false`，不填 `RCS_LOCAL_ROBOT_ID`。完成静止状态、传感器、PLC 协议和 ROS 话题验收后，才显式切换真实 ROS 模式、按需启用 worker 和服务控制；模板不授予 sudo 权限。

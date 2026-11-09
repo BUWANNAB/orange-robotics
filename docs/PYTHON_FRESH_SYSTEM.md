@@ -28,7 +28,7 @@ cd /opt/orange && sha256sum -c SHA256SUMS
 
    网页确认实物型号后可转换运行文件的型号格式，保留旧版 `.bak` 并留下待验证标记。核心服务运行时须有新鲜停车反馈且没有执行中的任务，否则先按现场维护流程停用核心服务。停车后重启核心服务，再点“验证生效”；只有服务在保存后重启、驱动读取同一文件且点云新鲜时才通过。TF 的实测标定仍须现场核对。配置读取需 `ros:view`，修改与验证需 `ros:maintain` 权限。
 
-   雷达配置页还可设置自动导航点云防护区。Web 和 ROS 必须共用绝对路径 `ORANGE_OBSTACLE_CONFIG_FILE`，首次从 `orange_runtime/config/obstacle_protection.json` 复制模板。默认关闭；启用时至少保留一个停车区。处理链为 `base_link` 坐标变换、CropBox 范围/高度裁剪、近远距离裁剪、PCL VoxelGrid 降采样、Nav2 Humble Collision Monitor 和新鲜度看门狗；点云或监测命令超时会让看门狗输出零速度。首次部署需安装 Humble 的 `nav2_collision_monitor`、`nav2_lifecycle_manager` 和 PCL 依赖，并将 `orange_pointcloud_filter` 与 `orange_runtime` 一起构建。保护区和减速阈值须按实车外形、雷达外参、遮挡及制动距离校准；这条链只保护自主导航 `/cmd_vel`，不处理 Web 手动遥控、不负责绕行，也不替代硬件急停。目标 ROS 系统和实车行为仍须单独验收。
+   雷达配置页还可设置自动导航点云防护区。Web 和 ROS 必须共用绝对路径 `ORANGE_OBSTACLE_CONFIG_FILE`，首次从 `orange_runtime/config/obstacle_protection.json` 复制模板。默认关闭；启用时至少保留一个停车区。处理链为 `base_link` 坐标变换、CropBox 范围/高度裁剪、近远距离裁剪、PCL VoxelGrid 降采样、Nav2 Humble Collision Monitor 和新鲜度看门狗；点云或监测命令超时会让看门狗输出零速度。首次部署需安装 `orange_navigation` 声明的 Nav2 Humble、Collision Monitor、lifecycle manager 和 PCL 依赖，并将 `orange_navigation`、`orange_pointcloud_filter` 及其依赖一起构建（其中包含提供车体模型的 `orange_runtime`）。保护区和减速阈值须按实车外形、雷达外参、遮挡及制动距离校准；这条链只保护自主导航 `/cmd_vel`，不处理 Web 手动遥控、不负责绕行，也不替代硬件急停。目标 ROS 系统和实车行为仍须单独验收。
 
    仅升级 Livox 时，先停止正在运行的雷达驱动，再在机器人 Ubuntu/ROS 2 Humble 环境执行：
 

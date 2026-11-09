@@ -18,7 +18,7 @@
 source /opt/ros/humble/setup.bash
 # 在项目目录下编译；确认依赖已安装
 cd ros/orange_nav_ws
-colcon build --packages-up-to orange_runtime lidar_localization_ros2 tf_to_pose
+colcon build --packages-up-to orange_navigation orange_runtime lidar_localization_ros2 tf_to_pose
 source install/setup.bash
 cd ../../backend
 # 使用能导入系统 rclpy 的 Python/虚拟环境
@@ -69,7 +69,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8097 --workers 1
 
 过往记录中的自动化测试使用假 ROS 传输，不代表 Nav2 Action 或车辆硬件验收。本次路线控制迁移没有运行测试套件。
 
-先安装 Nav2 Humble 依赖并构建 `orange_runtime`、定位和 `tf_to_pose`，再在停车状态确认节点发现、动作服务和速度链：
+先安装 Nav2 Humble 依赖并构建 `orange_navigation`（会带上依赖的 `orange_runtime`）、定位和 `tf_to_pose`，再在停车状态确认节点发现、动作服务和速度链：
 
 ```bash
 ros2 topic info /tf_pose -v

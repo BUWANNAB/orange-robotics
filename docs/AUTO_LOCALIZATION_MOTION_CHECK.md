@@ -22,7 +22,7 @@
 - 路线用 Nav2 `FollowPath` 跟踪既定路径；RPP 依路径朝向自动旋转对齐，配置为不倒车。站点原地转向使用 Nav2 `Spin`。每个路线段的最大线速度用 Nav2 `/speed_limit` 消息传给 Controller Server。
 - Nav2 Velocity Smoother 当前开环输出，初始上限为 0.50 m/s、线加速度 0.25 m/s²、线减速度 0.40 m/s²、角速度 0.45 rad/s、角加减速度 0.60 rad/s²。这些是待实车整定的起始值，不是底盘安全认证值。
 - 这是固定路线跟踪，并未安装 Nav2 全局规划器或自由绕障功能。遇障由已有分区保护按配置停车或减速；不会自行规划一条替代路线。
-- 参数在 `ros/orange_nav_ws/src/runtime/orange_runtime/config/nav2_route_params.yaml`；`navigation.launch.py` 要求车长、车宽及 `base_link` 偏移已实测确认。若模型仍是未标定示意值，Nav2 不会启动。
+- 参数在 `ros/orange_nav_ws/src/navigation/orange_navigation/config/nav2_route_params.yaml`；`navigation.launch.py` 要求车长、车宽及 `base_link` 偏移已实测确认。若模型仍是未标定示意值，Nav2 不会启动。
 
 ## ROS Humble 本地构建
 
@@ -30,7 +30,7 @@
 source /opt/ros/humble/setup.bash
 cd "$ROBOT_NAV_WS"
 rosdep install --from-paths src --ignore-src -r -y
-colcon build --symlink-install --packages-up-to orange_runtime
+colcon build --symlink-install --packages-up-to orange_navigation
 source install/setup.bash
 ```
 

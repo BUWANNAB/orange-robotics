@@ -52,7 +52,7 @@ def _robot_footprint():
 
 
 def _load_nav2_params(obstacle_enabled):
-    path = Path(get_package_share_directory("orange_runtime")) / "config" / "nav2_route_params.yaml"
+    path = Path(get_package_share_directory("orange_navigation")) / "config" / "nav2_route_params.yaml"
     if not path.is_file():
         raise RuntimeError(f"Nav2 参数文件不存在: {path}")
     params = RewrittenYaml(
@@ -173,7 +173,7 @@ def _obstacle_actions(config):
             respawn_delay=2.0,
         ),
         Node(
-            package="orange_runtime",
+            package="orange_navigation",
             executable="obstacle_command_watchdog",
             name="obstacle_command_watchdog",
             parameters=[{"cloud_timeout": source_timeout, "command_timeout": 0.30}],

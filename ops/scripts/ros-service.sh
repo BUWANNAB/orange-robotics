@@ -3,11 +3,11 @@
 set -eo pipefail
 [[ $# == 1 ]] || exit 2
 case "$1" in
-  core) launch_file=core.launch.py ;;
-  plc) launch_file=plc.launch.py ;;
-  localization) launch_file=localization.launch.py ;;
-  navigation) launch_file=navigation.launch.py ;;
-  mapping) launch_file=mapping.launch.py ;;
+  core) launch_package=orange_runtime; launch_file=core.launch.py ;;
+  plc) launch_package=orange_runtime; launch_file=plc.launch.py ;;
+  localization) launch_package=orange_runtime; launch_file=localization.launch.py ;;
+  navigation) launch_package=orange_navigation; launch_file=navigation.launch.py ;;
+  mapping) launch_package=orange_runtime; launch_file=mapping.launch.py ;;
   *) echo 'Unknown service' >&2; exit 2 ;;
 esac
 if [[ "$1" == core ]]; then
@@ -29,4 +29,4 @@ source /opt/ros/humble/setup.bash
 source "$ROBOT_NAV_WS/install/setup.bash"
 export ROS_REQUIRE_EXPLICIT_INITIAL_POSE=true
 export ROBOT_APP_DIR ROBOT_NAV_WS ROBOT_PCD_DIR ROBOT_MAP_DIR
-exec ros2 launch orange_runtime "$launch_file"
+exec ros2 launch "$launch_package" "$launch_file"
