@@ -36,10 +36,19 @@
     const live=editor.live;if(!live)return;
     const ctx=editor.ctx,points=live.route?.points||[];
     function line(a,b,color,width,dash=[]){a=editor.screen(a);b=editor.screen(b);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    function directionArrow(a,b,color){
+      a=editor.screen(a);b=editor.screen(b);
+      const x=a.x+(b.x-a.x)*.68,y=a.y+(b.y-a.y)*.68,angle=Math.atan2(b.y-a.y,b.x-a.x),size=9;
+      const head=(strokeStyle,lineWidth)=>{ctx.strokeStyle=strokeStyle;ctx.lineWidth=lineWidth;ctx.beginPath();ctx.moveTo(x-size*Math.cos(angle-.55),y-size*Math.sin(angle-.55));ctx.lineTo(x,y);ctx.lineTo(x-size*Math.cos(angle+.55),y-size*Math.sin(angle+.55));ctx.stroke();};
+      ctx.save();ctx.lineCap='round';ctx.lineJoin='round';head('rgba(255,255,255,.96)',5);head(color,2.5);ctx.restore();
+    }
     ctx.save();
     for(let i=1;editor.layers?.liveRoute&&i<points.length;i++){
       const completed=live.progress&&(live.route.status==='success'||i<live.route.target_index);
       line(points[i-1],points[i],completed?'#23996d':live.progress?'#ed8b25':'#8974ae',3,live.progress?[]:[7,5]);
+    }
+    if(editor.layers?.liveRoute&&live.progress&&live.route.status==='running'&&live.route.target_index>0&&live.route.target_index<points.length){
+      directionArrow(points[live.route.target_index-1],points[live.route.target_index],'#d45f1f');
     }
     if(editor.layers?.liveTrail!==false)for(let i=1;i<live.trail.length;i++)line(live.trail[i-1],live.trail[i],'#168aab',2);
     ctx.setLineDash([]);

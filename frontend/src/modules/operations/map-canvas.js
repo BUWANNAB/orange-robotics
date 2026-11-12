@@ -34,6 +34,25 @@
     }
     return points;
   }
+  function drawDirectionArrow(ctx, editor, sampled, ratio, reverse, color) {
+    if (!Array.isArray(sampled) || sampled.length < 2) return;
+    const index = Math.max(1, Math.min(sampled.length - 1, Math.round((sampled.length - 1) * ratio)));
+    const previous = sampled[index - 1], next = sampled[Math.min(sampled.length - 1, index + 1)];
+    const start = editor.screen(reverse ? next : previous), end = editor.screen(reverse ? previous : next);
+    const tip = editor.screen(sampled[index]), angle = Math.atan2(end.y - start.y, end.x - start.x), size = 8;
+    const strokeHead = (strokeStyle, lineWidth) => {
+      ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(tip.x - size * Math.cos(angle - 0.55), tip.y - size * Math.sin(angle - 0.55));
+      ctx.lineTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - size * Math.cos(angle + 0.55), tip.y - size * Math.sin(angle + 0.55));
+      ctx.stroke();
+    };
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    strokeHead('rgba(255,255,255,.96)', 4.5);
+    strokeHead(color, 2.2);
+    ctx.restore();
+  }
 
   class MapCanvas {
     constructor(canvas, document, onChange, onSelect, onMeasure, onRelocalize) {
@@ -450,16 +469,17 @@
         const a = this.screen(pointA), b = this.screen(pointB), controls = curveControls(path, pointA, pointB);
         const selected = this.shape?.kind === 'paths' && this.shape.index === index;
         const warning = highlighted.paths.has(index), multiple = this.selectedPathIndices.has(index);
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = warning ? '#cf333d' : selected ? theme.selected : multiple ? '#0a8f9b' : theme.route; ctx.lineWidth = warning ? 4 : selected || multiple ? 2.8 : 1.7;
+        const pathColor = warning ? '#cf333d' : selected ? theme.selected : multiple ? '#0a8f9b' : theme.route;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = pathColor; ctx.lineWidth = warning ? 4 : selected || multiple ? 2.8 : 1.7;
         ctx.beginPath(); ctx.moveTo(a.x, a.y);
         if (controls) { const c1 = this.screen(controls[0]), c2 = this.screen(controls[1]); ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, b.x, b.y); }
         else ctx.lineTo(b.x, b.y);
         ctx.stroke();
-        if (!path.bidirectional) {
-          const sampled = samplePath(path, pointA, pointB), middle = Math.floor(sampled.length / 2), from = this.screen(sampled[Math.max(0, middle - 1)]), to = this.screen(sampled[Math.min(sampled.length - 1, middle + 1)]);
-          const angle = Math.atan2(to.y - from.y, to.x - from.x), x = (from.x + to.x) / 2, y = (from.y + to.y) / 2;
-          ctx.beginPath(); ctx.moveTo(x - 8 * Math.cos(angle - .5), y - 8 * Math.sin(angle - .5)); ctx.lineTo(x, y); ctx.lineTo(x - 8 * Math.cos(angle + .5), y - 8 * Math.sin(angle + .5)); ctx.stroke();
-        }
+        const sampled = samplePath(path, pointA, pointB);
+        if (path.bidirectional) {
+          drawDirectionArrow(ctx, this, sampled, 0.36, false, pathColor);
+          drawDirectionArrow(ctx, this, sampled, 0.64, true, pathColor);
+        } else drawDirectionArrow(ctx, this, sampled, 0.5, false, pathColor);
       }
       window.drawLiveMap?.(this);
       displayedPoints.forEach((point, index) => {
