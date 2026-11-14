@@ -5,7 +5,7 @@
     const matched=frame?.switch?.status==='ready' && Number(frame.switch.map_id)===Number(mapId);
     const nav=frame?.navigation||{}, route=matched&&nav.map_id===frame.switch.map_id&&nav.version===frame.switch.version&&nav.key===frame.switch.key?nav:null;
     return {matched,connected:fresh&&!!frame?.connected,localization:loc,position:frame?.position||null,
-      vehicleStatus:frame?.status||null,navigation:nav,switch:frame?.switch||null,recovery:frame?.recovery||null,relocalization:frame?.relocalization||null,
+      vehicleStatus:fresh?frame?.status||null:null,navigation:nav,switch:frame?.switch||null,recovery:frame?.recovery||null,relocalization:frame?.relocalization||null,
       inhibited:fresh&&typeof frame?.inhibited==='boolean'?frame.inhibited:null,
       pose:matched&&fresh&&loc?.valid&&loc.source==='ros'?frame.position:null,
       route,progress:route&&fresh&&((nav.status==='running'&&nav.progress_fresh&&Number.isInteger(nav.target_index)&&nav.target_index>=0)||nav.status==='success'),

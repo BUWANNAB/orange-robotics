@@ -183,3 +183,28 @@ test('invalid-object highlights remain visible when normal object layers are hid
   draw.call(editor);
   assert.ok(commands.some(command => command.name === 'stroke' && command.color === '#cf333d'));
 });
+
+test('straight route arrowheads sit between stations and show each allowed direction', () => {
+  for (const bidirectional of [false, true]) {
+    const { editor, commands } = fixture({
+      paths: [{start: 'A', end: 'B', bidirectional}]
+    });
+    editor.layers.coordinates = false;
+    editor.layers.background = false;
+    editor.layers.stations = false;
+    draw.call(editor);
+    const left = editor.screen(editor.document.points[0]).x;
+    const right = editor.screen(editor.document.points[1]).x;
+    const heads = commands.flatMap((command, index) => {
+      if (command.name !== 'stroke' || command.color !== 'rgba(255,255,255,.96)') return [];
+      return [{tip: commands[index - 2].args[0], tail: commands[index - 3].args[0]}];
+    });
+    assert.equal(heads.length, bidirectional ? 2 : 1);
+    assert.ok(heads.every(({tip}) => tip > left && tip < right));
+    if (bidirectional) {
+      assert.ok(heads[0].tip < heads[1].tip);
+      assert.ok(heads[0].tip < heads[0].tail);
+    }
+    assert.ok(heads.at(-1).tip > heads.at(-1).tail);
+  }
+});

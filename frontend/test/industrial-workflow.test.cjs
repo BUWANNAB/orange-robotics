@@ -1,4 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const consoleUI=require('../src/modules/operations/rcs-console.js');
 const source=fs.readFileSync('frontend/src/modules/operations/operations.js','utf8');
 const functions=source.slice(0,source.indexOf("  $('nav').onclick="))+'window.probe={state,dialog,closeDialog,preventPendingDialogCancel,canLeaveOperations,saveMap,leaveMap,mapRecoveries,refreshMapTasks,refreshMapMissions,renderMapMissions,action};})();';
 function harness(){
@@ -14,7 +15,7 @@ function harness(){
     return nodes.get(id);
   }
   const api={get:async(url,params)=>{calls.push({method:'get',url,params});return {list:[],total:0}},post:async(url,payload)=>{calls.push({method:'post',url,payload});return {}}};
-  const window={OpsAPI:api,alert:message=>calls.push({method:'alert',message}),confirm:()=>false};
+  const window={OpsAPI:api,RcsConsole:consoleUI,alert:message=>calls.push({method:'alert',message}),confirm:()=>false};
   vm.runInNewContext(functions,{window,document:{getElementById:element,querySelectorAll:()=>[],documentElement:{classList:{contains:()=>false}}},location:{search:'',origin:'http://localhost'},URLSearchParams,structuredClone,clearTimeout,FormData:class{constructor(values){this.values=values}get(key){return this.values[key]}},Set,Map,Date,Math});
   const controller=window.probe;
   Object.assign(controller.state,{map:{document:{points:[],paths:[],areas:[]}},mapRow:{id:10,revision:1},permissions:['*']});
@@ -88,7 +89,8 @@ test('publishing uses the server receipt without a second fetch that could repor
   await h.element('dialog-form').onsubmit({preventDefault(){},target:{confirmation:'验证地图'}});
   assert.equal(h.calls.filter(call=>call.method==='post').length,1);
   assert.equal(h.calls.filter(call=>call.method==='get').length,0);
-  assert.match(h.element('map-save-state').textContent,/已发布 v3 · 等待设备加载确认/);
+  assert.equal(h.element('map-save-state').textContent,'服务器已发布 v3');
+  assert.equal(h.element('map-loaded-version').textContent,'等待设备反馈');
   assert.equal(h.controller.state.mapRow.revision,2);
 });
 

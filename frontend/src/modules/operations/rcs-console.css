@@ -42,7 +42,15 @@ body:has(.rcs-console) #dialog .primary{border-color:#015ee7;background:#015ee7;
 
 @media(min-width:781px) and (max-width:1000px){.rcs-console .rcs-edit-toggle span{display:none}.rcs-console .rcs-tool-menu>summary.rcs-edit-toggle{min-width:30px;padding:4px 7px}}
 
-.rcs-console .rcs-measure-readout{bottom:32px}.rcs-console .rcs-measure-readout:empty{display:none}.rcs-console .map-canvas-head{background:transparent;opacity:.65}
+.rcs-console .rcs-measure-readout{bottom:32px}.rcs-console .rcs-measure-readout:empty{display:none}
+.rcs-console .map-canvas-head{background:#fffffff2}
+.rcs-console .map-canvas-head>strong,.rcs-console .map-canvas-head>#map-tool-hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#354c60}
+.rcs-console .map-canvas-head #map-save-state[data-tone="pending"],.rcs-console .map-canvas-head #map-save-state[data-tone="error"]{font-weight:700}
+.rcs-console .map-version-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 10px;margin:8px 0;color:#354c60}
+.rcs-console .map-version-summary dt{color:#50647b}
+.rcs-console .map-version-summary dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.rcs-console .map-task-execution>header #map-task-state,.rcs-console .rcs-execution-note{color:#50647b}
+.rcs-console .mission-execution-progress b{font-size:calc(15 * var(--rcs-px, 1px))}
 .rcs-console .map-canvas-head #map-save-state{color:#354c60;font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rcs-console #map-save-detail{font-weight:600;color:#275741}
 .rcs-console #map-save-detail[data-tone="pending"],.rcs-console #map-save-state[data-tone="pending"],.rcs-console .map-fields-pending{color:#774818}

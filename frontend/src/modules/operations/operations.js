@@ -29,6 +29,16 @@
   const button = (label, action, id, permission, cls='') => !permission||can(permission)?`<button class="${cls}" data-action="${action}" data-id="${escape(id)}">${label}</button>`:'';
   function taskMotionStatus(task){return ['dispatched','running'].includes(task.status)&&task.motion_state&&task.motion_state!=='running'?task.motion_state:task.status;}
   function taskMotionBadge(task){return badge(taskMotionStatus(task));}
+  function taskMotionMessage(task){
+    switch (task && taskMotionStatus(task)){
+      case 'pausing': return '正在停车，等待设备确认。';
+      case 'paused': return '设备已确认停稳，可沿原路线继续。';
+      case 'resuming': return '正在等待设备确认继续路线。';
+      case 'stop_requested': return '停止请求已发送，等待设备确认停稳。';
+      case 'unknown': return '设备未确认停车状态。请停止并锁定，再检查设备反馈。';
+      default: return '';
+    }
+  }
   function taskMotionControls(task){
     if(!can('robot:control')||!can('task:edit')||!['dispatched','running'].includes(task.status))return '';
     const motion=task.motion_state||'running';
@@ -182,10 +192,20 @@
     if(!can('task:view')){list.innerHTML='<p class="map-list-empty">当前账号没有任务查看权限</p>';count.textContent='—';return;}
     count.textContent=String(state.mapTaskTotal);
     list.innerHTML=state.mapTasks.map(task=>`<div class="map-task-entry"><button type="button" class="map-task-row" data-action="map-task-detail" data-id="${task.id}"><span><strong>${escape(task.name)}</strong><small>${escape(task.from_point)} → ${escape(task.to_point)}</small></span>${taskMotionBadge(task)}</button>${task.status==='queued'&&can('task:edit')?button('×','map-task-cancel',task.id,'task:edit','map-task-cancel-button'):''}</div>`).join('')||'<p class="map-list-empty">暂无任务记录</p>';
-    const active=(state.mapActiveTasks??state.mapTasks).find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
+    const active=activeMapTask();
     $('map-task-active').classList.toggle('has-active-task',!!active);
-    $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${taskMotionBadge(active)}</span>${taskMotionControls(active)}${can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
+    const message=taskMotionMessage(active);
+    $('map-task-active').innerHTML=active?`<strong>${escape(active.name)}</strong><span>${escape(active.from_point)} → ${escape(active.to_point)} · ${taskMotionBadge(active)}</span>${message?`<p class="rcs-execution-note">${escape(message)}</p>`:''}${taskMotionControls(active)}${active.status!=='stop_requested'&&can('task:edit')&&can('robot:control')?button('停止并锁定','map-task-stop',active.id,'task:edit','danger'):''}`:'<span>当前没有正在执行的任务</span>';
     renderMapMissionExecution();
+  }
+  function activeMapTask(){
+    return (state.mapActiveTasks??state.mapTasks).find(task=>String(task.map_id)===String(state.mapRow?.id)&&['dispatched','running','stop_requested'].includes(task.status));
+  }
+  function renderSingleTaskStatus(){
+    const active=activeMapTask();
+    const repeat=$('map-repeat-readout');
+    if(repeat)repeat.textContent=active?'单次任务':'—';
+    $('map-task-state').textContent=active?(labels[taskMotionStatus(active)]||taskMotionStatus(active)):state.mapActiveTasks===null?'等待读取任务':'暂无执行中的任务';
   }
   function findMapTask(id){return [...(state.mapActiveTasks||[]),...state.mapTasks].find(task=>String(task.id)===String(id));}
   async function refreshMapTasks(){
@@ -206,7 +226,7 @@
     catch(error){if(state.map===editor)editor.robotModel=null;}
   }
   function taskModeMarkup(){
-    const options=[['auto','自动'],['manual','手动'],['schedule','调度']];
+    const options=[['auto','自动连续'],['manual','手动逐步'],['schedule','定时调度']];
     const help='仅设置新任务链：手动逐步下发、自动连续执行、调度按时间执行；不切换底盘实体驾驶模式，正在执行的任务保持原有方式。';
     return `<div class="task-mode-switch" role="group" aria-label="新任务链执行方式" aria-busy="${state.taskModePending||!state.taskModeReady}" title="${help}"><span>${state.taskModeReady?'新任务':'读取中'}</span>${options.map(([mode,label])=>`<button type="button" data-action="task-mode-set" data-id="${mode}" title="${label}：${mode==='manual'?'每一步人工下发':mode==='auto'?'按顺序连续执行':'按计划时间开始'}；仅用于新任务链" aria-pressed="${state.taskModeReady&&state.taskMode===mode}" ${!state.taskModeReady||state.taskModePending||!can('robot:control')?'disabled':''}>${label}</button>`).join('')}<output id="task-mode-feedback" class="task-mode-feedback ${state.taskModeError?'error':''}" role="status" ${state.taskModeMessage?'':'hidden'}>${escape(state.taskModeMessage)}</output></div>`;
   }
@@ -231,6 +251,7 @@
     if(run.status==='queued'&&run.task_mode==='schedule')return '等待调度';
     if(run.status==='pausing')return '正在停车，等待设备确认';
     if(run.status==='resuming')return '正在沿原路线继续';
+    if(run.status==='paused')return run.active_task?.motion_state==='paused'?'已停稳 · 可沿原路线继续':'任务链已暂停';
     if(run.status==='finishing')return '末站等待中';
     return labels[run.status]||run.status;
   }
@@ -242,7 +263,7 @@
     let actions='';
     if(run.status==='waiting_manual'&&missionWaitSeconds(run)===0)actions+=button('下发下一步','mission-advance',run.id,'robot:control','mission-advance');
     if(run.status==='paused'&&activeTask?.motion_state!=='unknown')actions+=button(run.active_task?'继续原路线':'继续任务链','mission-resume',run.id,'robot:control','task-resume');
-    if(['queued','running','waiting_manual'].includes(run.status))actions+=button(activeTask?'暂停路线':'暂停任务链','mission-pause',run.id,'robot:control','task-pause');
+    if(['queued','running','waiting_manual'].includes(run.status)&&activeTask?.motion_state!=='unknown'&&activeTask?.status!=='stop_requested')actions+=button(activeTask?'暂停路线':'暂停任务链','mission-pause',run.id,'robot:control','task-pause');
     if(['pausing','resuming'].includes(run.status))actions+='<button type="button" disabled>等待设备确认</button>';
     if(activeTask?.status==='stop_requested')actions+='<button type="button" disabled>等待停车确认</button>';
     else if(activeTask&&can('task:edit'))actions+=button(activeTask.status==='queued'?'撤销当前步骤':'停止并锁定','mission-stop-step',run.id,'robot:control','danger');
@@ -256,16 +277,30 @@
     const active=state.mapMissionRuns.find(item=>activeStates.includes(item.status)&&item.status!=='queued')||state.mapMissionRuns.find(item=>item.status==='queued');
     const run=selected&&activeStates.includes(selected.status)&&(selected.status!=='queued'||active?.status==='queued')?selected:active||selected||state.mapMissionRuns[0];
     if(single.classList.contains('has-active-task')&&run&&!activeStates.includes(run.status)){
-      panel.hidden=true;single.hidden=false;return;
+      panel.hidden=true;single.hidden=false;renderSingleTaskStatus();return;
     }
     panel.hidden=!run;single.hidden=!!run;
-    const repeatReadout=$('map-repeat-readout');if(repeatReadout)repeatReadout.textContent=run?(run.repeat_count===-1?'无限':String(run.repeat_count)):'未执行';
-    if(!run)return;
+    if(!run){renderSingleTaskStatus();return;}
+    const repeatReadout=$('map-repeat-readout');
+    const total=run.repeat_count===-1?'∞':run.repeat_count;
+    const completed=run.cycles_completed||0;
+    if(repeatReadout)repeatReadout.textContent=`已完成 ${completed} / ${total} 轮`;
     state.selectedMissionId=run.id;
     $('map-task-state').textContent=missionStateLabel(run);
-    const total=run.repeat_count===-1?'∞':run.repeat_count,wait=missionWaitSeconds(run);
+    const wait=missionWaitSeconds(run);
     const target=run.active_task?.to_point||run.steps?.[run.step_index]?.point;
-    panel.innerHTML=`<strong>${escape(run.name)}</strong><div class="mission-execution-progress"><b>${run.cycles_completed||0}<small> / ${total} 轮</small></b><span>第 ${Math.min((run.step_index||0)+1,run.steps.length)} / ${run.steps.length} 步</span></div>${target?`<p>目标站点 <strong>${escape(target)}</strong></p>`:''}${run.scheduled_at&&run.status==='queued'?`<p>计划时间 ${stamp(run.scheduled_at)}</p>`:''}${wait&&['running','waiting_manual','finishing'].includes(run.status)?`<p>到站等待：剩余 ${wait} 秒</p>`:''}${run.failure?`<p class="mission-error">${escape(run.failure)}</p>`:''}<div class="mission-run-actions">${missionControls(run)}</div>`;
+    const stepCount=run.steps.length;
+    const from=run.active_task?.from_point;
+    const inProgress=activeStates.includes(run.status);
+    const round=run.repeat_count===-1?completed+1:Math.min(completed+1,run.repeat_count);
+    const motion=taskMotionMessage(run.active_task);
+    const stepProgress=inProgress&&run.status!=='finishing'
+      ? `<div class="mission-execution-progress"><b>第 ${round} / ${total} 轮</b><span>第 ${Math.min((run.step_index||0)+1,stepCount)} / ${stepCount} 步</span></div>`
+      : '';
+    const route=target&&inProgress&&run.status!=='finishing'
+      ? `<p>${from?`<strong>${escape(from)} → ${escape(target)}</strong>`:`下一站 <strong>${escape(target)}</strong>`}</p>`
+      : '';
+    panel.innerHTML=`<strong>${escape(run.name)}</strong>${stepProgress}${route}${motion&&inProgress?`<p class="rcs-execution-note">${escape(motion)}</p>`:''}${run.scheduled_at&&run.status==='queued'?`<p>计划时间 ${stamp(run.scheduled_at)}</p>`:''}${wait&&['running','waiting_manual','finishing'].includes(run.status)?`<p>到站等待：剩余 ${wait} 秒</p>`:''}${run.failure?`<p class="mission-error">${escape(run.failure)}</p>`:''}<div class="mission-run-actions">${missionControls(run)}</div>`;
   }
   function renderMapMissions(){
     const plans=$('map-mission-plans'),runs=$('map-mission-runs');if(!plans||!runs)return;
@@ -572,7 +607,7 @@
       const points=state.map.document.points,paths=state.map.document.paths,query=$('map-point-search').value.trim().toLowerCase();
       $('map-point-count').textContent=String(points.length);$('map-path-count').textContent=String(paths.length);
       $('map-point-list').innerHTML=points.map((point,index)=>({point,index})).filter(({point})=>`${point.code} ${point.name||''}`.toLowerCase().includes(query)).map(({point,index})=>`<button type="button" class="map-object-row ${state.map.selected===index?'active':''}" data-map-select-point="${escape(point.code)}"><i class="object-dot ${escape(point.type||'station')}"></i><span><strong>${escape(point.code)}</strong><small>${escape(point.name||'未命名站点')}</small></span><b>⋮</b></button>`).join('')||'<p class="map-list-empty">没有匹配站点</p>';
-      $('map-path-list').innerHTML=paths.map((path,index)=>`<div class="map-route-select-row"><input type="checkbox" data-map-path-check="${index}" aria-label="选择路线 ${escape(path.start)} 到 ${escape(path.end)}" ${state.map.selectedPathIndices.has(index)?'checked':''} ${can('map:edit')?'':'disabled'}><button type="button" class="map-object-row ${state.map.shape?.kind==='paths'&&state.map.shape.index===index?'active':''}" data-map-select-path="${index}"><i class="path-list-mark"></i><span><strong>${escape(path.start)} → ${escape(path.end)}</strong><small>${Number(path.speed).toFixed(2)} m/s · ${path.curve_mode==='smooth'?'平滑曲线':'直线'} · ${path.bidirectional?'双向':'单向'}</small></span></button></div>`).join('')||'<p class="map-list-empty">还没有路线</p>';
+      $('map-path-list').innerHTML=paths.map((path,index)=>`<div class="map-route-select-row"><input type="checkbox" data-map-path-check="${index}" aria-label="选择路线 ${escape(path.start)} 到 ${escape(path.end)}" ${state.map.selectedPathIndices.has(index)?'checked':''} ${can('map:edit')?'':'disabled'}><button type="button" class="map-object-row ${state.map.shape?.kind==='paths'&&state.map.shape.index===index?'active':''}" data-map-select-path="${index}"><i class="path-list-mark"></i><span><strong>${escape(path.start)} ${path.bidirectional?'↔':'→'} ${escape(path.end)}</strong><small>${Number(path.speed).toFixed(2)} m/s · ${path.curve_mode==='smooth'?'平滑曲线':'直线'} · ${path.bidirectional?'双向':'单向'}</small></span></button></div>`).join('')||'<p class="map-list-empty">还没有路线</p>';
       const count=state.map.selectedPathIndices.size,all=$('map-path-select-all');
       $('map-selected-path-count').textContent=`已选 ${count} 段`;
       all.checked=!!paths.length&&count===paths.length;all.indeterminate=count>0&&count<paths.length;
@@ -588,8 +623,8 @@
       setChip('map-loc-chip',valid?'定位正常':loc.source==='simulation'?'仿真定位':connected?(live.matched?'定位待确认':'地图待定位'):'定位无数据',valid?'good':'warn');
       $('map-pose-readout').textContent=live.pose?`X ${Number(live.pose.LocalX).toFixed(3)} m · Y ${Number(live.pose.LocalY).toFixed(3)} m · 航向 ${Number(live.pose.Heading).toFixed(1)}°`:'位姿：—';
       const task=live.navigation?.status;const taskNames={idle:'无任务',sending:'等待接收',accepted:'已接收',running:'执行中',pausing:'正在停车',paused:'已暂停',resuming:'正在继续',success:'已完成',cancelled:'已取消',failed:'执行失败'};
-      $('map-nav-readout').textContent=`任务：${taskNames[task]||'未知'}`;
-      const taskState=$('map-task-state');if(taskState&&$('map-mission-execution').hidden)taskState.textContent=taskNames[task]||'等待机器人反馈';
+      $('map-nav-readout').textContent=`设备任务：${connected?(taskNames[task]||'未知'):'等待设备反馈'}`;
+      renderMapVersions(live);
       const plc=live.vehicleStatus?.plcConnected;$('map-plc-readout').textContent=`PLC：${plc===true?'在线':plc===false?'离线':'未知'}`;
       $('map-lock-readout').textContent=`软件停止锁：${live.inhibited===true?'已锁定':live.inhibited===false&&connected?'已解除':'未知'}`;
       const recovery=window.MapEditorUI.recoveryView(live,row.id),label=$('map-localization-state');
@@ -610,7 +645,7 @@
       const remove=document.querySelector('[data-action="map-remove"]');if(remove)remove.disabled=!point||!!state.map.pendingMove;
       if(point?.kind==='paths'){
         $('map-tool-hint').textContent=`路线 ${point.start} → ${point.end}`;
-        renderMapProperties(`<p class="inspector-title">${escape(point.start)} → ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','目标线速度（m/s）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">这是该路段的目标线速度。ROS 会根据弯道曲率、制动距离和加减速限制自动调整；实际车速以底盘反馈为准。曲线路径发布前会检查越界与禁行区。</p>${button('应用路径设置','map-shape-apply','paths')}`);return;
+        renderMapProperties(`<p class="inspector-title">${escape(point.start)} ${point.bidirectional?'↔':'→'} ${escape(point.end)}</p>${selectField('shape-curve-mode','路线形状',[['straight','直线'],['smooth','平滑曲线']],point.curve_mode||'straight')}${field('shape-curve-offset','最大偏移（米，负数向另一侧）',point.curve_offset??0,'number','step="0.05"')}${field('shape-speed','目标线速度（m/s）',point.speed,'number','min="0.01" max="3" step="0.01"')}${field('shape-width','通道宽度（米，配置参考）',point.width,'number','min="0.01" max="20" step="0.01"')}${selectField('shape-direction','通行方向',[['true','双向'],['false','单向']],String(point.bidirectional))}<p class="help">这是该路段的目标线速度。ROS 会根据弯道曲率、制动距离和加减速限制自动调整；实际车速以底盘反馈为准。曲线路径发布前会检查越界与禁行区。</p><p class="help">路线箭头表示允许通行的方向。橙色箭头表示当前任务的路线走向。</p>${button('应用路径设置','map-shape-apply','paths')}`);return;
       }
       if(point?.kind==='pending-point'){
         $('map-tool-hint').textContent=`待确认站点 ${point.code} · X ${Number(point.x).toFixed(2)} m · Y ${Number(point.y).toFixed(2)} m`;
@@ -688,6 +723,18 @@
     if(status){status.textContent=message;status.dataset.tone=tone;status.title=message;}
     const detail=$('map-save-detail');
     if(detail){detail.textContent=message;detail.dataset.tone=tone;}
+    renderMapVersions(state.map?.live);
+  }
+  function renderMapVersions(live){
+    const row=state.mapRow, revision=$('map-revision-state'), published=$('map-published-version');
+    const loaded=$('map-loaded-version');
+    if(!row||!revision||!published||!loaded)return;
+    const draftLabel=`r${row.revision}`;
+    const publishedLabel=row.published_version?`v${row.published_version}`:'尚未发布';
+    if(revision.textContent!==draftLabel)revision.textContent=draftLabel;
+    if(published.textContent!==publishedLabel)published.textContent=publishedLabel;
+    const label=window.RcsConsole.loadedMapLabel(row,live);
+    if(loaded.textContent!==label)loaded.textContent=label;
   }
   function checkpointMap(){
     return mapRecoveries.get(state.map)?.write(state.map.document,state.mapRow.revision)===true;
@@ -748,7 +795,6 @@
       state.dirty=JSON.stringify(draft)!==JSON.stringify(editor.document);
       if(state.dirty)checkpointMap();else mapRecoveries.get(editor)?.remove();
       setMapSaveStatus(state.dirty?'正在保存后续修改…':`服务器已保存草稿 r${result.revision}`,state.dirty?'pending':'saved');
-      $('map-revision-state').textContent=`草稿 r${result.revision} · ${result.published_version?'已发布 v'+result.published_version:'尚未发布'}`;
     }catch(error){
       if(state.map===editor)setMapSaveStatus(checkpointMap()?'服务器未确认保存 · 本机已暂存，可重试':'服务器未确认保存 · 请重试或下载草稿','error');
       if(/timeout|Network Error/i.test(error.message))throw new Error('未收到服务器的保存回执。请检查连接，再点“保存草稿”。');
@@ -790,7 +836,7 @@
       });
       state.mapRow=result;state.map.document=structuredClone(result.draft);state.dirty=false;
       await loadMapImage();state.map.fit();
-      $('map-save-state').textContent=`草稿 r${result.revision} 已保存 · 底图 ${asset.id}`;
+      setMapSaveStatus(`草稿 r${result.revision} 已保存 · 底图 ${asset.id}`,'saved');
       notify(`已应用 ${asset.id} 的 PGM 底图；请检查点位是否仍在地图边界内。`);
     },'应用底图');
   }
@@ -1028,7 +1074,15 @@
     if(name==='map-undo'||name==='map-redo'){
       return name==='map-undo'?state.map.undo():state.map.redo();
     }
-    if(name==='map-remove')return previewMapRemoval();if(name==='map-fit')return state.map.fit();if(name==='map-save'){requireFinishedMapPreview();return saveMap();}
+    if(name==='map-remove')return previewMapRemoval();if(name==='map-fit')return state.map.fit();
+    if(name==='map-save'){
+      requireFinishedMapPreview();
+      if(!state.dirty){
+        setMapSaveStatus(`服务器已有当前草稿 r${state.mapRow.revision}`,'saved');
+        return;
+      }
+      return saveMap();
+    }
     if(name==='map-download-draft'){requireFinishedMapPreview();return downloadMapDraft(state.map.document,'路线草稿');}
     if(name==='map-recover')return showMapRecovery();
     if(name==='map-localization-activate'){const editor=state.map;requireFinishedMapPreview();await saveMap();requireFinishedMapPreview();if(state.map!==editor)return;return activateWorkingMap();}
@@ -1080,7 +1134,10 @@
       requireFinishedMapPreview();const editor=state.map,inspector=$('map-object-inspector');if(inspector)inspector.open=true;
       await saveMap();const signature=JSON.stringify(editor.document),issues=await api.post(`/api/maps/${state.mapRow.id}/validate`);
       if(editor!==state.map||signature!==JSON.stringify(editor.document))return;
-      state.mapIssues=issues;editor.setValidationIssues(issues);$('map-issues').innerHTML=window.MapEditorUI.issuesMarkup(issues);return;
+      state.mapIssues=issues;editor.setValidationIssues(issues);
+      $('map-issues').innerHTML=window.MapEditorUI.issuesMarkup(issues);
+      notify(issues.length?`发现 ${issues.length} 处问题，可在右侧点击定位。`:'路线检查通过，可以发布地图。',issues.length>0);
+      return;
     }
     if(name==='map-publish'){
       requireFinishedMapPreview();await saveMap();
@@ -1089,8 +1146,7 @@
         if(state.map!==editor||state.mapRow.revision!==map.revision||state.dirty)throw new Error('草稿已变化，请保存后重新发起发布');
         const result=await api.post(`/api/maps/${map.id}/publish`,{revision:map.revision,confirmation:value});
         state.mapRow={...map,revision:result.revision??map.revision+1,published_version:result.version};
-        $('map-revision-state').textContent=`草稿 r${state.mapRow.revision} · 已发布 v${result.version}`;
-        setMapSaveStatus(`已发布 v${result.version} · 等待设备加载确认`,'saved');
+        setMapSaveStatus(`服务器已发布 v${result.version}`,'saved');
         notify(`服务器已发布地图 v${result.version}。设备加载状态请在运行反馈中确认。`);
       });
     }
@@ -1108,7 +1164,6 @@
         editor.image=null;
         if(editor.document.image)await loadMapImage().catch(error=>notify(error.message,true));
         editor.fit();setMapSaveStatus(`服务器已保存导入草稿 r${result.revision}`,'saved');
-        $('map-revision-state').textContent=`草稿 r${result.revision} · ${result.published_version?'已发布 v'+result.published_version:'尚未发布'}`;
       },'导入并保存草稿');
     }
     if(name==='export-map'){saveBlob(new Blob([JSON.stringify(row.draft,null,2)],{type:'application/json'}),row.name+'.json');return;}

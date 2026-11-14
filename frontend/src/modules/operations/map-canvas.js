@@ -35,11 +35,18 @@
     return points;
   }
   function drawDirectionArrow(ctx, editor, sampled, ratio, reverse, color) {
-    if (!Array.isArray(sampled) || sampled.length < 2) return;
-    const index = Math.max(1, Math.min(sampled.length - 1, Math.round((sampled.length - 1) * ratio)));
-    const previous = sampled[index - 1], next = sampled[Math.min(sampled.length - 1, index + 1)];
-    const start = editor.screen(reverse ? next : previous), end = editor.screen(reverse ? previous : next);
-    const tip = editor.screen(sampled[index]), angle = Math.atan2(end.y - start.y, end.x - start.x), size = 8;
+    const position = (sampled.length - 1) * ratio;
+    const index = Math.floor(position);
+    const start = editor.screen(sampled[index]);
+    const end = editor.screen(sampled[index + 1]);
+    const dx = end.x - start.x, dy = end.y - start.y;
+    if (Math.hypot(dx, dy) < 0.01) return;
+    const first = editor.screen(sampled[0]), last = editor.screen(sampled.at(-1));
+    const size = Math.min(8, Math.hypot(last.x - first.x, last.y - first.y) * 0.14);
+    if (size < 2) return;
+    const fraction = position - index;
+    const tip = {x: start.x + fraction * dx, y: start.y + fraction * dy};
+    const angle = Math.atan2(dy, dx) + (reverse ? Math.PI : 0);
     const strokeHead = (strokeStyle, lineWidth) => {
       ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth;
       ctx.beginPath();
@@ -477,8 +484,8 @@
         ctx.stroke();
         const sampled = samplePath(path, pointA, pointB);
         if (path.bidirectional) {
-          drawDirectionArrow(ctx, this, sampled, 0.36, false, pathColor);
-          drawDirectionArrow(ctx, this, sampled, 0.64, true, pathColor);
+          drawDirectionArrow(ctx, this, sampled, 0.34, true, pathColor);
+          drawDirectionArrow(ctx, this, sampled, 0.66, false, pathColor);
         } else drawDirectionArrow(ctx, this, sampled, 0.5, false, pathColor);
       }
       window.drawLiveMap?.(this);

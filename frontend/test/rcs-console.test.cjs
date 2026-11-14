@@ -7,6 +7,17 @@ const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&l
 const row={id:3,name:'验证地图',revision:2,published_version:1};
 const markup=(options={})=>consoleUI.render({row,maps:[row],can:()=>true,escape,taskModes:'<div class="task-mode-switch"></div>',...options});
 
+test('published and loaded map versions remain distinct when feedback is missing or different',()=>{
+  const live={connected:true,switch:{status:'ready',map_id:row.id,version:1}};
+  assert.match(markup(),/id="map-published-version">v1/);
+  assert.match(markup(),/id="map-loaded-version">等待设备反馈/);
+  assert.equal(consoleUI.loadedMapLabel(row,live),'v1 · 已确认');
+  assert.equal(consoleUI.loadedMapLabel({...row,published_version:2},live),'v1 · 与发布版本不同');
+  assert.equal(consoleUI.loadedMapLabel({...row,id:9},live),'设备已加载另一张地图');
+  assert.equal(consoleUI.loadedMapLabel(row,{...live,connected:false}),'等待设备反馈');
+  assert.equal(consoleUI.loadedMapLabel(row,{...live,localization:{source:'simulation'}}),'仿真中');
+});
+
 test('handbook layout preserves unique live-map, mission, layer and property hooks',()=>{
   const html=markup();
   const ids=['map-editor','map-canvas','map-switch','map-area-kind','map-save-state','map-tool-hint','map-measure-result','map-point-search','map-point-list','map-path-list','map-point-count','map-path-count','point-properties','map-issues','map-task-list','map-task-count','map-mission-plans','map-mission-runs','map-mission-execution','map-task-active','map-task-state','map-robot-card','map-robot-state','map-ros-chip','map-loc-chip','map-live-status','map-pose-readout','map-plc-readout','map-lock-readout','map-nav-readout'];
@@ -58,7 +69,7 @@ test('console dependencies load before operations and do not force a green offli
 });
 
 function navigationHarness(failSave=false){
-  const nodes=new Map(),writes=[],window={top:{location:{href:'map-workbench.html'}}};
+  const nodes=new Map(),writes=[],window={RcsConsole:consoleUI,top:{location:{href:'map-workbench.html'}}};
   const element=id=>{
     if(!nodes.has(id)){
       const classes=new Set();
